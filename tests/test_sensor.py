@@ -257,15 +257,22 @@ async def test_no_cpu_sensor_on_a_feeder_without_a_soc(
     assert _state(hass, "feed_mode") == "UDP"
 
 
-async def test_cpu_sensor_on_a_feeder_with_a_soc(
+async def test_cpu_sensor_survives_an_unreadable_cpu_block(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
-    mock_api: AiohttpClientMocker,
+    aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Test that a single board computer still gets its temperature sensor."""
+    """Test that garbled data keeps the sensor, unlike a build without one.
+
+    A feeder that sends a cpu block has a temperature to report; one poll it
+    could not be read from is worth showing as unknown rather than silently
+    dropping the sensor for the life of the entry.
+    """
+    set_responses(aioclient_mock, monitor={**MOCK_MONITOR_X86, "cpu": "not a mapping"})
+
     assert await setup_integration(hass, mock_config_entry)
 
-    assert _state(hass, "cpu_temperature") == "45.1"
+    assert _state(hass, "cpu_temperature") == STATE_UNKNOWN
 
 
 def test_parse_helpers() -> None:

@@ -91,12 +91,14 @@ def _cpu_temperature(monitor: dict[str, Any]) -> float | None:
 
 
 def _reports_cpu_temperature(monitor: dict[str, Any]) -> bool:
-    """Return True if this feeder reports a host temperature.
+    """Return True if this feeder reports on the host at all.
 
-    Only the builds for single board computers read one out. On x86 there is
-    no SoC to measure, and monitor.json carries no cpu block at all.
+    Only the builds for single board computers read out a temperature. On x86
+    there is no SoC to measure and monitor.json carries no cpu block, so the
+    sensor would never hold a value. A block that is present but unreadable is
+    a different matter: keep the sensor, and let unknown say so.
     """
-    return _cpu_temperature(monitor) is not None
+    return "cpu" in monitor
 
 
 @dataclass(frozen=True, kw_only=True)
