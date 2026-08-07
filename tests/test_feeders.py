@@ -189,6 +189,7 @@ async def test_a_second_feeder_is_not_offered_the_same_decoder(
     them end up reading it and the aircraft get counted several times over.
     """
     mock_config_entry.add_to_hass(hass)
+    mock_api.get(PIAWARE_URL, json=MOCK_PIAWARE)
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
