@@ -15,7 +15,7 @@ from .const import (
     FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
     FEATURE_POSITIONS,
-    MONITOR_MARKER_KEYS,
+    FEEDERS,
     RECEIVER_FILENAME,
     STATS_FILENAME,
 )
@@ -44,9 +44,9 @@ class AdsbStationInvalidResponseError(AdsbStationError):
     """The endpoint answered, but not with the data we expect."""
 
 
-def build_monitor_url(host: str, port: int) -> str:
-    """Return the monitor.json URL for a feeder."""
-    return f"http://{host}:{port}/monitor.json"
+def build_feeder_url(host: str, port: int, feeder_type: str) -> str:
+    """Return the status URL of one kind of feeder."""
+    return f"http://{host}:{port}{FEEDERS[feeder_type].path}"
 
 
 def sibling_url(url: str, filename: str) -> str:
@@ -242,6 +242,7 @@ class AdsbStationClient:
         port: int | None = None,
         aircraft_url: str | None = None,
         stats_url: str | None = None,
+        feeder_type: str | None = None,
     ) -> None:
         """Initialize the client."""
         self._session = session
@@ -249,31 +250,33 @@ class AdsbStationClient:
         self.port = port
         self.aircraft_url = aircraft_url
         self.stats_url = stats_url
+        self.feeder_type = feeder_type
 
     @property
     def has_feeder(self) -> bool:
-        """Return True when an fr24feed status page is configured."""
-        return self.port is not None
+        """Return True when this station uploads through a feeder we can read."""
+        return self.port is not None and self.feeder_type is not None
 
     @property
-    def monitor_url(self) -> str | None:
-        """Return the monitor.json URL, if there is a feeder to read."""
-        if self.port is None:
+    def feeder_url(self) -> str | None:
+        """Return the feeder's status URL, if there is a feeder to read."""
+        if self.port is None or self.feeder_type is None:
             return None
-        return build_monitor_url(self.host, self.port)
+        return build_feeder_url(self.host, self.port, self.feeder_type)
 
-    async def async_get_monitor(self) -> dict[str, Any]:
-        """Fetch monitor.json from the fr24feed status server."""
-        if (url := self.monitor_url) is None:
-            raise AdsbStationInvalidResponseError("No fr24feed status page configured")
+    async def async_get_feeder(self) -> dict[str, Any]:
+        """Fetch the status document of the feeder this entry was set up for."""
+        if (url := self.feeder_url) is None or self.feeder_type is None:
+            raise AdsbStationInvalidResponseError("No feeder configured")
         data = await async_fetch_json(self._session, url)
         if not isinstance(data, dict):
             raise AdsbStationInvalidResponseError(
-                f"Unexpected monitor.json response: {data!r}"
+                f"Unexpected feeder status response: {data!r}"
             )
-        if not MONITOR_MARKER_KEYS & data.keys():
+        kind = FEEDERS[self.feeder_type]
+        if not kind.markers & data.keys():
             raise AdsbStationInvalidResponseError(
-                f"{url} does not look like an fr24feed status page"
+                f"{url} does not look like a {kind.model} status page"
             )
         return data
 

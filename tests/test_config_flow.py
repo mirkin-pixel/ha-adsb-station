@@ -16,21 +16,23 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_FEEDER_TYPE,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
-    DEFAULT_PORT,
     DOMAIN,
+    FEEDER_FR24,
 )
 
 from .conftest import (
     AIRCRAFT_URL,
+    DEFAULT_PORT,
+    FEEDER_URL,
     MOCK_AIRCRAFT,
     MOCK_ALIAS,
     MOCK_HOST,
     MOCK_MONITOR,
     MOCK_STATS,
-    MONITOR_URL,
     RECEIVER_UNIQUE_ID,
     STATS_URL,
     mock_no_aircraft_endpoints,
@@ -57,7 +59,12 @@ async def _choose(hass: HomeAssistant, step: str) -> dict[str, Any]:
     )
     assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "user"
-    assert set(result["menu_options"]) == {"feeder", "receiver"}
+    assert set(result["menu_options"]) == {
+        "fr24feed",
+        "piaware",
+        "planefinder",
+        "receiver",
+    }
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": step}
@@ -71,7 +78,7 @@ async def _start_user_step(
     hass: HomeAssistant, host: str = MOCK_HOST
 ) -> dict[str, Any]:
     """Run the menu and the feeder step of the user flow."""
-    result = await _choose(hass, "feeder")
+    result = await _choose(hass, "fr24feed")
     return await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: host, CONF_PORT: DEFAULT_PORT}
     )
@@ -104,6 +111,7 @@ async def test_user_flow(hass: HomeAssistant, mock_api: AiohttpClientMocker) -> 
     assert result["data"] == {
         CONF_HOST: MOCK_HOST,
         CONF_PORT: DEFAULT_PORT,
+        CONF_FEEDER_TYPE: FEEDER_FR24,
         CONF_AIRCRAFT_URL: AIRCRAFT_URL,
         CONF_STATS_URL: STATS_URL,
         # This receiver reports no gain, so the feature is not recorded
@@ -116,7 +124,7 @@ async def test_user_flow_without_a_receiver(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test a flow where no aircraft.json is found and the field is left empty."""
-    aioclient_mock.get(MONITOR_URL, json=MOCK_MONITOR)
+    aioclient_mock.get(FEEDER_URL, json=MOCK_MONITOR)
     mock_no_aircraft_endpoints(aioclient_mock)
 
     result = await _start_user_step(hass)
@@ -136,7 +144,7 @@ async def test_user_flow_without_an_alias(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test that a feeder without an alias falls back to host and port."""
-    aioclient_mock.get(MONITOR_URL, json={"rx_connected": 1})
+    aioclient_mock.get(FEEDER_URL, json={"rx_connected": 1})
     aioclient_mock.get(AIRCRAFT_URL, json=MOCK_AIRCRAFT)
     aioclient_mock.get(STATS_URL, json=MOCK_STATS)
     mock_unused_candidates(aioclient_mock)
@@ -169,7 +177,7 @@ async def test_user_flow_feeder_errors(
     expected_error: str,
 ) -> None:
     """Test the errors of the first step, then recovery."""
-    aioclient_mock.get(MONITOR_URL, **monitor_kwargs)
+    aioclient_mock.get(FEEDER_URL, **monitor_kwargs)
 
     result = await _start_user_step(hass)
     assert result["type"] is FlowResultType.FORM
@@ -188,7 +196,7 @@ async def test_user_flow_unknown_error(
 ) -> None:
     """Test an unexpected error while reading monitor.json."""
     with patch(
-        "custom_components.adsb_station.config_flow.AdsbStationClient.async_get_monitor",
+        "custom_components.adsb_station.config_flow.AdsbStationClient.async_get_feeder",
         side_effect=ValueError,
     ):
         result = await _start_user_step(hass)
@@ -212,7 +220,7 @@ async def test_user_flow_receiver_errors(
     expected_error: str,
 ) -> None:
     """Test the errors of the second step, then recovery."""
-    aioclient_mock.get(MONITOR_URL, json=MOCK_MONITOR)
+    aioclient_mock.get(FEEDER_URL, json=MOCK_MONITOR)
     mock_no_aircraft_endpoints(aioclient_mock)
     aioclient_mock.get(CUSTOM_AIRCRAFT_URL, **aircraft_kwargs)
 
@@ -236,7 +244,7 @@ async def test_user_flow_receiver_unknown_error(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test an unexpected error while reading aircraft.json."""
-    aioclient_mock.get(MONITOR_URL, json=MOCK_MONITOR)
+    aioclient_mock.get(FEEDER_URL, json=MOCK_MONITOR)
     mock_no_aircraft_endpoints(aioclient_mock)
 
     result = await _start_user_step(hass)
@@ -278,7 +286,7 @@ async def test_reconfigure(
     result = await mock_config_entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
     # Reconfigure skips the menu: the kind of station is already known
-    assert result["step_id"] == "feeder"
+    assert result["step_id"] == "fr24feed"
     assert _suggested(result, CONF_HOST) == MOCK_HOST
 
     result = await hass.config_entries.flow.async_configure(
@@ -339,8 +347,9 @@ async def test_receiver_only_flow(
     assert result["title"] == f"ADS-B station ({MOCK_HOST})"
     assert result["data"] == {
         CONF_HOST: MOCK_HOST,
-        # No feeder, so no status page port
+        # No feeder, so no status page port and no kind of feeder
         CONF_PORT: None,
+        CONF_FEEDER_TYPE: None,
         CONF_AIRCRAFT_URL: AIRCRAFT_URL,
         CONF_STATS_URL: STATS_URL,
         CONF_RECEIVER_FEATURES: [],
@@ -348,7 +357,7 @@ async def test_receiver_only_flow(
     assert result["result"].unique_id == RECEIVER_UNIQUE_ID
     # The feeder is never contacted on this path
     assert not [
-        request for request in mock_api.mock_calls if str(request[1]) == MONITOR_URL
+        request for request in mock_api.mock_calls if str(request[1]) == FEEDER_URL
     ]
 
 

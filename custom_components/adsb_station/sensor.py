@@ -17,6 +17,8 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
+    UnitOfDataRate,
+    UnitOfInformation,
     UnitOfLength,
     UnitOfSpeed,
     UnitOfTemperature,
@@ -33,6 +35,9 @@ from .const import (
     FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
     FEATURE_POSITIONS,
+    FEEDER_FR24,
+    FEEDER_PIAWARE,
+    FEEDER_PLANEFINDER,
     SECTORS,
 )
 from .coordinator import (
@@ -152,10 +157,13 @@ class AdsbStationSensorEntityDescription(SensorEntityDescription):
     """Describes a sensor that reads monitor.json."""
 
     value_fn: Callable[[dict[str, Any]], Any]
-    # What monitor.json holds differs per build. When set, this decides from
-    # the first poll whether the feeder reports the field at all, so a build
-    # that never sends it does not get a sensor stuck on unknown.
+    # What the status document holds differs per build. When set, this decides
+    # from the first poll whether the feeder reports the field at all, so a
+    # build that never sends it does not get a sensor stuck on unknown.
     supported_fn: Callable[[dict[str, Any]], bool] | None = None
+    # Extra detail alongside the value, such as the sentence a status colour
+    # stands for.
+    attributes_fn: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -175,7 +183,7 @@ class AdsbStationReceptionSensorEntityDescription(SensorEntityDescription):
     feature: str | None = None
 
 
-FEEDER_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
+FR24_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
     AdsbStationSensorEntityDescription(
         key="aircraft_tracked",
         translation_key="aircraft_tracked",
@@ -276,6 +284,156 @@ FEEDER_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         supported_fn=lambda monitor: "num_resyncs" in monitor,
     ),
 )
+
+
+def _section(payload: dict[str, Any], name: str, key: str) -> Any:
+    """Return one field of a PiAware status section."""
+    section = payload.get(name)
+    return section.get(key) if isinstance(section, dict) else None
+
+
+def _section_message(name: str) -> Callable[[dict[str, Any]], dict[str, Any] | None]:
+    """Return a reader for the sentence behind a PiAware status colour."""
+
+    def read(payload: dict[str, Any]) -> dict[str, Any] | None:
+        message = _as_text(_section(payload, name, "message"))
+        return None if message is None else {"message": message}
+
+    return read
+
+
+def _piaware_status(
+    key: str, name: str, *, diagnostic: bool = False
+) -> AdsbStationSensorEntityDescription:
+    """Describe one of PiAware's four status sections.
+
+    They are green, amber or red rather than up or down, and amber carries
+    real information: PiAware reporting an unstable clock is still running,
+    but multilateration will not work. A binary sensor would throw that away,
+    so these stay three-valued with the sentence as an attribute.
+    """
+    return AdsbStationSensorEntityDescription(
+        key=key,
+        translation_key=key,
+        device_class=SensorDeviceClass.ENUM,
+        options=["green", "amber", "red"],
+        entity_category=EntityCategory.DIAGNOSTIC if diagnostic else None,
+        value_fn=lambda payload: _as_text(_section(payload, name, "status")),
+        supported_fn=lambda payload: name in payload,
+        attributes_fn=_section_message(name),
+    )
+
+
+PIAWARE_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
+    _piaware_status("piaware_radio", "radio"),
+    _piaware_status("piaware_feed", "adept"),
+    _piaware_status("piaware_mlat", "mlat"),
+    _piaware_status("piaware_service", "piaware", diagnostic=True),
+    AdsbStationSensorEntityDescription(
+        key="piaware_cpu_load",
+        translation_key="piaware_cpu_load",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda payload: _as_float(payload.get("cpu_load_percent")),
+        supported_fn=lambda payload: "cpu_load_percent" in payload,
+    ),
+    AdsbStationSensorEntityDescription(
+        key="piaware_uptime",
+        translation_key="piaware_uptime",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        value_fn=lambda payload: _as_float(payload.get("system_uptime")),
+        supported_fn=lambda payload: "system_uptime" in payload,
+    ),
+    AdsbStationSensorEntityDescription(
+        key="piaware_cpu_temperature",
+        translation_key="piaware_cpu_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda payload: _as_float(payload.get("cpu_temp_celcius")),
+        # A host with nothing to read reports a flat 0.0 rather than leaving
+        # the field out, which would otherwise be a sensor stuck at freezing.
+        supported_fn=lambda payload: bool(_as_float(payload.get("cpu_temp_celcius"))),
+    ),
+)
+
+
+PLANEFINDER_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
+    AdsbStationSensorEntityDescription(
+        key="pf_message_rate",
+        translation_key="pf_message_rate",
+        native_unit_of_measurement=UNIT_MESSAGES_PER_SECOND,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda payload: _as_int(payload.get("total_modes_packets_ps")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_messages",
+        translation_key="pf_messages",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda payload: _as_int(payload.get("total_modes_packets")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_modeac_messages",
+        translation_key="pf_modeac_messages",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda payload: _as_int(payload.get("total_modeac_packets")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_crc_errors",
+        translation_key="pf_crc_errors",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda payload: _as_int(payload.get("total_modes_crc_bad")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_uploaded",
+        translation_key="pf_uploaded",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.MEGABYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=1,
+        value_fn=lambda payload: _as_int(payload.get("master_server_bytes_out")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_mlat_uploaded",
+        translation_key="pf_mlat_uploaded",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.KILOBYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=1,
+        value_fn=lambda payload: _as_int(payload.get("mlat_bytes_out")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="pf_receiver_rate",
+        translation_key="pf_receiver_rate",
+        native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
+        device_class=SensorDeviceClass.DATA_RATE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda payload: _as_int(payload.get("receiver_bytes_in_ps")),
+    ),
+)
+
+
+FEEDER_SENSORS: dict[str, tuple[AdsbStationSensorEntityDescription, ...]] = {
+    FEEDER_FR24: FR24_SENSORS,
+    FEEDER_PIAWARE: PIAWARE_SENSORS,
+    FEEDER_PLANEFINDER: PLANEFINDER_SENSORS,
+}
+
 
 AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
     AdsbStationAircraftSensorEntityDescription(
@@ -482,11 +640,11 @@ async def async_setup_entry(
 
     entities: list[SensorEntity] = []
     if coordinator.client.has_feeder:
-        monitor = coordinator.data.monitor or {}
+        payload = coordinator.data.feeder or {}
         entities.extend(
             AdsbStationSensor(coordinator, description)
-            for description in FEEDER_SENSORS
-            if description.supported_fn is None or description.supported_fn(monitor)
+            for description in FEEDER_SENSORS.get(coordinator.feeder_type or "", ())
+            if description.supported_fn is None or description.supported_fn(payload)
         )
     if coordinator.client.aircraft_url:
         entities.extend(
@@ -528,7 +686,14 @@ class AdsbStationSensor(AdsbStationEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the sensor value."""
-        return self.entity_description.value_fn(self.monitor)
+        return self.entity_description.value_fn(self.feeder)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return whatever detail this sensor carries alongside its value."""
+        if (read := self.entity_description.attributes_fn) is None:
+            return None
+        return read(self.feeder)
 
 
 class AdsbStationAircraftSensor(AdsbStationAircraftEntity, SensorEntity):

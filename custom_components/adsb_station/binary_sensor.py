@@ -16,6 +16,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import FEEDER_FR24, FEEDER_PLANEFINDER
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
 from .entity import AdsbStationAircraftEntity, AdsbStationEntity
 from .sensor import aircraft_attributes
@@ -29,8 +30,16 @@ TRUE_VALUES = frozenset({"1", "true", "yes", "on", "connected"})
 FALSE_VALUES = frozenset({"0", "false", "no", "off", "disconnected"})
 
 
+def _as_int(value: Any) -> int | None:
+    """Parse a counter, which a feeder may quote as a string."""
+    try:
+        return int(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
 def _as_bool(value: Any) -> bool | None:
-    """Parse a flag that monitor.json reports as bool, number or string."""
+    """Parse a flag a feeder reports as bool, number or string."""
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
@@ -48,32 +57,53 @@ def _as_bool(value: Any) -> bool | None:
 
 @dataclass(frozen=True, kw_only=True)
 class AdsbStationBinarySensorEntityDescription(BinarySensorEntityDescription):
-    """Describes a binary sensor that reads monitor.json."""
+    """Describes a binary sensor that reads the feeder's status document."""
 
     value_fn: Callable[[dict[str, Any]], bool | None]
 
 
-BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
+FR24_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
     AdsbStationBinarySensorEntityDescription(
         key="receiver",
         translation_key="receiver",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
-        value_fn=lambda monitor: _as_bool(monitor.get("rx_connected")),
+        value_fn=lambda payload: _as_bool(payload.get("rx_connected")),
     ),
     AdsbStationBinarySensorEntityDescription(
         key="feed",
         translation_key="feed",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
-        value_fn=lambda monitor: _as_bool(monitor.get("feed_status")),
+        value_fn=lambda payload: _as_bool(payload.get("feed_status")),
     ),
     AdsbStationBinarySensorEntityDescription(
         key="mlat",
         translation_key="mlat",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda monitor: _as_bool(monitor.get("mlat_ok")),
+        value_fn=lambda payload: _as_bool(payload.get("mlat_ok")),
     ),
 )
+
+PLANEFINDER_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
+    AdsbStationBinarySensorEntityDescription(
+        key="pf_mlat",
+        translation_key="pf_mlat",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        # pfclient publishes no multilateration flag, but it does count what it
+        # has sent, and a station whose clock is too unstable to multilaterate
+        # sends nothing at all.
+        value_fn=lambda payload: (
+            (value := _as_int(payload.get("mlat_bytes_out"))) is not None and value > 0
+        ),
+    ),
+)
+
+FEEDER_BINARY_SENSORS: dict[
+    str, tuple[AdsbStationBinarySensorEntityDescription, ...]
+] = {
+    FEEDER_FR24: FR24_BINARY_SENSORS,
+    FEEDER_PLANEFINDER: PLANEFINDER_BINARY_SENSORS,
+}
 
 
 async def async_setup_entry(
@@ -87,7 +117,9 @@ async def async_setup_entry(
     if coordinator.client.has_feeder:
         entities.extend(
             AdsbStationBinarySensor(coordinator, description)
-            for description in BINARY_SENSORS
+            for description in FEEDER_BINARY_SENSORS.get(
+                coordinator.feeder_type or "", ()
+            )
         )
     if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))
@@ -113,7 +145,7 @@ class AdsbStationBinarySensor(AdsbStationEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         """Return True when the monitored part is connected."""
-        return self.entity_description.value_fn(self.monitor)
+        return self.entity_description.value_fn(self.feeder)
 
 
 class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):

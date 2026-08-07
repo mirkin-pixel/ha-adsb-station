@@ -26,15 +26,18 @@ from .api import (
 )
 from .const import (
     CONF_AIRCRAFT_URL,
+    CONF_FEEDER_TYPE,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
-    DEFAULT_FEEDER_NAME,
-    DEFAULT_PORT,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STATION_NAME,
     DOMAIN,
+    FEEDER_FR24,
+    FEEDER_PIAWARE,
+    FEEDER_PLANEFINDER,
+    FEEDERS,
     MAX_PROXIMITY_RADIUS,
     MAX_SCAN_INTERVAL,
     MIN_PROXIMITY_RADIUS,
@@ -52,7 +55,7 @@ RECEIVER_UNIQUE_ID_PREFIX = "receiver:"
 FEEDER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): selector.TextSelector(),
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): selector.NumberSelector(
+        vol.Required(CONF_PORT): selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=1, max=65535, mode=selector.NumberSelectorMode.BOX
             )
@@ -112,6 +115,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the flow."""
         self._host = ""
         self._port: int | None = None
+        self._feeder_type: str | None = None
         self._title = DEFAULT_STATION_NAME
         self._aircraft_url = ""
         self._stats_url: str | None = None
@@ -120,35 +124,64 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask whether this station runs fr24feed."""
-        return self.async_show_menu(step_id="user", menu_options=["feeder", "receiver"])
+        """Ask what this station runs."""
+        return self.async_show_menu(step_id="user", menu_options=[*FEEDERS, "receiver"])
 
-    async def async_step_feeder(
+    async def async_step_fr24feed(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask for the address of the fr24feed status server."""
+        """Set up the Flightradar24 feeder."""
+        return await self._async_feeder_step(FEEDER_FR24, user_input)
+
+    async def async_step_piaware(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Set up the FlightAware feeder."""
+        return await self._async_feeder_step(FEEDER_PIAWARE, user_input)
+
+    async def async_step_planefinder(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Set up the Plane Finder feeder."""
+        return await self._async_feeder_step(FEEDER_PLANEFINDER, user_input)
+
+    async def _async_feeder_step(
+        self, feeder_type: str, user_input: dict[str, Any] | None
+    ) -> ConfigFlowResult:
+        """Ask for the address of one kind of feeder."""
+        kind = FEEDERS[feeder_type]
         errors: dict[str, str] = {}
         if user_input is not None:
             host = str(user_input[CONF_HOST]).strip()
             port = int(user_input[CONF_PORT])
-            monitor, error = await self._async_validate_feeder(host, port)
+            payload, error = await self._async_validate_feeder(host, port, feeder_type)
             if error is None:
-                alias = str(monitor.get("feed_alias") or "").strip()
-                await self.async_set_unique_id(alias or f"{host}:{port}")
+                self._feeder_type = feeder_type
+                # Only fr24feed publishes an identity of its own. The others are
+                # known by where they run, the way a bare receiver is.
+                alias = ""
+                if feeder_type == FEEDER_FR24:
+                    alias = str(payload.get("feed_alias") or "").strip()
+                await self.async_set_unique_id(alias or f"{feeder_type}:{host}:{port}")
                 if self.source == SOURCE_RECONFIGURE:
-                    self._abort_if_unique_id_mismatch(reason="wrong_feeder")
+                    if alias:
+                        self._abort_if_unique_id_mismatch(reason="wrong_feeder")
+                    else:
+                        await self.async_set_unique_id(
+                            self._get_reconfigure_entry().unique_id
+                        )
                 else:
                     self._abort_if_unique_id_configured()
                 self._host = host
                 self._port = port
-                self._title = alias or f"{DEFAULT_FEEDER_NAME} ({host})"
+                self._title = alias or f"{kind.default_name} ({host})"
                 return await self.async_step_aircraft()
             errors["base"] = error
 
         return self.async_show_form(
-            step_id="feeder",
+            step_id=feeder_type,
             data_schema=self.add_suggested_values_to_schema(
-                FEEDER_SCHEMA, user_input or self._feeder_defaults()
+                FEEDER_SCHEMA, user_input or self._feeder_defaults(kind.port)
             ),
             errors=errors,
         )
@@ -196,9 +229,13 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Change the address of an already configured station."""
-        if self._get_reconfigure_entry().data.get(CONF_PORT) is None:
+        entry = self._get_reconfigure_entry()
+        if entry.data.get(CONF_PORT) is None:
             return await self.async_step_receiver(user_input)
-        return await self.async_step_feeder(user_input)
+        # Entries made before there was more than one kind of feeder record no
+        # type, and fr24feed is the only one they can be.
+        feeder_type = entry.data.get(CONF_FEEDER_TYPE) or FEEDER_FR24
+        return await self._async_feeder_step(feeder_type, user_input)
 
     async def _async_aircraft_step(
         self, step_id: str, user_input: dict[str, Any] | None, *, required: bool
@@ -229,15 +266,15 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    def _feeder_defaults(self) -> dict[str, Any]:
-        """Return the values to prefill the feeder step with."""
+    def _feeder_defaults(self, port: int) -> dict[str, Any]:
+        """Return the values to prefill a feeder step with."""
         if self.source == SOURCE_RECONFIGURE:
             entry = self._get_reconfigure_entry()
             return {
                 CONF_HOST: entry.data[CONF_HOST],
                 CONF_PORT: entry.data[CONF_PORT],
             }
-        return {CONF_PORT: DEFAULT_PORT}
+        return {CONF_PORT: port}
 
     def _receiver_defaults(self) -> dict[str, Any]:
         """Return the values to prefill the receiver step with."""
@@ -257,18 +294,20 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         return detected or ""
 
     async def _async_validate_feeder(
-        self, host: str, port: int
+        self, host: str, port: int, feeder_type: str
     ) -> tuple[dict[str, Any], str | None]:
-        """Read monitor.json. Returns the payload and an error key."""
-        client = AdsbStationClient(async_get_clientsession(self.hass), host, port)
+        """Read the feeder's status. Returns the payload and an error key."""
+        client = AdsbStationClient(
+            async_get_clientsession(self.hass), host, port, feeder_type=feeder_type
+        )
         try:
-            return await client.async_get_monitor(), None
+            return await client.async_get_feeder(), None
         except AdsbStationConnectionError:
             return {}, "cannot_connect"
         except AdsbStationError:
             return {}, "invalid_response"
         except Exception:
-            _LOGGER.exception("Unexpected error while reading monitor.json")
+            _LOGGER.exception("Unexpected error while reading the feeder status")
             return {}, "unknown"
 
     async def _async_validate_aircraft(self, url: str) -> str | None:
@@ -299,6 +338,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         data = {
             CONF_HOST: self._host,
             CONF_PORT: self._port,
+            CONF_FEEDER_TYPE: self._feeder_type,
             CONF_AIRCRAFT_URL: aircraft_url,
             CONF_STATS_URL: self._stats_url if aircraft_url else None,
             CONF_RECEIVER_FEATURES: self._features if aircraft_url else [],

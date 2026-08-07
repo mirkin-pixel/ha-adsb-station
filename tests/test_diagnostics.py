@@ -35,8 +35,8 @@ async def test_diagnostics(
 
     assert diagnostics["entry_data"][CONF_HOST] == REDACTED
     assert diagnostics["entry_data"][CONF_AIRCRAFT_URL] == REDACTED
-    assert diagnostics["monitor"]["feed_alias"] == REDACTED
-    assert diagnostics["monitor"]["feed_num_ac_tracked"] == 25
+    assert diagnostics["feeder"]["feed_alias"] == REDACTED
+    assert diagnostics["feeder"]["feed_num_ac_tracked"] == 25
     assert diagnostics["aircraft"]["total"] == 3
     assert diagnostics["aircraft"]["with_position"] == 2
     assert diagnostics["aircraft"]["closest"]["hex"] == "484123"
@@ -63,7 +63,7 @@ async def test_diagnostics_without_a_feeder(
 
     diagnostics = await async_get_config_entry_diagnostics(hass, mock_receiver_entry)
     assert diagnostics["has_feeder"] is False
-    assert diagnostics["monitor"] is None
+    assert diagnostics["feeder"] is None
     assert diagnostics["receiver_version"] == MOCK_RECEIVER_VERSION
     assert diagnostics["aircraft"]["total"] == 3
     # readsb publishes its antenna position, so ranges come off that

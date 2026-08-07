@@ -1,13 +1,72 @@
 """Constants for the ADS-B Station integration."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 DOMAIN = "adsb_station"
 
-# Only a station that includes fr24feed is a Flightradar24 device. One that runs
-# just a decoder is whatever the user installed, so it gets no manufacturer.
-MANUFACTURER = "Flightradar24"
-MODEL_FEEDER = "fr24feed"
+CONF_FEEDER_TYPE = "feeder_type"
+
+# The feeders we can read. Each uploads to its own network and serves its own
+# local status document; a station commonly runs several of them side by side
+# off one decoder, so each becomes its own entry and its own device.
+FEEDER_FR24 = "fr24feed"
+FEEDER_PIAWARE = "piaware"
+FEEDER_PLANEFINDER = "planefinder"
+
+
+@dataclass(frozen=True, kw_only=True)
+class FeederKind:
+    """Everything that differs between one feeder and the next."""
+
+    key: str
+    # Where its status document lives, and the port it is normally on.
+    port: int
+    path: str
+    # Keys that only that document has, so we can tell we reached the right one.
+    markers: frozenset[str]
+    manufacturer: str
+    model: str
+    # Used as the device name until the feeder tells us something better.
+    default_name: str
+
+
+FEEDERS: dict[str, FeederKind] = {
+    FEEDER_FR24: FeederKind(
+        key=FEEDER_FR24,
+        port=8754,
+        path="/monitor.json",
+        markers=frozenset({"feed_status", "rx_connected", "feed_alias"}),
+        manufacturer="Flightradar24",
+        model="fr24feed",
+        default_name="FR24 feeder",
+    ),
+    FEEDER_PIAWARE: FeederKind(
+        key=FEEDER_PIAWARE,
+        # FlightAware's own tooling defaults to 8080, though a station whose
+        # web server was taken over by something else may serve it elsewhere.
+        port=8080,
+        path="/status.json",
+        markers=frozenset({"piaware", "adept", "radio"}),
+        manufacturer="FlightAware",
+        model="PiAware",
+        default_name="PiAware feeder",
+    ),
+    FEEDER_PLANEFINDER: FeederKind(
+        key=FEEDER_PLANEFINDER,
+        port=30053,
+        path="/ajax/stats",
+        markers=frozenset(
+            {"client_version", "total_modes_packets", "master_server_bytes_out"}
+        ),
+        manufacturer="Plane Finder",
+        model="pfclient",
+        default_name="Plane Finder feeder",
+    ),
+}
+
 MODEL_RECEIVER = "ADS-B receiver"
-DEFAULT_FEEDER_NAME = "FR24 feeder"
 DEFAULT_STATION_NAME = "ADS-B station"
 
 # What receiver.json holds when nothing expanded the placeholder. The dump1090
@@ -18,13 +77,13 @@ CONF_AIRCRAFT_URL = "aircraft_url"
 CONF_STATS_URL = "stats_url"
 CONF_RECEIVER_FEATURES = "receiver_features"
 
-# Optional things a receiver may report. Detected once during the config flow,
-# so entities for data a decoder never sends are not created at all. Run
-# Reconfigure after upgrading the decoder to pick them up.
 # The eight compass sectors the range records are kept in. Each spans 45
 # degrees centred on its own direction, so north runs from 337.5 to 22.5.
 SECTORS: tuple[str, ...] = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
 
+# Optional things a receiver may report. Detected once during the config flow,
+# so entities for data a decoder never sends are not created at all. Run
+# Reconfigure after upgrading the decoder to pick them up.
 FEATURE_GAIN = "gain"
 # readsb puts these at the root of stats.json; the other decoders send neither.
 FEATURE_AIRCRAFT_TYPES = "aircraft_types"
@@ -53,7 +112,6 @@ EMERGENCY_SQUAWKS: dict[str, str] = {
     "7700": "emergency",
 }
 
-DEFAULT_PORT = 8754
 DEFAULT_AIRCRAFT_PORT = 8080
 DEFAULT_HTTP_PORT = 80
 
@@ -83,9 +141,4 @@ AIRCRAFT_URL_CANDIDATES: tuple[tuple[int, str], ...] = (
     (DEFAULT_AIRCRAFT_PORT, "/dump1090-fa/data/aircraft.json"),
     (DEFAULT_HTTP_PORT, "/skyaware/data/aircraft.json"),
     (DEFAULT_HTTP_PORT, "/dump1090-fa/data/aircraft.json"),
-)
-
-# Keys that identify a genuine fr24feed monitor.json response.
-MONITOR_MARKER_KEYS = frozenset(
-    {"feed_status", "rx_connected", "feed_alias", "build_version"}
 )

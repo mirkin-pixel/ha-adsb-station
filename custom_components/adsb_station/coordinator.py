@@ -129,9 +129,9 @@ class ReceiverStats:
 class AdsbStationData:
     """The data of one poll cycle."""
 
-    # None when the station runs no fr24feed, which is the whole of the data
-    # for anyone feeding another network or feeding none at all.
-    monitor: dict[str, Any] | None = field(default=None)
+    # The feeder's own status document, whichever feeder that is. None when
+    # the station only runs a decoder and uploads nowhere we can read.
+    feeder: dict[str, Any] | None = field(default=None)
     aircraft: AircraftStats | None
     stats: ReceiverStats | None = field(default=None)
 
@@ -275,6 +275,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.
         self.sector_sensors: list[SectorRangeRecord] = []
+
+    @property
+    def feeder_type(self) -> str | None:
+        """Return which feeder this entry reads, if any."""
+        return self.client.feeder_type
         self._previous_messages: tuple[int, float] | None = None
         self._aircraft_failed = False
         self._stats_failed = False
@@ -312,15 +317,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         stops answering does not take the feed entities with it. Without a
         feeder the receiver is all there is, and failing to read it is fatal.
         """
-        monitor: dict[str, Any] | None = None
+        feeder: dict[str, Any] | None = None
         if self.client.has_feeder:
             try:
-                monitor = await self.client.async_get_monitor()
+                feeder = await self.client.async_get_feeder()
             except AdsbStationError as err:
                 raise UpdateFailed(err) from err
 
         return AdsbStationData(
-            monitor=monitor,
+            feeder=feeder,
             aircraft=await self._async_get_aircraft(
                 required=not self.client.has_feeder
             ),

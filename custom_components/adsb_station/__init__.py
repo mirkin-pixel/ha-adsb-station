@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import AdsbStationClient
-from .const import CONF_AIRCRAFT_URL, CONF_STATS_URL
+from .const import CONF_AIRCRAFT_URL, CONF_FEEDER_TYPE, CONF_STATS_URL, FEEDER_FR24
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [
@@ -26,6 +26,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
         entry.data.get(CONF_PORT),
         entry.data.get(CONF_AIRCRAFT_URL),
         entry.data.get(CONF_STATS_URL),
+        # Entries made before there was more than one kind of feeder record no
+        # type, and fr24feed is the only one they can be.
+        feeder_type=(
+            entry.data.get(CONF_FEEDER_TYPE) or FEEDER_FR24
+            if entry.data.get(CONF_PORT) is not None
+            else None
+        ),
     )
     coordinator = AdsbStationDataUpdateCoordinator(hass, entry, client)
 

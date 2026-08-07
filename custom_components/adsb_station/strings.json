@@ -5,11 +5,13 @@
         "title": "ADS-B station",
         "description": "What runs on your receiver? Anything that serves an aircraft.json works: dump1090, dump1090-fa and SkyAware, readsb and tar1090. Add the Flightradar24 feeder on top only if you actually run fr24feed.",
         "menu_options": {
-          "feeder": "Flightradar24 feeder (fr24feed)",
+          "fr24feed": "Flightradar24 feeder (fr24feed)",
+          "piaware": "FlightAware feeder (PiAware)",
+          "planefinder": "Plane Finder feeder (pfclient)",
           "receiver": "ADS-B receiver only"
         }
       },
-      "feeder": {
+      "fr24feed": {
         "title": "Flightradar24 feeder",
         "description": "Enter the address of your Flightradar24 feeder. Home Assistant reads the status page that fr24feed serves on your own receiver.",
         "data": {
@@ -19,6 +21,30 @@
         "data_description": {
           "host": "The IP address or hostname of the device running fr24feed, for example 192.168.5.7.",
           "port": "The port of the fr24feed status page. The default is 8754."
+        }
+      },
+      "piaware": {
+        "title": "FlightAware feeder",
+        "description": "Enter the address of the machine running PiAware. The port is the one its status page is served on, 8080 by default.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "The IP address or hostname of the device running PiAware, for example 192.168.5.7.",
+          "port": "The port serving status.json. FlightAware's own tooling uses 8080; a station whose web server was taken over by something else may serve it elsewhere."
+        }
+      },
+      "planefinder": {
+        "title": "Plane Finder feeder",
+        "description": "Enter the address of the machine running pfclient. The port is the one its web interface is served on, 30053 by default.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "The IP address or hostname of the device running pfclient, for example 192.168.5.7.",
+          "port": "The port of the pfclient web interface. The default is 30053."
         }
       },
       "receiver": {
@@ -232,6 +258,68 @@
       },
       "max_range_nw": {
         "name": "Maximum range northwest"
+      },
+      "piaware_radio": {
+        "name": "Radio",
+        "state": {
+          "green": "OK",
+          "amber": "Warning",
+          "red": "Problem"
+        }
+      },
+      "piaware_feed": {
+        "name": "Feed",
+        "state": {
+          "green": "OK",
+          "amber": "Warning",
+          "red": "Problem"
+        }
+      },
+      "piaware_mlat": {
+        "name": "MLAT",
+        "state": {
+          "green": "OK",
+          "amber": "Warning",
+          "red": "Problem"
+        }
+      },
+      "piaware_service": {
+        "name": "PiAware service",
+        "state": {
+          "green": "OK",
+          "amber": "Warning",
+          "red": "Problem"
+        }
+      },
+      "piaware_cpu_load": {
+        "name": "CPU load"
+      },
+      "piaware_uptime": {
+        "name": "Uptime"
+      },
+      "piaware_cpu_temperature": {
+        "name": "CPU temperature"
+      },
+      "pf_message_rate": {
+        "name": "Message rate"
+      },
+      "pf_messages": {
+        "name": "Mode S messages"
+      },
+      "pf_modeac_messages": {
+        "name": "Mode A/C messages"
+      },
+      "pf_crc_errors": {
+        "name": "CRC errors"
+      },
+      "pf_uploaded": {
+        "name": "Uploaded"
+      },
+      "pf_mlat_uploaded": {
+        "name": "MLAT uploaded"
+      },
+      "pf_receiver_rate": {
+        "name": "Receiver data rate"
       }
     },
     "binary_sensor": {
@@ -268,6 +356,13 @@
         "state": {
           "off": "None",
           "on": "Overhead"
+        }
+      },
+      "pf_mlat": {
+        "name": "MLAT",
+        "state": {
+          "off": "Not sending",
+          "on": "Sending"
         }
       }
     },
