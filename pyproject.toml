@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Stands in for what Home Assistant expects of a POSIX host. A no-op on Linux.
+addopts = "-p pytest_windows"
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["custom_components/adsb_station"]

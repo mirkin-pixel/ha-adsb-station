@@ -336,12 +336,17 @@ Debug logging shows the HTTP status of every poll and any value the integration 
 
 ### Development
 
-Tests run with [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) and require Python 3.14 or newer on Linux or macOS; the Home Assistant test harness does not run on Windows.
+Tests run with [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) and require Python 3.14 or newer.
 
 ```bash
 pip install -r requirements_test.txt
+ruff check .
 pytest --cov
 ```
+
+That is the whole of what CI can tell you about the code, so there is no need to push a branch to find out whether something is broken. The two remaining workflow jobs, hassfest and HACS validation, check the manifest and the repository layout rather than the code, and both run as containers; `scripts/check.ps1` and `scripts/check.sh` run the pair above in one go.
+
+Windows works as well, even though Home Assistant itself only ever runs on Linux. `pytest_windows.py` stands in for the two POSIX-only modules the harness imports and lets the event loop have the loopback socket pair it wakes itself over. It is loaded through `addopts` and does nothing at all on Linux, so the same `pytest` runs in both places.
 
 Releases follow the standard HACS flow: bump `version` in `manifest.json`, merge to the default branch, then publish a GitHub release with a matching tag (for example `v0.2.0` for version `0.2.0`). The release workflow verifies that the tag matches the manifest version and attaches a zip of the integration to the release.
 
@@ -678,12 +683,17 @@ In de debug-log zie je de HTTP-status van elke poll en elke waarde die de integr
 
 ### Ontwikkeling
 
-Tests draaien met [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) en vereisen Python 3.14 of nieuwer op Linux of macOS; de testharness van Home Assistant draait niet op Windows.
+Tests draaien met [pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) en vereisen Python 3.14 of nieuwer.
 
 ```bash
 pip install -r requirements_test.txt
+ruff check .
 pytest --cov
 ```
+
+Dat is alles wat CI je over de code kan vertellen, dus je hoeft geen branch te pushen om te weten of er iets stuk is. De twee overgebleven workflow-taken, hassfest en HACS-validatie, controleren het manifest en de indeling van de repository in plaats van de code, en draaien allebei als container; `scripts/check.ps1` en `scripts/check.sh` draaien het paar hierboven in één keer.
+
+Windows werkt ook, ook al draait Home Assistant zelf alleen op Linux. `pytest_windows.py` neemt de plaats in van de twee POSIX-only modules die de testharness importeert en gunt de event loop het loopback-socketpaar waarmee hij zichzelf wakker maakt. Hij wordt via `addopts` geladen en doet op Linux helemaal niets, zodat dezelfde `pytest` op beide plekken draait.
 
 Releases volgen de standaard HACS-werkwijze: verhoog `version` in `manifest.json`, merge naar de default branch en publiceer daarna een GitHub-release met een bijpassende tag (bijvoorbeeld `v0.2.0` voor versie `0.2.0`). De release-workflow controleert of de tag overeenkomt met de manifest-versie en voegt een zip van de integratie toe aan de release.
 
