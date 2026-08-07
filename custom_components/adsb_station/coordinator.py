@@ -16,6 +16,7 @@ from homeassistant.util.location import distance
 
 from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
+    AIRCRAFT_TYPE_GROUPS,
     CONF_PROXIMITY_RADIUS,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
@@ -101,6 +102,14 @@ class ReceiverStats:
     single_message_tracks: int | None
     demodulator_load: float | None
     gain: float | None
+    # Share of Mode S messages the decoder had to throw away, in percent.
+    error_rate: float | None = None
+    # How the decoder came to know about the aircraft it is tracking.
+    aircraft_by_type: dict[str, int] = field(default_factory=dict)
+    # Frequency offset of the dongle, in parts per million.
+    frequency_error: float | None = None
+    positions_decoded: int | None = None
+    positions_rejected: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -487,6 +496,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             demodulator_load=_demodulator_load(window),
             # readsb reports the gain once for the document, not per window.
             gain=read_gain(window, data),
+            error_rate=_error_rate(local),
+            aircraft_by_type=_aircraft_by_type(data),
+            frequency_error=_as_float(data.get("estimated_ppm")),
+            positions_decoded=_positions(window, ("global_ok", "local_ok")),
+            positions_rejected=_positions(
+                window, ("global_bad", "global_range", "global_speed")
+            ),
         )
 
     @staticmethod
@@ -515,6 +531,41 @@ def _accepted(value: Any) -> int | None:
         counts = [_as_int(item) for item in value]
         return sum(count for count in counts if count is not None)
     return _as_int(value)
+
+
+def _error_rate(local: dict[str, Any]) -> float | None:
+    """Return the share of Mode S messages that failed to decode, in percent.
+
+    A quiet minute has no messages and therefore no rate, which is honestly
+    unknown rather than a perfect zero.
+    """
+    total = _as_int(local.get("modes"))
+    bad = _as_int(local.get("bad"))
+    if total is None or bad is None or total <= 0:
+        return None
+    return bad / total * 100
+
+
+def _aircraft_by_type(data: dict[str, Any]) -> dict[str, int]:
+    """Return how the decoder came to know about the aircraft it tracks."""
+    counts = data.get("aircraft_count_by_type")
+    if not isinstance(counts, dict):
+        return {}
+    grouped: dict[str, int] = {}
+    for group, keys in AIRCRAFT_TYPE_GROUPS.items():
+        values = [_as_int(counts.get(key)) for key in keys]
+        grouped[group] = sum(value for value in values if value is not None)
+    return grouped
+
+
+def _positions(window: dict[str, Any], keys: tuple[str, ...]) -> int | None:
+    """Return a sum of position counters out of a window's cpr block."""
+    cpr = window.get("cpr")
+    if not isinstance(cpr, dict):
+        return None
+    values = [_as_int(cpr.get(key)) for key in keys]
+    present = [value for value in values if value is not None]
+    return sum(present) if present else None
 
 
 def _demodulator_load(window: dict[str, Any]) -> float | None:

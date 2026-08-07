@@ -175,6 +175,39 @@
       },
       "fastest_aircraft": {
         "name": "Fastest aircraft"
+      },
+      "clock_drift": {
+        "name": "Clock drift"
+      },
+      "timing_source": {
+        "name": "Timing source"
+      },
+      "feed_server": {
+        "name": "Feed server"
+      },
+      "resyncs": {
+        "name": "Resyncs"
+      },
+      "error_rate": {
+        "name": "Message error rate"
+      },
+      "aircraft_adsb": {
+        "name": "Aircraft via ADS-B"
+      },
+      "aircraft_mlat": {
+        "name": "Aircraft via MLAT"
+      },
+      "aircraft_mode_s": {
+        "name": "Aircraft via Mode S"
+      },
+      "frequency_error": {
+        "name": "Frequency error"
+      },
+      "positions_decoded": {
+        "name": "Positions decoded"
+      },
+      "positions_rejected": {
+        "name": "Positions rejected"
       }
     },
     "binary_sensor": {

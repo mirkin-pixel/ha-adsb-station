@@ -22,6 +22,20 @@ CONF_RECEIVER_FEATURES = "receiver_features"
 # so entities for data a decoder never sends are not created at all. Run
 # Reconfigure after upgrading the decoder to pick them up.
 FEATURE_GAIN = "gain"
+# readsb puts these at the root of stats.json; the other decoders send neither.
+FEATURE_AIRCRAFT_TYPES = "aircraft_types"
+FEATURE_FREQUENCY_ERROR = "frequency_error"
+# Position bookkeeping inside a window. The dump1090 fork of fr24feed has none.
+FEATURE_POSITIONS = "positions"
+
+# How readsb labels the way it came to know about an aircraft. Reporting all
+# fourteen would be noise, so they are summed into the three that say something
+# about your reception: heard directly, computed from timing, or bare Mode S.
+AIRCRAFT_TYPE_GROUPS: dict[str, tuple[str, ...]] = {
+    "adsb": ("adsb_icao", "adsb_icao_nt", "adsb_other"),
+    "mlat": ("mlat",),
+    "mode_s": ("mode_s",),
+}
 
 # Files that sit next to aircraft.json in the same data directory.
 STATS_FILENAME = "stats.json"

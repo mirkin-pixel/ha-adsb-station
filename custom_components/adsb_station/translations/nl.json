@@ -175,6 +175,39 @@
       },
       "fastest_aircraft": {
         "name": "Snelste vliegtuig"
+      },
+      "clock_drift": {
+        "name": "Klokafwijking"
+      },
+      "timing_source": {
+        "name": "Tijdbron"
+      },
+      "feed_server": {
+        "name": "Feed-server"
+      },
+      "resyncs": {
+        "name": "Hersynchronisaties"
+      },
+      "error_rate": {
+        "name": "Foutratio berichten"
+      },
+      "aircraft_adsb": {
+        "name": "Vliegtuigen via ADS-B"
+      },
+      "aircraft_mlat": {
+        "name": "Vliegtuigen via MLAT"
+      },
+      "aircraft_mode_s": {
+        "name": "Vliegtuigen via Mode S"
+      },
+      "frequency_error": {
+        "name": "Frequentieafwijking"
+      },
+      "positions_decoded": {
+        "name": "Posities gedecodeerd"
+      },
+      "positions_rejected": {
+        "name": "Posities verworpen"
       }
     },
     "binary_sensor": {

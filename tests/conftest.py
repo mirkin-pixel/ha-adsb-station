@@ -172,25 +172,45 @@ MOCK_STATS_WITH_GAIN: dict[str, Any] = {
 # readsb puts a single gain_db at the root instead of inside a window, because
 # the gain belongs to the dongle. Trimmed from a real wiedehopf readsb 3.16.15.
 EXPECTED_READSB_GAIN = 49.6
+EXPECTED_FREQUENCY_ERROR = 45.7
+# 30 bad out of 200 Mode S messages
+EXPECTED_ERROR_RATE = 15.0
 MOCK_STATS_READSB: dict[str, Any] = {
     "now": 1786094145.0,
     "gain_db": EXPECTED_READSB_GAIN,
-    "estimated_ppm": 45.7,
-    "aircraft_with_pos": 0,
+    "estimated_ppm": EXPECTED_FREQUENCY_ERROR,
+    "aircraft_with_pos": 1,
+    "aircraft_count_by_type": {
+        "adsb_icao": 3,
+        "adsb_icao_nt": 1,
+        "adsb_other": 0,
+        "mlat": 2,
+        "mode_s": 4,
+        "tisb_icao": 0,
+        "unknown": 0,
+    },
     "last1min": {
         "start": 1786094085.0,
         "end": 1786094145.0,
         "local": {
             "samples_processed": 143982592,
             "samples_dropped": 0,
-            "modes": 0,
-            "bad": 0,
+            "modes": 200,
+            "bad": 30,
             "unknown_icao": 0,
             "accepted": [0, 0],
             "noise": -45.1,
             "strong_signals": 0,
         },
         "cpu": {"demod": 65, "reader": 179, "background": 9, "aircraft_json": 5},
+        "cpr": {
+            "global_ok": 10,
+            "local_ok": 4,
+            "global_bad": 1,
+            "global_range": 2,
+            "global_speed": 0,
+        },
+        "position_count_total": 14,
         "tracks": {"all": 0, "single_message": 0},
         "messages": 0,
     },

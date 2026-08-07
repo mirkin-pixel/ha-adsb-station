@@ -20,12 +20,19 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfSpeed,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_RECEIVER_FEATURES, FEATURE_GAIN
+from .const import (
+    CONF_RECEIVER_FEATURES,
+    FEATURE_AIRCRAFT_TYPES,
+    FEATURE_FREQUENCY_ERROR,
+    FEATURE_GAIN,
+    FEATURE_POSITIONS,
+)
 from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
@@ -49,6 +56,8 @@ UNIT_MESSAGES_PER_SECOND = "msg/s"
 # reference power, so these are not dBm and carry no device class.
 UNIT_DBFS = "dBFS"
 UNIT_DECIBEL = "dB"
+# Frequency offset of the dongle against its nominal clock.
+UNIT_PPM = "ppm"
 
 
 def _as_float(value: Any) -> float | None:
@@ -232,6 +241,38 @@ FEEDER_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         value_fn=_cpu_temperature,
         supported_fn=_reports_cpu_temperature,
     ),
+    AdsbStationSensorEntityDescription(
+        key="clock_drift",
+        translation_key="clock_drift",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+        value_fn=lambda monitor: _as_float(monitor.get("timing_last_drift")),
+        supported_fn=lambda monitor: "timing_last_drift" in monitor,
+    ),
+    AdsbStationSensorEntityDescription(
+        key="timing_source",
+        translation_key="timing_source",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda monitor: _as_text(monitor.get("timing_source")),
+        supported_fn=lambda monitor: "timing_source" in monitor,
+    ),
+    AdsbStationSensorEntityDescription(
+        key="feed_server",
+        translation_key="feed_server",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda monitor: _as_text(monitor.get("feed_current_server")),
+        supported_fn=lambda monitor: "feed_current_server" in monitor,
+    ),
+    AdsbStationSensorEntityDescription(
+        key="resyncs",
+        translation_key="resyncs",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda monitor: _as_int(monitor.get("num_resyncs")),
+        supported_fn=lambda monitor: "num_resyncs" in monitor,
+    ),
 )
 
 AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
@@ -359,6 +400,63 @@ RECEPTION_SENSORS: tuple[AdsbStationReceptionSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda stats: stats.gain,
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="error_rate",
+        translation_key="error_rate",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda stats: stats.error_rate,
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="aircraft_adsb",
+        translation_key="aircraft_adsb",
+        feature=FEATURE_AIRCRAFT_TYPES,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda stats: stats.aircraft_by_type.get("adsb"),
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="aircraft_mlat",
+        translation_key="aircraft_mlat",
+        feature=FEATURE_AIRCRAFT_TYPES,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda stats: stats.aircraft_by_type.get("mlat"),
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="aircraft_mode_s",
+        translation_key="aircraft_mode_s",
+        feature=FEATURE_AIRCRAFT_TYPES,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda stats: stats.aircraft_by_type.get("mode_s"),
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="frequency_error",
+        translation_key="frequency_error",
+        feature=FEATURE_FREQUENCY_ERROR,
+        native_unit_of_measurement=UNIT_PPM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda stats: stats.frequency_error,
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="positions_decoded",
+        translation_key="positions_decoded",
+        feature=FEATURE_POSITIONS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda stats: stats.positions_decoded,
+    ),
+    AdsbStationReceptionSensorEntityDescription(
+        key="positions_rejected",
+        translation_key="positions_rejected",
+        feature=FEATURE_POSITIONS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda stats: stats.positions_rejected,
     ),
     AdsbStationReceptionSensorEntityDescription(
         key="demodulator_load",

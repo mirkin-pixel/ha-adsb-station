@@ -63,6 +63,13 @@ And, when your receiver also serves `stats.json`, the health of your reception:
 | Single-message tracks | Sensor (diagnostic) | Tracks that never got a second message; a high share points at poor decoding |
 | Demodulator load | Sensor (%, diagnostic) | How much CPU time the decoder spent demodulating |
 | Gain | Sensor (dB) | The gain the dongle is running at. Only created when the decoder reports one |
+| Message error rate | Sensor (%, diagnostic) | Share of Mode S messages that failed to decode. Unknown during a minute with no traffic, because there is nothing to take a share of |
+| Aircraft via ADS-B | Sensor | Aircraft heard broadcasting their own position |
+| Aircraft via MLAT | Sensor | Aircraft located by multilateration instead |
+| Aircraft via Mode S | Sensor (diagnostic) | Aircraft heard, but never giving a position |
+| Frequency error | Sensor (ppm, diagnostic) | How far the dongle's clock sits off its nominal frequency |
+| Positions decoded | Sensor (diagnostic) | Positions accepted in the window |
+| Positions rejected | Sensor (diagnostic) | Positions thrown out by the sanity checks. A rising share points at a noisy signal |
 
 The reception figures come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.
 
@@ -82,7 +89,11 @@ Everything from `monitor.json` — **only when you run `fr24feed`**:
 | Map size | Sensor (diagnostic) | The `d11_map_size` of the feeder |
 | Resets | Sensor (diagnostic) | The number of resets since the start |
 | Last connected | Sensor (diagnostic) | When the feed last connected |
-| CPU temperature | Sensor (diagnostic) | The SoC temperature of the host |
+| CPU temperature | Sensor (diagnostic) | The SoC temperature of the host. Only on the single board computer builds |
+| Clock drift | Sensor (s, diagnostic) | How far the feeder's clock drifted. Multilateration needs this small |
+| Timing source | Sensor (diagnostic) | What the feeder synchronises its clock against, for example NTP |
+| Feed server | Sensor (diagnostic) | The Flightradar24 server this feeder talks to |
+| Resyncs | Sensor (diagnostic) | How often the feeder had to resynchronise |
 
 With a feeder, the feeder and the receiver are read independently: if the decoder stops answering, only the aircraft entities become unavailable and the feed entities keep working. Without a feeder the decoder is the only source, so an outage takes everything with it.
 
@@ -330,6 +341,13 @@ En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 | Tracks met één bericht | Sensor (diagnostisch) | Tracks die nooit een tweede bericht kregen; een hoog aandeel wijst op slechte decodering |
 | Demodulatorbelasting | Sensor (%, diagnostisch) | Hoeveel CPU-tijd de decoder aan demoduleren besteedde |
 | Gain | Sensor (dB) | De gain waarop de dongle draait. Wordt alleen aangemaakt als de decoder die meldt |
+| Foutratio berichten | Sensor (%, diagnostisch) | Aandeel Mode S-berichten dat niet te decoderen was. Onbekend in een minuut zonder verkeer, want dan is er niets om een aandeel van te nemen |
+| Vliegtuigen via ADS-B | Sensor | Vliegtuigen die je hun eigen positie hoort uitzenden |
+| Vliegtuigen via MLAT | Sensor | Vliegtuigen die via multilateratie bepaald zijn |
+| Vliegtuigen via Mode S | Sensor (diagnostisch) | Vliegtuigen die je hoort, maar die nooit een positie geven |
+| Frequentieafwijking | Sensor (ppm, diagnostisch) | Hoe ver de klok van je dongle van zijn nominale frequentie af zit |
+| Posities gedecodeerd | Sensor (diagnostisch) | Posities die in het venster geaccepteerd zijn |
+| Posities verworpen | Sensor (diagnostisch) | Posities die de plausibiliteitscontrole niet haalden. Een stijgend aandeel wijst op een ruizig signaal |
 
 De ontvangstcijfers komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.
 
@@ -349,7 +367,11 @@ Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
 | Kaartgrootte | Sensor (diagnostisch) | De `d11_map_size` van de feeder |
 | Herstarts | Sensor (diagnostisch) | Het aantal resets sinds de start |
 | Laatst verbonden | Sensor (diagnostisch) | Wanneer de feed voor het laatst verbond |
-| CPU-temperatuur | Sensor (diagnostisch) | De SoC-temperatuur van de host |
+| CPU-temperatuur | Sensor (diagnostisch) | De SoC-temperatuur van de host. Alleen op de builds voor single board computers |
+| Klokafwijking | Sensor (s, diagnostisch) | Hoe ver de klok van de feeder afdreef. Multilateratie heeft dit klein nodig |
+| Tijdbron | Sensor (diagnostisch) | Waar de feeder zijn klok mee gelijkzet, bijvoorbeeld NTP |
+| Feed-server | Sensor (diagnostisch) | De Flightradar24-server waar deze feeder mee praat |
+| Hersynchronisaties | Sensor (diagnostisch) | Hoe vaak de feeder opnieuw moest synchroniseren |
 
 Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als de decoder niet meer antwoordt, worden alleen de vliegtuig-entiteiten onbeschikbaar en blijven de feed-entiteiten werken. Zonder feeder is de decoder de enige bron, en neemt een storing alles mee.
 

@@ -22,13 +22,18 @@ from custom_components.adsb_station.const import (
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    FEATURE_AIRCRAFT_TYPES,
+    FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
+    FEATURE_POSITIONS,
 )
 from custom_components.adsb_station.sensor import _as_float, _as_int, _as_timestamp
 
 from .conftest import (
     EXPECTED_CLOSEST_KM,
     EXPECTED_DEMODULATOR_LOAD,
+    EXPECTED_ERROR_RATE,
+    EXPECTED_FREQUENCY_ERROR,
     EXPECTED_GAIN,
     EXPECTED_MAX_RANGE_KM,
     EXPECTED_READSB_GAIN,
@@ -742,3 +747,126 @@ async def test_highest_counts_aircraft_without_a_position(
     # It has no position, so it cannot be nearby and has no distance
     assert _attributes(hass, "highest_aircraft")["distance"] is None
     assert _state(hass, "aircraft_nearby") == "1"
+
+
+async def test_station_health_on_readsb(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the health figures a readsb station reports."""
+    set_responses(aioclient_mock, stats=MOCK_STATS_READSB)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=mock_config_entry.unique_id,
+        data={
+            **mock_config_entry.data,
+            CONF_RECEIVER_FEATURES: [
+                FEATURE_GAIN,
+                FEATURE_AIRCRAFT_TYPES,
+                FEATURE_FREQUENCY_ERROR,
+                FEATURE_POSITIONS,
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, entry)
+
+    # adsb_icao 3 + adsb_icao_nt 1 + adsb_other 0
+    assert _state(hass, "aircraft_adsb") == "4"
+    assert _state(hass, "aircraft_mlat") == "2"
+    assert _state(hass, "aircraft_mode_s") == "4"
+    assert float(_state(hass, "frequency_error")) == pytest.approx(
+        EXPECTED_FREQUENCY_ERROR
+    )
+    # global_ok 10 + local_ok 4, against global_bad 1 + range 2 + speed 0
+    assert _state(hass, "positions_decoded") == "14"
+    assert _state(hass, "positions_rejected") == "3"
+    assert float(_state(hass, "error_rate")) == pytest.approx(EXPECTED_ERROR_RATE)
+
+
+async def test_health_sensors_absent_on_the_fr24feed_fork(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a decoder reporting none of this gets none of the sensors."""
+    assert await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    for key in (
+        "aircraft_adsb",
+        "aircraft_mlat",
+        "aircraft_mode_s",
+        "frequency_error",
+        "positions_decoded",
+        "positions_rejected",
+    ):
+        assert (
+            registry.async_get_entity_id("sensor", DOMAIN, f"{MOCK_ALIAS}_{key}")
+            is None
+        ), key
+
+    # The error rate needs nothing optional, so it is there either way
+    assert float(_state(hass, "error_rate")) == pytest.approx(188132 / 357314 * 100)
+
+
+async def test_feeder_health_sensors(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the clock and feed figures an x86 feeder reports."""
+    set_responses(
+        aioclient_mock,
+        monitor={
+            **MOCK_MONITOR_X86,
+            "timing_last_drift": "-0.169",
+            "timing_source": "NTP",
+            "feed_current_server": "blender.prod.fr24.io",
+            "num_resyncs": "0",
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert float(_state(hass, "clock_drift")) == pytest.approx(-0.169)
+    assert _state(hass, "timing_source") == "NTP"
+    assert _state(hass, "feed_server") == "blender.prod.fr24.io"
+    assert _state(hass, "resyncs") == "0"
+
+
+async def test_feeder_health_sensors_absent_on_an_older_build(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a feeder reporting no timing gets no timing sensors."""
+    assert await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    for key in ("clock_drift", "timing_source", "feed_server", "resyncs"):
+        assert (
+            registry.async_get_entity_id("sensor", DOMAIN, f"{MOCK_ALIAS}_{key}")
+            is None
+        ), key
+
+
+async def test_error_rate_is_unknown_without_traffic(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a quiet minute has no error rate rather than a perfect zero."""
+    quiet = {
+        **MOCK_STATS_READSB,
+        "last1min": {
+            **MOCK_STATS_READSB["last1min"],
+            "local": {**MOCK_STATS_READSB["last1min"]["local"], "modes": 0, "bad": 0},
+        },
+    }
+    set_responses(aioclient_mock, stats=quiet)
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert _state(hass, "error_rate") == STATE_UNKNOWN

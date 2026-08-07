@@ -11,7 +11,10 @@ import aiohttp
 from .const import (
     AIRCRAFT_URL_CANDIDATES,
     DEFAULT_HTTP_PORT,
+    FEATURE_AIRCRAFT_TYPES,
+    FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
+    FEATURE_POSITIONS,
     MONITOR_MARKER_KEYS,
     RECEIVER_FILENAME,
     STATS_FILENAME,
@@ -151,9 +154,30 @@ async def async_detect_statistics(
         _LOGGER.debug("%s does not look like a dump1090 stats.json", url)
         return None, []
 
-    features = [FEATURE_GAIN] if stats_report_gain(data) else []
-    _LOGGER.debug("Detected stats.json at %s, reporting %s", url, features or "no gain")
+    features = stats_features(data)
+    _LOGGER.debug("Detected stats.json at %s, reporting %s", url, features or "nothing")
     return url, features
+
+
+def stats_features(data: dict[str, Any]) -> list[str]:
+    """Return the optional things this stats.json was found to report."""
+    features: list[str] = []
+    if stats_report_gain(data):
+        features.append(FEATURE_GAIN)
+    if isinstance(data.get("aircraft_count_by_type"), dict):
+        features.append(FEATURE_AIRCRAFT_TYPES)
+    if data.get("estimated_ppm") is not None:
+        features.append(FEATURE_FREQUENCY_ERROR)
+    if any(_window_counts_positions(window) for window in data.values()):
+        features.append(FEATURE_POSITIONS)
+    return features
+
+
+def _window_counts_positions(window: Any) -> bool:
+    """Return True if a stats.json window keeps track of positions."""
+    if not isinstance(window, dict):
+        return False
+    return "position_count_total" in window or isinstance(window.get("cpr"), dict)
 
 
 def stats_report_gain(data: dict[str, Any]) -> bool:
