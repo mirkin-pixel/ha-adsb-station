@@ -12,6 +12,18 @@ source = ["custom_components/adsb_station"]
 fail_under = 95
 show_missing = true
 
+[tool.mypy]
+python_version = "3.14"
+# Only the integration. The tests lean on fixtures typed loosely enough that
+# checking them would cost more noise than it catches.
+files = ["custom_components/adsb_station"]
+# Home Assistant ships type information, but a good deal of what it imports
+# does not, and none of that is ours to fix.
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+
 [tool.ruff.lint]
 select = [
     "E",

@@ -21,6 +21,19 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+  types:
+    name: Mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies
+        run: pip install -r requirements_test.txt
+      - name: Run mypy
+        run: mypy
+
   tests:
     name: Tests
     runs-on: ubuntu-latest

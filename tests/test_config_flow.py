@@ -14,6 +14,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
+from custom_components.adsb_station.api import build_candidate_urls
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
@@ -403,6 +404,60 @@ async def test_receiver_only_flow_rejects_a_bad_url(
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_aircraft_response"}
     assert _suggested(result, CONF_AIRCRAFT_URL) == CUSTOM_AIRCRAFT_URL
+
+
+def _resolves_to(address: str) -> list[tuple[int, int, int, str, tuple[str, int]]]:
+    """Return what getaddrinfo says about a host on one address."""
+    return [(2, 1, 6, "", (address, 0))]
+
+
+async def test_one_machine_under_two_names_is_read_once(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a decoder is not offered again under a different name.
+
+    The existing entry was set up on an address and this one is being set up
+    on a name, so the strings differ and only resolving them tells you it is
+    the same machine.
+    """
+    mock_config_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.adsb_station.config_flow.socket.getaddrinfo",
+        return_value=_resolves_to(MOCK_HOST),
+    ):
+        result = await _start_receiver_step(hass, "adsb.local")
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "receiver_url"
+    assert _suggested(result, CONF_AIRCRAFT_URL) == ""
+
+
+async def test_a_second_machine_is_offered_its_own_decoder(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a station somewhere else keeps its own receiver offered."""
+    mock_config_entry.add_to_hass(hass)
+    elsewhere = "other.local"
+    candidates = build_candidate_urls(elsewhere)
+    aioclient_mock.get(candidates[0], json=MOCK_AIRCRAFT)
+    for url in candidates[1:]:
+        aioclient_mock.get(url, status=404)
+
+    with patch(
+        "custom_components.adsb_station.config_flow.socket.getaddrinfo",
+        side_effect=lambda host, _port: _resolves_to(
+            MOCK_HOST if host == MOCK_HOST else "192.168.5.99"
+        ),
+    ):
+        result = await _start_receiver_step(hass, elsewhere)
+
+    assert result["step_id"] == "receiver_url"
+    assert _suggested(result, CONF_AIRCRAFT_URL) == candidates[0]
 
 
 async def test_receiver_only_already_configured(

@@ -36,7 +36,9 @@ def _device_info(
     product and gets no manufacturer.
     """
     client = coordinator.client
-    if not client.has_feeder:
+    # has_feeder is true only when there is a feeder type to look the kind up
+    # by, but naming it here is what lets that be checked rather than trusted.
+    if not client.has_feeder or (feeder_type := client.feeder_type) is None:
         aircraft_url = client.aircraft_url
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
@@ -47,7 +49,7 @@ def _device_info(
         )
 
     payload = coordinator.data.feeder or {}
-    kind = FEEDERS[client.feeder_type]
+    kind = FEEDERS[feeder_type]
     return DeviceInfo(
         identifiers={(DOMAIN, device_id)},
         manufacturer=kind.manufacturer,

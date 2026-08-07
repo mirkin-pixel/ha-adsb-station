@@ -33,7 +33,7 @@ FALSE_VALUES = frozenset({"0", "false", "no", "off", "disconnected"})
 def _as_int(value: Any) -> int | None:
     """Parse a counter, which a feeder may quote as a string."""
     try:
-        return int(float(value))  # type: ignore[arg-type]
+        return int(float(value))
     except (TypeError, ValueError):
         return None
 

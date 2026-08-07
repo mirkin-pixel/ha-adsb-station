@@ -325,7 +325,12 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         mine = await self._async_addresses(self._host)
         if not mine:
             return False
-        return any(mine & await self._async_addresses(host) for host in others)
+        # Written out rather than passed to any(): a generator with an await
+        # in it is an async generator, which any() cannot iterate at all.
+        for host in others:
+            if mine & await self._async_addresses(host):
+                return True
+        return False
 
     async def _async_addresses(self, host: str) -> set[str]:
         """Return the addresses a host resolves to, or nothing if it will not."""
@@ -336,7 +341,9 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         except OSError:
             _LOGGER.debug("Could not resolve %s", host)
             return set()
-        return {entry[4][0] for entry in found}
+        # The address is the first element of the sockaddr, whether that is an
+        # IPv4 pair or an IPv6 quadruple.
+        return {str(entry[4][0]) for entry in found}
 
     async def _async_validate_feeder(
         self, host: str, port: int, feeder_type: str
