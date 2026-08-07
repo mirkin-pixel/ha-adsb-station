@@ -26,14 +26,18 @@ from .api import (
 )
 from .const import (
     CONF_AIRCRAFT_URL,
+    CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
     DEFAULT_FEEDER_NAME,
     DEFAULT_PORT,
+    DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STATION_NAME,
     DOMAIN,
+    MAX_PROXIMITY_RADIUS,
     MAX_SCAN_INTERVAL,
+    MIN_PROXIMITY_RADIUS,
     MIN_SCAN_INTERVAL,
 )
 from .coordinator import AdsbStationConfigEntry
@@ -81,6 +85,17 @@ OPTIONS_SCHEMA = vol.Schema(
                 max=MAX_SCAN_INTERVAL,
                 step=1,
                 unit_of_measurement="s",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Required(
+            CONF_PROXIMITY_RADIUS, default=DEFAULT_PROXIMITY_RADIUS
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=MIN_PROXIMITY_RADIUS,
+                max=MAX_PROXIMITY_RADIUS,
+                step=1,
+                unit_of_measurement="km",
                 mode=selector.NumberSelectorMode.BOX,
             )
         ),
@@ -310,7 +325,10 @@ class AdsbStationOptionsFlow(OptionsFlow):
         """Let the user change how often the station is polled."""
         if user_input is not None:
             return self.async_create_entry(
-                data={CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL])}
+                data={
+                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                    CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
+                }
             )
 
         return self.async_show_form(

@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
     DEFAULT_PORT,
@@ -455,7 +456,7 @@ async def test_options_flow(
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
 ) -> None:
-    """Test changing the update interval."""
+    """Test changing the update interval and the nearby radius."""
     assert await setup_integration(hass, mock_config_entry)
 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
@@ -463,9 +464,14 @@ async def test_options_flow(
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_SCAN_INTERVAL: 45}
+        result["flow_id"], {CONF_SCAN_INTERVAL: 45, CONF_PROXIMITY_RADIUS: 25}
     )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert mock_config_entry.options == {CONF_SCAN_INTERVAL: 45}
+    assert mock_config_entry.options == {
+        CONF_SCAN_INTERVAL: 45,
+        CONF_PROXIMITY_RADIUS: 25,
+    }
+    # The coordinator works in metres
+    assert mock_config_entry.runtime_data.proximity_radius == 25_000

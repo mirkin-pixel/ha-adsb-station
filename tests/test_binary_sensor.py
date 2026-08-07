@@ -176,3 +176,40 @@ async def test_emergency_field_saying_none(
         "binary_sensor", DOMAIN, f"{MOCK_ALIAS}_emergency"
     )
     assert hass.states.get(entity_id).state == STATE_OFF
+
+
+async def test_aircraft_overhead(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test the binary sensor for something inside the radius."""
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert _state(hass, "nearby") == STATE_ON
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MOCK_ALIAS}_nearby"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert [item["flight"] for item in attributes["aircraft"]] == ["KLM123"]
+
+
+async def test_nothing_overhead(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a far away aircraft leaves the sensor off."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            # One degree of latitude out, well past the default radius
+            "aircraft": [{"hex": "484124", "flight": "TRA45", "lat": 53.0, "lon": 5.0}],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert _state(hass, "nearby") == STATE_OFF

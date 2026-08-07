@@ -71,10 +71,12 @@
       "init": {
         "title": "ADS-B station options",
         "data": {
-          "scan_interval": "Update interval"
+          "scan_interval": "Update interval",
+          "proximity_radius": "Nearby radius"
         },
         "data_description": {
-          "scan_interval": "How often the station is read, in seconds. Everything runs on your own network, so a short interval is fine."
+          "scan_interval": "How often the station is read, in seconds. Everything runs on your own network, so a short interval is fine.",
+          "proximity_radius": "How close an aircraft has to be to count as nearby, in kilometres. Ten is roughly what you can see and hear."
         }
       }
     }
@@ -164,6 +166,15 @@
       },
       "gain": {
         "name": "Gain"
+      },
+      "aircraft_nearby": {
+        "name": "Aircraft nearby"
+      },
+      "highest_aircraft": {
+        "name": "Highest aircraft"
+      },
+      "fastest_aircraft": {
+        "name": "Fastest aircraft"
       }
     },
     "binary_sensor": {
@@ -193,6 +204,13 @@
         "state": {
           "off": "None",
           "on": "Detected"
+        }
+      },
+      "nearby": {
+        "name": "Aircraft overhead",
+        "state": {
+          "off": "None",
+          "on": "Overhead"
         }
       }
     }

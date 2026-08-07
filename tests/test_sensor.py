@@ -16,8 +16,10 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
+    CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
+    DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FEATURE_GAIN,
@@ -41,6 +43,21 @@ from .conftest import (
     set_responses,
     setup_integration,
 )
+
+
+def _attributes(hass: HomeAssistant, key: str) -> dict:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_{key}"
+    )
+    assert entity_id is not None
+    return dict(hass.states.get(entity_id).attributes)
+
+
+def entry_of(entry: MockConfigEntry) -> MockConfigEntry:
+    """Return a fresh entry with the same configuration."""
+    return MockConfigEntry(
+        domain=DOMAIN, unique_id=entry.unique_id, data=dict(entry.data)
+    )
 
 
 def _state(hass: HomeAssistant, key: str) -> str | None:
@@ -641,3 +658,87 @@ async def test_closest_aircraft_without_a_database(
     attributes = hass.states.get(entity_id).attributes
     for key in ("registration", "aircraft_type", "description", "military"):
         assert key not in attributes
+
+
+async def test_nearby_highest_and_fastest(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test the proximity sensors against the default ten kilometre radius."""
+    assert await setup_integration(hass, mock_config_entry)
+
+    # Only KLM123, at 1.1 km, is inside the radius; TRA45 sits 111 km out
+    assert _state(hass, "aircraft_nearby") == "1"
+    attributes = _attributes(hass, "aircraft_nearby")
+    assert attributes["radius"] == DEFAULT_PROXIMITY_RADIUS
+    assert [item["flight"] for item in attributes["aircraft"]] == ["KLM123"]
+    assert attributes["aircraft"][0]["distance"] == pytest.approx(
+        EXPECTED_CLOSEST_KM, abs=0.1
+    )
+
+    # The highest and the fastest are both TRA45, reported in readsb's names
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
+    assert _attributes(hass, "highest_aircraft")["flight"] == "TRA45"
+    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450)
+    assert _attributes(hass, "fastest_aircraft")["flight"] == "TRA45"
+
+
+async def test_nearby_radius_is_configurable(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that widening the radius brings the far aircraft in."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+        options={CONF_PROXIMITY_RADIUS: 200},
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert _state(hass, "aircraft_nearby") == "2"
+    attributes = _attributes(hass, "aircraft_nearby")
+    assert attributes["radius"] == 200
+    # Nearest first
+    assert [item["flight"] for item in attributes["aircraft"]] == ["KLM123", "TRA45"]
+
+
+async def test_highest_counts_aircraft_without_a_position(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a Mode S aircraft still counts for highest and fastest.
+
+    Altitude and speed reach us from aircraft that never send a position, and
+    leaving those out would understate both figures.
+    """
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {
+                    "hex": "484123",
+                    "flight": "KLM123",
+                    "lat": 52.01,
+                    "lon": 5.0,
+                    "altitude": 2000,
+                    "speed": 250,
+                },
+                {"hex": "484199", "flight": "NOPOS1", "alt_baro": 41000, "gs": 500},
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, entry_of(mock_config_entry))
+
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(41000)
+    assert _attributes(hass, "highest_aircraft")["flight"] == "NOPOS1"
+    # It has no position, so it cannot be nearby and has no distance
+    assert _attributes(hass, "highest_aircraft")["distance"] is None
+    assert _state(hass, "aircraft_nearby") == "1"

@@ -16,6 +16,8 @@ from homeassistant.util.location import distance
 
 from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
+    CONF_PROXIMITY_RADIUS,
+    DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EMERGENCY_SQUAWKS,
@@ -33,12 +35,17 @@ STATS_PERIODS = ("last1min", "last5min", "total")
 
 
 @dataclass(frozen=True, kw_only=True)
-class ClosestAircraft:
-    """The aircraft nearest to the antenna in a single poll."""
+class AircraftSummary:
+    """One aircraft out of a single poll, as we expose it.
+
+    The distance is optional: altitude and speed reach us from aircraft that
+    never broadcast a position, and those still count for the highest and the
+    fastest in range.
+    """
 
     hex: str
     flight: str | None
-    distance: float
+    distance: float | None
     altitude: float | None
     speed: float | None
     track: float | None
@@ -70,7 +77,11 @@ class AircraftStats:
     message_rate: float | None
     max_range: float | None
     updated: datetime | None
-    closest: ClosestAircraft | None
+    closest: AircraftSummary | None
+    highest: AircraftSummary | None = None
+    fastest: AircraftSummary | None = None
+    # Everything inside the configured radius, nearest first.
+    nearby: tuple[AircraftSummary, ...] = ()
     emergencies: tuple[EmergencyAircraft, ...] = ()
 
 
@@ -167,6 +178,25 @@ def _is_military(entry: dict[str, Any]) -> bool:
     return flags is not None and bool(flags & 1)
 
 
+def _summarise(entry: dict[str, Any], metres: float | None) -> AircraftSummary:
+    """Turn one aircraft.json entry into the shape we expose."""
+    return AircraftSummary(
+        hex=str(entry.get("hex", "")),
+        flight=_as_text(entry.get("flight")),
+        distance=metres,
+        altitude=_altitude(entry),
+        speed=_ground_speed(entry),
+        track=_as_float(entry.get("track")),
+        rssi=_as_float(entry.get("rssi")),
+        seen=_as_float(entry.get("seen")),
+        # Only a decoder with an aircraft database fills these in.
+        registration=_as_text(entry.get("r")),
+        aircraft_type=_as_text(entry.get("t")),
+        description=_as_text(entry.get("desc")),
+        military=_is_military(entry),
+    )
+
+
 def _emergency_reason(entry: dict[str, Any]) -> str | None:
     """Return why an aircraft counts as an emergency, or None."""
     # dump1090-fa states it outright; every decoder gives us the squawk.
@@ -212,6 +242,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         if self._antenna is not None:
             return self._antenna
         return self.hass.config.latitude, self.hass.config.longitude
+
+    @property
+    def proximity_radius(self) -> float:
+        """Return how close an aircraft counts as nearby, in metres."""
+        kilometres = self.config_entry.options.get(
+            CONF_PROXIMITY_RADIUS, DEFAULT_PROXIMITY_RADIUS
+        )
+        return float(kilometres) * 1000
 
     @property
     def origin_source(self) -> str:
@@ -336,10 +374,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             entry for entry in data["aircraft"] if isinstance(entry, dict)
         ]
         origin_latitude, origin_longitude = self.origin
+        radius = self.proximity_radius
 
         with_position = 0
         max_range: float | None = None
-        closest: ClosestAircraft | None = None
+        closest: AircraftSummary | None = None
+        highest: AircraftSummary | None = None
+        fastest: AircraftSummary | None = None
+        nearby: list[AircraftSummary] = []
         emergencies: list[EmergencyAircraft] = []
 
         for entry in aircraft:
@@ -353,31 +395,38 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     )
                 )
 
-            if (position := _position(entry)) is None:
-                continue
-            with_position += 1
-            metres = distance(origin_latitude, origin_longitude, *position)
+            metres: float | None = None
+            if (position := _position(entry)) is not None:
+                with_position += 1
+                metres = distance(origin_latitude, origin_longitude, *position)
+
+            summary = _summarise(entry, metres)
+
+            # Altitude and speed reach us from aircraft without a position too,
+            # so these two are not restricted to the ones we can locate.
+            if summary.altitude is not None and (
+                highest is None
+                or highest.altitude is None
+                or summary.altitude > highest.altitude
+            ):
+                highest = summary
+            if summary.speed is not None and (
+                fastest is None
+                or fastest.speed is None
+                or summary.speed > fastest.speed
+            ):
+                fastest = summary
+
             if metres is None:
                 continue
             if max_range is None or metres > max_range:
                 max_range = metres
-            if closest is None or metres < closest.distance:
-                closest = ClosestAircraft(
-                    hex=str(entry.get("hex", "")),
-                    flight=_as_text(entry.get("flight")),
-                    distance=metres,
-                    altitude=_altitude(entry),
-                    speed=_ground_speed(entry),
-                    track=_as_float(entry.get("track")),
-                    rssi=_as_float(entry.get("rssi")),
-                    seen=_as_float(entry.get("seen")),
-                    # Only readsb with an aircraft database fills these in.
-                    registration=_as_text(entry.get("r")),
-                    aircraft_type=_as_text(entry.get("t")),
-                    description=_as_text(entry.get("desc")),
-                    military=_is_military(entry),
-                )
+            if closest is None or closest.distance is None or metres < closest.distance:
+                closest = summary
+            if metres <= radius:
+                nearby.append(summary)
 
+        nearby.sort(key=lambda item: item.distance or 0.0)
         now = _as_float(data.get("now"))
         messages = _as_int(data.get("messages"))
 
@@ -389,6 +438,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             max_range=max_range,
             updated=None if now is None else dt_util.utc_from_timestamp(now),
             closest=closest,
+            highest=highest,
+            fastest=fastest,
+            nearby=tuple(nearby),
             emergencies=tuple(emergencies),
         )
 

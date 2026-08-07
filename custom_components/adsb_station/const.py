@@ -43,6 +43,14 @@ DEFAULT_SCAN_INTERVAL = 15
 MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 600
 
+# How close an aircraft has to be to count as nearby, in kilometres. Ten is
+# roughly the circle you can see and hear from, which is what makes it useful
+# for automations; the range of a good receiver is many times that.
+CONF_PROXIMITY_RADIUS = "proximity_radius"
+DEFAULT_PROXIMITY_RADIUS = 10
+MIN_PROXIMITY_RADIUS = 1
+MAX_PROXIMITY_RADIUS = 500
+
 # Where aircraft.json lives on the common receiver images, in the order we
 # prefer them. fr24feed ships its own dump1090 on port 8080 under /dump1090;
 # readsb with tar1090 puts it behind the normal web server on port 80, which is

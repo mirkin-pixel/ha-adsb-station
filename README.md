@@ -38,9 +38,15 @@ Everything from `aircraft.json` — the part every setup gets:
 | Maximum range | Sensor (km) | Distance to the furthest aircraft |
 | Message rate | Sensor (msg/s) | Mode S messages per second, computed between two polls |
 | Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
+| Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
+| Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
+| Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first |
+| Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver |
 | Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
+
+The highest and the fastest also count aircraft that never broadcast a position: altitude and speed reach us from Mode S alone, and leaving those out would understate both. Their `distance` attribute is then empty.
 
 And, when your receiver also serves `stats.json`, the health of your reception:
 
@@ -58,7 +64,7 @@ And, when your receiver also serves `stats.json`, the health of your reception:
 | Demodulator load | Sensor (%, diagnostic) | How much CPU time the decoder spent demodulating |
 | Gain | Sensor (dB) | The gain the dongle is running at. Only created when the decoder reports one |
 
-These come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.
+The reception figures come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.
 
 Everything from `monitor.json` — **only when you run `fr24feed`**:
 
@@ -152,7 +158,7 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-The update interval is 15 seconds. Change it under **Configure** on the integration page; everything runs on your own network, so a short interval is fine. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Two settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities — ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding `fr24feed` to a station you set up as receiver-only means adding it as a second integration entry, or removing the entry and adding it again through the feeder path.
 
@@ -299,9 +305,15 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 | Maximaal bereik | Sensor (km) | Afstand tot het verste vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, berekend tussen twee metingen |
 | Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
+| Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
+| Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
+| Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst |
+| Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
 | Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
+
+Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzenden: hoogte en snelheid komen al via Mode S binnen, en die weglaten zou beide cijfers te laag maken. Hun attribuut `distance` is dan leeg.
 
 En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 
@@ -319,7 +331,7 @@ En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 | Demodulatorbelasting | Sensor (%, diagnostisch) | Hoeveel CPU-tijd de decoder aan demoduleren besteedde |
 | Gain | Sensor (dB) | De gain waarop de dongle draait. Wordt alleen aangemaakt als de decoder die meldt |
 
-Deze komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.
+De ontvangstcijfers komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.
 
 Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
 
@@ -413,7 +425,7 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-De ververstijd is 15 seconden. Pas die aan via **Configureren** op de integratiepagina; alles draait op je eigen netwerk, dus een korte tijd kan prima. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan twee instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead** — tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je `fr24feed` toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede integratie-item toe, of verwijder het item en voeg het opnieuw toe via het feeder-pad.
 

@@ -71,10 +71,12 @@
       "init": {
         "title": "Opties ADS-B-station",
         "data": {
-          "scan_interval": "Ververstijd"
+          "scan_interval": "Ververstijd",
+          "proximity_radius": "Straal dichtbij"
         },
         "data_description": {
-          "scan_interval": "Hoe vaak het station uitgelezen wordt, in seconden. Alles draait op je eigen netwerk, dus een korte tijd kan prima."
+          "scan_interval": "Hoe vaak het station uitgelezen wordt, in seconden. Alles draait op je eigen netwerk, dus een korte tijd kan prima.",
+          "proximity_radius": "Hoe dichtbij een vliegtuig moet zijn om als dichtbij te tellen, in kilometers. Tien is ongeveer wat je kunt zien en horen."
         }
       }
     }
@@ -164,6 +166,15 @@
       },
       "gain": {
         "name": "Gain"
+      },
+      "aircraft_nearby": {
+        "name": "Vliegtuigen dichtbij"
+      },
+      "highest_aircraft": {
+        "name": "Hoogste vliegtuig"
+      },
+      "fastest_aircraft": {
+        "name": "Snelste vliegtuig"
       }
     },
     "binary_sensor": {
@@ -193,6 +204,13 @@
         "state": {
           "off": "Geen",
           "on": "Gedetecteerd"
+        }
+      },
+      "nearby": {
+        "name": "Vliegtuig overhead",
+        "state": {
+          "off": "Geen",
+          "on": "Overhead"
         }
       }
     }

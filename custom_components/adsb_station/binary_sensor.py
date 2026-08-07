@@ -18,6 +18,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
 from .entity import AdsbStationAircraftEntity, AdsbStationEntity
+from .sensor import aircraft_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ async def async_setup_entry(
         )
     if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))
+        entities.append(AdsbStationNearbyBinarySensor(coordinator))
 
     async_add_entities(entities)
 
@@ -146,4 +148,34 @@ class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
                 }
                 for entry in aircraft.emergencies
             ]
+        }
+
+
+class AdsbStationNearbyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):
+    """On while at least one aircraft is inside the configured radius."""
+
+    _attr_translation_key = "nearby"
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(coordinator, "nearby")
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True when something is overhead."""
+        if (aircraft := self.aircraft) is None:
+            return None
+        return bool(aircraft.nearby)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return which aircraft are nearby, nearest first."""
+        if (aircraft := self.aircraft) is None:
+            return None
+        return {
+            "radius": self.coordinator.proximity_radius / 1000,
+            "aircraft": [
+                aircraft_attributes(summary, include_distance=True)
+                for summary in aircraft.nearby
+            ],
         }

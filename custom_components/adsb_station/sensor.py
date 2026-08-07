@@ -18,6 +18,7 @@ from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
     UnitOfLength,
+    UnitOfSpeed,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -29,6 +30,7 @@ from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
     AircraftStats,
+    AircraftSummary,
     ReceiverStats,
 )
 from .entity import (
@@ -80,6 +82,39 @@ def _as_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def aircraft_attributes(
+    summary: AircraftSummary, *, include_distance: bool = False
+) -> dict[str, Any]:
+    """Describe one aircraft for the attributes of an entity.
+
+    The distance is left out where the entity state already is the distance.
+    """
+    attributes: dict[str, Any] = {
+        "hex": summary.hex,
+        "flight": summary.flight,
+        "altitude": summary.altitude,
+        "speed": summary.speed,
+        "track": summary.track,
+        "rssi": summary.rssi,
+        "seen": summary.seen,
+    }
+    if include_distance:
+        attributes["distance"] = (
+            None if summary.distance is None else round(summary.distance / 1000, 1)
+        )
+    # Decoders without an aircraft database send none of this, and empty
+    # attributes are worse than absent ones on a dashboard.
+    if summary.registration is not None:
+        attributes["registration"] = summary.registration
+    if summary.aircraft_type is not None:
+        attributes["aircraft_type"] = summary.aircraft_type
+    if summary.description is not None:
+        attributes["description"] = summary.description
+    if summary.military:
+        attributes["military"] = True
+    return attributes
 
 
 def _cpu_temperature(monitor: dict[str, Any]) -> float | None:
@@ -359,6 +394,9 @@ async def async_setup_entry(
             for description in AIRCRAFT_SENSORS
         )
         entities.append(AdsbStationClosestAircraftSensor(coordinator))
+        entities.append(AdsbStationHighestAircraftSensor(coordinator))
+        entities.append(AdsbStationFastestAircraftSensor(coordinator))
+        entities.append(AdsbStationNearbySensor(coordinator))
     if coordinator.client.stats_url:
         features = set(entry.data.get(CONF_RECEIVER_FEATURES) or ())
         entities.extend(
@@ -467,23 +505,91 @@ class AdsbStationClosestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
         """Return who is flying there."""
         if (aircraft := self.aircraft) is None or (closest := aircraft.closest) is None:
             return None
-        attributes: dict[str, Any] = {
-            "hex": closest.hex,
-            "flight": closest.flight,
-            "altitude": closest.altitude,
-            "speed": closest.speed,
-            "track": closest.track,
-            "rssi": closest.rssi,
-            "seen": closest.seen,
+        return aircraft_attributes(closest)
+
+
+class AdsbStationHighestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
+    """Altitude of the highest aircraft in range."""
+
+    _attr_translation_key = "highest_aircraft"
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.FEET
+    _attr_suggested_display_precision = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "highest_aircraft")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the altitude of the highest aircraft."""
+        if (aircraft := self.aircraft) is None or aircraft.highest is None:
+            return None
+        return aircraft.highest.altitude
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return who is flying up there."""
+        if (aircraft := self.aircraft) is None or (highest := aircraft.highest) is None:
+            return None
+        return aircraft_attributes(highest, include_distance=True)
+
+
+class AdsbStationFastestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
+    """Ground speed of the fastest aircraft in range."""
+
+    _attr_translation_key = "fastest_aircraft"
+    _attr_device_class = SensorDeviceClass.SPEED
+    _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
+    _attr_suggested_display_precision = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "fastest_aircraft")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the ground speed of the fastest aircraft."""
+        if (aircraft := self.aircraft) is None or aircraft.fastest is None:
+            return None
+        return aircraft.fastest.speed
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return who is flying that fast."""
+        if (aircraft := self.aircraft) is None or (fastest := aircraft.fastest) is None:
+            return None
+        return aircraft_attributes(fastest, include_distance=True)
+
+
+class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
+    """How many aircraft are inside the configured radius."""
+
+    _attr_translation_key = "aircraft_nearby"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "aircraft_nearby")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the number of aircraft nearby."""
+        if (aircraft := self.aircraft) is None:
+            return None
+        return len(aircraft.nearby)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return which aircraft those are, nearest first."""
+        if (aircraft := self.aircraft) is None:
+            return None
+        return {
+            "radius": self.coordinator.proximity_radius / 1000,
+            "aircraft": [
+                aircraft_attributes(summary, include_distance=True)
+                for summary in aircraft.nearby
+            ],
         }
-        # Decoders without an aircraft database send none of this, and empty
-        # attributes are worse than absent ones on a dashboard.
-        if closest.registration is not None:
-            attributes["registration"] = closest.registration
-        if closest.aircraft_type is not None:
-            attributes["aircraft_type"] = closest.aircraft_type
-        if closest.description is not None:
-            attributes["description"] = closest.description
-        if closest.military:
-            attributes["military"] = True
-        return attributes
