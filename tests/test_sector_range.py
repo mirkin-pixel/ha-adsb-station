@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
+    async_fire_time_changed,
     mock_restore_cache_with_extra_data,
 )
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_station.const import DOMAIN, SECTORS
+from custom_components.adsb_station.const import DEFAULT_SCAN_INTERVAL, DOMAIN, SECTORS
 from custom_components.adsb_station.coordinator import sector_of
 
 from .conftest import MOCK_ALIAS, set_responses, setup_integration
@@ -68,10 +72,11 @@ async def test_records_are_kept_per_sector(
 
     assert await setup_integration(hass, mock_config_entry)
 
-    # One degree of latitude is about 111 km, half a degree about 55.6
-    assert float(_state(hass, "max_range_n")) == pytest.approx(111_200, rel=0.01)
-    assert float(_state(hass, "max_range_e")) == pytest.approx(68_500, rel=0.02)
-    assert float(_state(hass, "max_range_s")) == pytest.approx(55_600, rel=0.01)
+    # Metres natively, but the sensors suggest kilometres, so states are km.
+    # One degree of latitude is about 111 km, half a degree about 55.6.
+    assert float(_state(hass, "max_range_n")) == pytest.approx(111.2, rel=0.01)
+    assert float(_state(hass, "max_range_e")) == pytest.approx(68.5, rel=0.02)
+    assert float(_state(hass, "max_range_s")) == pytest.approx(55.6, rel=0.01)
     assert _attributes(hass, "max_range_n")["flight"] == "NORTH1"
     assert _attributes(hass, "max_range_n")["recorded_at"] is not None
 
@@ -133,7 +138,7 @@ async def test_a_record_survives_a_restart(
 
     assert await setup_integration(hass, mock_config_entry)
 
-    assert float(_state(hass, "max_range_n")) == pytest.approx(250_000)
+    assert float(_state(hass, "max_range_n")) == pytest.approx(250.0)
     assert _attributes(hass, "max_range_n")["flight"] == "OLDREC"
 
 
@@ -145,6 +150,16 @@ async def test_reset_button_clears_every_sector(
     """Test that the button wipes the records, for when the antenna moved."""
     set_responses(aioclient_mock, aircraft=AIRCRAFT_AROUND_US)
     assert await setup_integration(hass, mock_config_entry)
+    assert _state(hass, "max_range_n") != STATE_UNKNOWN
+
+    # Empty the sky first. Resetting with the same aircraft still in view sets
+    # a fresh record from them straight away, which is right but invisible.
+    set_responses(aioclient_mock, aircraft={"now": 2.0, "messages": 2, "aircraft": []})
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + timedelta(seconds=DEFAULT_SCAN_INTERVAL + 5)
+    )
+    await hass.async_block_till_done()
+    # The record outlives the aircraft that set it
     assert _state(hass, "max_range_n") != STATE_UNKNOWN
 
     button_id = er.async_get(hass).async_get_entity_id(
