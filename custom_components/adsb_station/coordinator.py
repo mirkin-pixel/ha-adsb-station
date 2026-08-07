@@ -275,16 +275,16 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.
         self.sector_sensors: list[SectorRangeRecord] = []
-
-    @property
-    def feeder_type(self) -> str | None:
-        """Return which feeder this entry reads, if any."""
-        return self.client.feeder_type
         self._previous_messages: tuple[int, float] | None = None
         self._aircraft_failed = False
         self._stats_failed = False
         self._antenna: tuple[float, float] | None = None
         self._antenna_checked = False
+
+    @property
+    def feeder_type(self) -> str | None:
+        """Return which feeder this entry reads, if any."""
+        return self.client.feeder_type
 
     @property
     def origin(self) -> tuple[float, float]:

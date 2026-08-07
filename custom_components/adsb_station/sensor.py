@@ -335,7 +335,7 @@ PIAWARE_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda payload: _as_float(payload.get("cpu_load_percent")),
+        value_fn=lambda payload: _as_int(payload.get("cpu_load_percent")),
         supported_fn=lambda payload: "cpu_load_percent" in payload,
     ),
     AdsbStationSensorEntityDescription(

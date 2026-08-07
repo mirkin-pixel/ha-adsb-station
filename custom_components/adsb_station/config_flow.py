@@ -162,7 +162,12 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
                 alias = ""
                 if feeder_type == FEEDER_FR24:
                     alias = str(payload.get("feed_alias") or "").strip()
-                await self.async_set_unique_id(alias or f"{feeder_type}:{host}:{port}")
+                    # Unprefixed, because entries predating the other feeders
+                    # were identified this way and must keep their entities.
+                    fallback = f"{host}:{port}"
+                else:
+                    fallback = f"{feeder_type}:{host}:{port}"
+                await self.async_set_unique_id(alias or fallback)
                 if self.source == SOURCE_RECONFIGURE:
                     if alias:
                         self._abort_if_unique_id_mismatch(reason="wrong_feeder")
