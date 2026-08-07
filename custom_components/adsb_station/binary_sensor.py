@@ -60,6 +60,10 @@ class AdsbStationBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a binary sensor that reads the feeder's status document."""
 
     value_fn: Callable[[dict[str, Any]], bool | None]
+    # Builds differ in what they report. When set, this decides from the first
+    # poll whether the field is there at all, so a feeder that never sends it
+    # does not get a sensor stuck on unknown for the life of the entry.
+    supported_fn: Callable[[dict[str, Any]], bool] | None = None
 
 
 FR24_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
@@ -81,6 +85,9 @@ FR24_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda payload: _as_bool(payload.get("mlat_ok")),
+        # Not every build reports on multilateration. The x86 ones leave the
+        # field out entirely rather than saying it is off.
+        supported_fn=lambda payload: "mlat_ok" in payload,
     ),
 )
 
@@ -115,11 +122,13 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     entities: list[BinarySensorEntity] = []
     if coordinator.client.has_feeder:
+        payload = coordinator.data.feeder or {}
         entities.extend(
             AdsbStationBinarySensor(coordinator, description)
             for description in FEEDER_BINARY_SENSORS.get(
                 coordinator.feeder_type or "", ()
             )
+            if description.supported_fn is None or description.supported_fn(payload)
         )
     if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))

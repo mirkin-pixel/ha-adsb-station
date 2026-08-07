@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import socket
 from typing import Any
 
 from homeassistant.config_entries import (
@@ -109,7 +110,7 @@ OPTIONS_SCHEMA = vol.Schema(
 class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -293,7 +294,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             current = self._get_reconfigure_entry().data.get(CONF_AIRCRAFT_URL)
             if current:
                 return str(current)
-        if self._decoder_already_read():
+        if await self._async_decoder_already_read():
             # Offering the URL again is how you end up counting one decoder
             # several times over, so the second feeder on a station starts
             # with an empty field and has to be told otherwise on purpose.
@@ -303,19 +304,39 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return detected or ""
 
-    def _decoder_already_read(self) -> bool:
+    async def _async_decoder_already_read(self) -> bool:
         """Return True if another entry already reads this host's decoder."""
         reconfiguring = (
             self._get_reconfigure_entry().entry_id
             if self.source == SOURCE_RECONFIGURE
             else None
         )
-        return any(
-            entry.entry_id != reconfiguring
-            and entry.data.get(CONF_AIRCRAFT_URL)
-            and entry.data.get(CONF_HOST) == self._host
+        others = [
+            str(entry.data[CONF_HOST])
             for entry in self._async_current_entries()
-        )
+            if entry.entry_id != reconfiguring and entry.data.get(CONF_AIRCRAFT_URL)
+        ]
+        if not others:
+            return False
+        if self._host in others:
+            return True
+        # One machine reached as an address on one entry and as a name on
+        # another is still one machine, and would be read twice over.
+        mine = await self._async_addresses(self._host)
+        if not mine:
+            return False
+        return any(mine & await self._async_addresses(host) for host in others)
+
+    async def _async_addresses(self, host: str) -> set[str]:
+        """Return the addresses a host resolves to, or nothing if it will not."""
+        try:
+            found = await self.hass.async_add_executor_job(
+                socket.getaddrinfo, host, None
+            )
+        except OSError:
+            _LOGGER.debug("Could not resolve %s", host)
+            return set()
+        return {entry[4][0] for entry in found}
 
     async def _async_validate_feeder(
         self, host: str, port: int, feeder_type: str

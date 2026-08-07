@@ -286,10 +286,24 @@ FR24_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
 )
 
 
+# The colours PiAware uses. An enum sensor rejects anything else outright, so
+# a status we do not know has to become unknown rather than an error.
+PIAWARE_STATUSES = ("green", "amber", "red")
+
+
 def _section(payload: dict[str, Any], name: str, key: str) -> Any:
     """Return one field of a PiAware status section."""
     section = payload.get(name)
     return section.get(key) if isinstance(section, dict) else None
+
+
+def _known_status(payload: dict[str, Any], name: str) -> str | None:
+    """Return the colour of a status section, if it is one we know."""
+    status = _as_text(_section(payload, name, "status"))
+    if status is None:
+        return None
+    status = status.lower()
+    return status if status in PIAWARE_STATUSES else None
 
 
 def _section_message(name: str) -> Callable[[dict[str, Any]], dict[str, Any] | None]:
@@ -316,9 +330,9 @@ def _piaware_status(
         key=key,
         translation_key=key,
         device_class=SensorDeviceClass.ENUM,
-        options=["green", "amber", "red"],
+        options=list(PIAWARE_STATUSES),
         entity_category=EntityCategory.DIAGNOSTIC if diagnostic else None,
-        value_fn=lambda payload: _as_text(_section(payload, name, "status")),
+        value_fn=lambda payload: _known_status(payload, name),
         supported_fn=lambda payload: name in payload,
         attributes_fn=_section_message(name),
     )
@@ -776,69 +790,142 @@ class AdsbStationClosestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
         return aircraft_attributes(closest)
 
 
-class AdsbStationHighestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
-    """Altitude of the highest aircraft in range."""
+@dataclass
+class RememberedAircraft(ExtraStoredData):
+    """The last aircraft one of these sensors had something to say about."""
 
-    _attr_translation_key = "highest_aircraft"
+    value: float | None = None
+    seen_at: str | None = None
+    details: dict[str, Any] | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the reading as the registry stores it."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RememberedAircraft:
+        """Rebuild a reading that was restored from the registry."""
+        details = data.get("details")
+        return cls(
+            value=_as_float(data.get("value")),
+            seen_at=_as_text(data.get("seen_at")),
+            details=details if isinstance(details, dict) else None,
+        )
+
+
+class AdsbStationRememberedAircraftSensor(
+    AdsbStationAircraftEntity, RestoreEntity, SensorEntity
+):
+    """A superlative that keeps standing once the aircraft has gone.
+
+    A station that hears two aircraft an hour would otherwise spend most of
+    its time reporting nothing, and the reading would vanish over a restart
+    as well. What it last saw is more use than a blank, as long as you can
+    tell how long ago that was, which the seen_at attribute says.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        key: str,
+        select: Callable[[AircraftStats], AircraftSummary | None],
+        read: Callable[[AircraftSummary], float | None],
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, key)
+        self._attr_translation_key = key
+        self._select = select
+        self._read = read
+        self._remembered = RememberedAircraft()
+
+    async def async_added_to_hass(self) -> None:
+        """Restore what this sensor last saw."""
+        await super().async_added_to_hass()
+        if (stored := await self.async_get_last_extra_data()) is not None:
+            self._remembered = RememberedAircraft.from_dict(stored.as_dict())
+        self._absorb()
+
+    @property
+    def extra_restore_state_data(self) -> RememberedAircraft:
+        """Return the reading for Home Assistant to store."""
+        return self._remembered
+
+    @property
+    def available(self) -> bool:
+        """Return True even with an empty sky, so the reading stays readable."""
+        return self.coordinator.last_update_success
+
+    def _handle_coordinator_update(self) -> None:
+        """Take over this poll's aircraft, if there was one."""
+        self._absorb()
+        super()._handle_coordinator_update()
+
+    def _absorb(self) -> None:
+        """Remember the current pick, leaving the old one if there is none."""
+        aircraft = self.aircraft
+        if aircraft is None:
+            return
+        summary = self._select(aircraft)
+        if summary is None or (value := self._read(summary)) is None:
+            return
+        self._remembered = RememberedAircraft(
+            value=value,
+            seen_at=dt_util.utcnow().isoformat(),
+            details=aircraft_attributes(summary, include_distance=True),
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the reading, which outlives the aircraft that set it."""
+        return self._remembered.value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return who set it and when."""
+        return {"seen_at": self._remembered.seen_at, **(self._remembered.details or {})}
+
+
+class AdsbStationHighestAircraftSensor(AdsbStationRememberedAircraftSensor):
+    """Altitude of the highest aircraft heard."""
+
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.FEET
     # Suggesting feet explicitly keeps aviation altitudes in feet on a metric
     # system, where the device class would otherwise convert them to metres.
     # The device class is what lets anyone who does want metres pick them per
-    # entity in Home Assistant, so this sets the default without taking the
-    # choice away.
+    # entity, so this sets the default without taking the choice away.
     _attr_suggested_unit_of_measurement = UnitOfLength.FEET
     _attr_suggested_display_precision = 0
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, "highest_aircraft")
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the altitude of the highest aircraft."""
-        if (aircraft := self.aircraft) is None or aircraft.highest is None:
-            return None
-        return aircraft.highest.altitude
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return who is flying up there."""
-        if (aircraft := self.aircraft) is None or (highest := aircraft.highest) is None:
-            return None
-        return aircraft_attributes(highest, include_distance=True)
+        super().__init__(
+            coordinator,
+            "highest_aircraft",
+            lambda aircraft: aircraft.highest,
+            lambda summary: summary.altitude,
+        )
 
 
-class AdsbStationFastestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
-    """Ground speed of the fastest aircraft in range."""
+class AdsbStationFastestAircraftSensor(AdsbStationRememberedAircraftSensor):
+    """Ground speed of the fastest aircraft heard."""
 
-    _attr_translation_key = "fastest_aircraft"
     _attr_device_class = SensorDeviceClass.SPEED
     _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
-    # Knots by default, for the same reason as the altitude above, and
-    # changeable to km/h or mph per entity because of the device class.
+    # Knots by default, for the same reason as the altitude above.
     _attr_suggested_unit_of_measurement = UnitOfSpeed.KNOTS
     _attr_suggested_display_precision = 0
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, "fastest_aircraft")
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the ground speed of the fastest aircraft."""
-        if (aircraft := self.aircraft) is None or aircraft.fastest is None:
-            return None
-        return aircraft.fastest.speed
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return who is flying that fast."""
-        if (aircraft := self.aircraft) is None or (fastest := aircraft.fastest) is None:
-            return None
-        return aircraft_attributes(fastest, include_distance=True)
+        super().__init__(
+            coordinator,
+            "fastest_aircraft",
+            lambda aircraft: aircraft.fastest,
+            lambda summary: summary.speed,
+        )
 
 
 class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
@@ -930,6 +1017,8 @@ class AdsbStationSectorRangeSensor(
         if (stored := await self.async_get_last_extra_data()) is not None:
             self._record = SectorRecord.from_dict(stored.as_dict())
         self.coordinator.sector_sensors.append(self)
+        # The first poll already happened before this entity existed.
+        self._absorb()
 
     async def async_will_remove_from_hass(self) -> None:
         """Stop the reset button from reaching a sensor that is going away."""
@@ -950,10 +1039,19 @@ class AdsbStationSectorRangeSensor(
         """
         return self.coordinator.last_update_success
 
+    def _handle_coordinator_update(self) -> None:
+        """Take over a new record before the state and attributes are read.
+
+        Doing this from native_value would make a property that changes what
+        it reports, and would leave the attributes describing the record the
+        state had a moment ago.
+        """
+        self._absorb()
+        super()._handle_coordinator_update()
+
     @property
     def native_value(self) -> float | None:
         """Return the furthest distance recorded in this sector."""
-        self._absorb()
         return self._record.distance
 
     @property

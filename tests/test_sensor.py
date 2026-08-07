@@ -870,3 +870,80 @@ async def test_error_rate_is_unknown_without_traffic(
     assert await setup_integration(hass, mock_config_entry)
 
     assert _state(hass, "error_rate") == STATE_UNKNOWN
+
+
+async def test_no_mlat_sensor_on_a_build_that_never_reports_it(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a feeder with no mlat_ok gets no sensor stuck on unknown.
+
+    The x86 builds leave the field out entirely rather than saying it is off,
+    which is the same trap the CPU temperature fell into.
+    """
+    set_responses(aioclient_mock, monitor=MOCK_MONITOR_X86)
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id("binary_sensor", DOMAIN, f"{MOCK_ALIAS}_mlat")
+        is None
+    )
+    # The two it does report are still there
+    for key in ("receiver", "feed"):
+        assert (
+            registry.async_get_entity_id("binary_sensor", DOMAIN, f"{MOCK_ALIAS}_{key}")
+            is not None
+        ), key
+
+
+async def test_highest_and_fastest_outlive_the_aircraft(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that an empty sky does not blank what was last heard.
+
+    A station hearing a couple of aircraft an hour would otherwise report
+    nothing most of the time.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
+
+    set_responses(mock_api, aircraft={"now": 2.0, "messages": 2, "aircraft": []})
+    await _refresh(hass)
+
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
+    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450)
+    assert _attributes(hass, "highest_aircraft")["flight"] == "TRA45"
+    assert _attributes(hass, "highest_aircraft")["seen_at"] is not None
+    # And the live figures do go blank, because those are about right now
+    assert _state(hass, "aircraft_received") == "0"
+
+
+async def test_a_higher_aircraft_replaces_the_reading(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that the reading follows the sky rather than only ever growing.
+
+    Unlike the sector records this is the last one heard, not the best ever,
+    so a lower aircraft afterwards is what it reports.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+
+    set_responses(
+        mock_api,
+        aircraft={
+            "now": 3.0,
+            "messages": 3,
+            "aircraft": [{"hex": "aa1", "flight": "LOW1", "alt_baro": 900, "gs": 120}],
+        },
+    )
+    await _refresh(hass)
+
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(900)
+    assert _attributes(hass, "highest_aircraft")["flight"] == "LOW1"

@@ -26,13 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
         entry.data.get(CONF_PORT),
         entry.data.get(CONF_AIRCRAFT_URL),
         entry.data.get(CONF_STATS_URL),
-        # Entries made before there was more than one kind of feeder record no
-        # type, and fr24feed is the only one they can be.
-        feeder_type=(
-            entry.data.get(CONF_FEEDER_TYPE) or FEEDER_FR24
-            if entry.data.get(CONF_PORT) is not None
-            else None
-        ),
+        feeder_type=entry.data.get(CONF_FEEDER_TYPE),
     )
     coordinator = AdsbStationDataUpdateCoordinator(hass, entry, client)
 
@@ -43,6 +37,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
+    return True
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> bool:
+    """Bring an entry made by an older version up to date.
+
+    Entries from before there was more than one kind of feeder record none,
+    and fr24feed is the only one they can be. Writing it once beats deriving
+    it on every load, where it would not appear in the entry itself and would
+    puzzle anyone reading diagnostics.
+    """
+    if entry.version >= 2:
+        return True
+
+    data = {**entry.data}
+    data[CONF_FEEDER_TYPE] = FEEDER_FR24 if data.get(CONF_PORT) is not None else None
+    hass.config_entries.async_update_entry(entry, data=data, version=2)
     return True
 
 
