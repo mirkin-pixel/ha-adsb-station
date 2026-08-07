@@ -97,6 +97,25 @@ Two of those are worth spelling out. Without a gain figure you are tuning your d
 
 If you already run `fr24feed` and nothing else, replacing its bundled dump1090 with readsb costs you nothing and adds the gain sensor, the aircraft details and a real antenna position. **Run Reconfigure after upgrading your decoder** to pick up what it can do now.
 
+#### The aircraft database
+
+The last two rows need one extra step. readsb only fills in `r`, `t`, `desc` and `dbFlags` when it has been given an aircraft database, and without one the closest aircraft sensor reports a hex code and a callsign but no registration, type or military marker.
+
+On a readsb install, fetch the database and point readsb at it:
+
+```bash
+sudo wget -O /usr/local/share/tar1090/aircraft.csv.gz \
+  https://github.com/wiedehopf/tar1090-db/raw/csv/aircraft.csv.gz
+```
+
+Then add the option to `/etc/default/readsb`, in the arguments readsb is started with:
+
+```
+--db-file /usr/local/share/tar1090/aircraft.csv.gz
+```
+
+Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own — the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
+
 ### Installation
 
 Requires Home Assistant 2026.3 or newer.
@@ -338,6 +357,25 @@ Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij 
 Twee daarvan zijn het benoemen waard. Zonder gain-waarde stem je je dongle blind af, en zonder antennepositie in `receiver.json` wordt het bereik gemeten vanaf de thuislocatie van je Home Assistant-installatie in plaats van vanaf je antenne — prima als dat dezelfde plek is, fout als je ontvanger elders staat.
 
 Draai je nu alleen `fr24feed`, dan kost het vervangen van de meegeleverde dump1090 door readsb je niets en levert het de gain-sensor, de vliegtuigdetails en een echte antennepositie op. **Draai Herconfigureren na een decoder-upgrade** om op te pikken wat hij nu kan.
+
+#### De vliegtuigdatabase
+
+De laatste twee rijen vragen één extra stap. readsb vult `r`, `t`, `desc` en `dbFlags` alleen als hij een vliegtuigdatabase heeft; zonder database meldt de sensor voor het dichtstbijzijnde vliegtuig wel een hex-code en een callsign, maar geen registratie, type of militair-markering.
+
+Haal op een readsb-installatie de database op en wijs readsb ernaar:
+
+```bash
+sudo wget -O /usr/local/share/tar1090/aircraft.csv.gz \
+  https://github.com/wiedehopf/tar1090-db/raw/csv/aircraft.csv.gz
+```
+
+Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee readsb start:
+
+```
+--db-file /usr/local/share/tar1090/aircraft.csv.gz
+```
+
+Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op — de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
 
 ### Installatie
 
