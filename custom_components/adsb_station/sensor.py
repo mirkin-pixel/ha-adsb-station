@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 import logging
 from typing import Any
@@ -24,6 +24,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -32,6 +33,7 @@ from .const import (
     FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
     FEATURE_POSITIONS,
+    SECTORS,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -495,6 +497,9 @@ async def async_setup_entry(
         entities.append(AdsbStationHighestAircraftSensor(coordinator))
         entities.append(AdsbStationFastestAircraftSensor(coordinator))
         entities.append(AdsbStationNearbySensor(coordinator))
+        entities.extend(
+            AdsbStationSectorRangeSensor(coordinator, sector) for sector in SECTORS
+        )
     if coordinator.client.stats_url:
         features = set(entry.data.get(CONF_RECEIVER_FEATURES) or ())
         entities.extend(
@@ -610,11 +615,14 @@ class AdsbStationHighestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
     """Altitude of the highest aircraft in range."""
 
     _attr_translation_key = "highest_aircraft"
-    # No distance device class on purpose. It would let Home Assistant convert
-    # the altitude to metres on a metric system, and aviation altitudes are
-    # feet everywhere. This also keeps the state and the altitude attribute in
-    # the same unit.
+    _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.FEET
+    # Suggesting feet explicitly keeps aviation altitudes in feet on a metric
+    # system, where the device class would otherwise convert them to metres.
+    # The device class is what lets anyone who does want metres pick them per
+    # entity in Home Assistant, so this sets the default without taking the
+    # choice away.
+    _attr_suggested_unit_of_measurement = UnitOfLength.FEET
     _attr_suggested_display_precision = 0
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -641,9 +649,11 @@ class AdsbStationFastestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
     """Ground speed of the fastest aircraft in range."""
 
     _attr_translation_key = "fastest_aircraft"
-    # No speed device class either, for the same reason: ground speeds are
-    # knots in aviation, and a converted value would not match the attribute.
+    _attr_device_class = SensorDeviceClass.SPEED
     _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
+    # Knots by default, for the same reason as the altitude above, and
+    # changeable to km/h or mph per entity because of the device class.
+    _attr_suggested_unit_of_measurement = UnitOfSpeed.KNOTS
     _attr_suggested_display_precision = 0
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -695,3 +705,119 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
                 for summary in aircraft.nearby
             ],
         }
+
+
+@dataclass
+class SectorRecord(ExtraStoredData):
+    """The furthest aircraft ever seen in one sector.
+
+    Kept on the entity rather than in the coordinator, because it has to
+    outlive a restart and the entity is what Home Assistant restores.
+    """
+
+    distance: float | None = None
+    recorded_at: str | None = None
+    flight: str | None = None
+    hex: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the record as the registry stores it."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SectorRecord:
+        """Rebuild a record that was restored from the registry."""
+        return cls(
+            distance=_as_float(data.get("distance")),
+            recorded_at=_as_text(data.get("recorded_at")),
+            flight=_as_text(data.get("flight")),
+            hex=_as_text(data.get("hex")),
+        )
+
+
+class AdsbStationSectorRangeSensor(
+    AdsbStationAircraftEntity, RestoreEntity, SensorEntity
+):
+    """The furthest an aircraft has ever been heard in one compass sector.
+
+    Eight of these together are the polar plot that tells you where your
+    antenna is blocked. The record only ever grows, so it survives a restart
+    and is cleared by the reset button.
+    """
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.METERS
+    _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self, coordinator: AdsbStationDataUpdateCoordinator, sector: str
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, f"max_range_{sector}")
+        self._sector = sector
+        self._attr_translation_key = f"max_range_{sector}"
+        self._record = SectorRecord()
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the record this sector already held."""
+        await super().async_added_to_hass()
+        if (stored := await self.async_get_last_extra_data()) is not None:
+            self._record = SectorRecord.from_dict(stored.as_dict())
+        self.coordinator.sector_sensors.append(self)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Stop the reset button from reaching a sensor that is going away."""
+        self.coordinator.sector_sensors.remove(self)
+        await super().async_will_remove_from_hass()
+
+    @property
+    def extra_restore_state_data(self) -> SectorRecord:
+        """Return the record for Home Assistant to store."""
+        return self._record
+
+    @property
+    def available(self) -> bool:
+        """Return True even with no aircraft, so a record stays readable.
+
+        A sector that has held a record for months should not go unavailable
+        just because nothing is flying there right now.
+        """
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the furthest distance recorded in this sector."""
+        self._absorb()
+        return self._record.distance
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return when the record was set and who set it."""
+        return {
+            "recorded_at": self._record.recorded_at,
+            "flight": self._record.flight,
+            "hex": self._record.hex,
+        }
+
+    def _absorb(self) -> None:
+        """Take over this poll's furthest aircraft if it beats the record."""
+        aircraft = self.aircraft
+        if aircraft is None:
+            return
+        seen = aircraft.by_sector.get(self._sector)
+        if seen is None or seen.distance is None:
+            return
+        if self._record.distance is not None and seen.distance <= self._record.distance:
+            return
+        self._record = SectorRecord(
+            distance=seen.distance,
+            recorded_at=dt_util.utcnow().isoformat(),
+            flight=seen.flight,
+            hex=seen.hex,
+        )
+
+    def reset(self) -> None:
+        """Forget the record, for when the antenna moved."""
+        self._record = SectorRecord()
+        self.async_write_ha_state()

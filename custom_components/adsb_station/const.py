@@ -21,6 +21,10 @@ CONF_RECEIVER_FEATURES = "receiver_features"
 # Optional things a receiver may report. Detected once during the config flow,
 # so entities for data a decoder never sends are not created at all. Run
 # Reconfigure after upgrading the decoder to pick them up.
+# The eight compass sectors the range records are kept in. Each spans 45
+# degrees centred on its own direction, so north runs from 337.5 to 22.5.
+SECTORS: tuple[str, ...] = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
+
 FEATURE_GAIN = "gain"
 # readsb puts these at the root of stats.json; the other decoders send neither.
 FEATURE_AIRCRAFT_TYPES = "aircraft_types"

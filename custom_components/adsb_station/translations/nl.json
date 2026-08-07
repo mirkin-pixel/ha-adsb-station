@@ -208,6 +208,30 @@
       },
       "positions_rejected": {
         "name": "Posities verworpen"
+      },
+      "max_range_n": {
+        "name": "Maximaal bereik noord"
+      },
+      "max_range_ne": {
+        "name": "Maximaal bereik noordoost"
+      },
+      "max_range_e": {
+        "name": "Maximaal bereik oost"
+      },
+      "max_range_se": {
+        "name": "Maximaal bereik zuidoost"
+      },
+      "max_range_s": {
+        "name": "Maximaal bereik zuid"
+      },
+      "max_range_sw": {
+        "name": "Maximaal bereik zuidwest"
+      },
+      "max_range_w": {
+        "name": "Maximaal bereik west"
+      },
+      "max_range_nw": {
+        "name": "Maximaal bereik noordwest"
       }
     },
     "binary_sensor": {
@@ -245,6 +269,11 @@
           "off": "Geen",
           "on": "Overhead"
         }
+      }
+    },
+    "button": {
+      "reset_range": {
+        "name": "Bereikrecords wissen"
       }
     }
   }

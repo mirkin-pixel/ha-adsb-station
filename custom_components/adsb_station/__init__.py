@@ -10,7 +10,11 @@ from .api import AdsbStationClient
 from .const import CONF_AIRCRAFT_URL, CONF_STATS_URL
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.SENSOR,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> bool:

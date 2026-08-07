@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
-from typing import Any
+from math import atan2, cos, degrees, radians, sin
+from typing import Any, Protocol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
@@ -22,10 +23,19 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EMERGENCY_SQUAWKS,
+    SECTORS,
     UNSET_RECEIVER_VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class SectorRangeRecord(Protocol):
+    """A sector range sensor, as far as the reset button needs to know."""
+
+    def reset(self) -> None:
+        """Forget the record this sector holds."""
+
 
 type AdsbStationConfigEntry = ConfigEntry[AdsbStationDataUpdateCoordinator]
 
@@ -83,6 +93,9 @@ class AircraftStats:
     fastest: AircraftSummary | None = None
     # Everything inside the configured radius, nearest first.
     nearby: tuple[AircraftSummary, ...] = ()
+    # The furthest aircraft seen in each compass sector this poll. The
+    # all-time record lives on the entities, which survive a restart.
+    by_sector: dict[str, AircraftSummary] = field(default_factory=dict)
     emergencies: tuple[EmergencyAircraft, ...] = ()
 
 
@@ -187,6 +200,26 @@ def _is_military(entry: dict[str, Any]) -> bool:
     return flags is not None and bool(flags & 1)
 
 
+def _bearing(
+    latitude: float, longitude: float, other_latitude: float, other_longitude: float
+) -> float:
+    """Return the initial great circle bearing between two points, in degrees."""
+    phi1, phi2 = radians(latitude), radians(other_latitude)
+    delta = radians(other_longitude - longitude)
+    y = sin(delta) * cos(phi2)
+    x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(delta)
+    return (degrees(atan2(y, x)) + 360) % 360
+
+
+def sector_of(bearing: float) -> str:
+    """Return which compass sector a bearing falls in.
+
+    Each sector is centred on its direction rather than starting at it, so
+    north covers the 45 degrees around 0 and not the 45 degrees after it.
+    """
+    return SECTORS[int(((bearing + 22.5) % 360) // 45)]
+
+
 def _summarise(entry: dict[str, Any], metres: float | None) -> AircraftSummary:
     """Turn one aircraft.json entry into the shape we expose."""
     return AircraftSummary(
@@ -239,6 +272,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
         self.client = client
         self.receiver_version: str | None = None
+        # Filled in by the sector sensors as they are added, so the reset
+        # button can reach them without going through the entity platform.
+        self.sector_sensors: list[SectorRangeRecord] = []
         self._previous_messages: tuple[int, float] | None = None
         self._aircraft_failed = False
         self._stats_failed = False
@@ -391,6 +427,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         highest: AircraftSummary | None = None
         fastest: AircraftSummary | None = None
         nearby: list[AircraftSummary] = []
+        by_sector: dict[str, AircraftSummary] = {}
         emergencies: list[EmergencyAircraft] = []
 
         for entry in aircraft:
@@ -426,7 +463,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             ):
                 fastest = summary
 
-            if metres is None:
+            if metres is None or position is None:
                 continue
             if max_range is None or metres > max_range:
                 max_range = metres
@@ -434,6 +471,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 closest = summary
             if metres <= radius:
                 nearby.append(summary)
+
+            sector = sector_of(_bearing(origin_latitude, origin_longitude, *position))
+            best = by_sector.get(sector)
+            if best is None or best.distance is None or metres > best.distance:
+                by_sector[sector] = summary
 
         nearby.sort(key=lambda item: item.distance or 0.0)
         now = _as_float(data.get("now"))
@@ -450,6 +492,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             highest=highest,
             fastest=fastest,
             nearby=tuple(nearby),
+            by_sector=by_sector,
             emergencies=tuple(emergencies),
         )
 

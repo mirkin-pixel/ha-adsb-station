@@ -208,6 +208,30 @@
       },
       "positions_rejected": {
         "name": "Positions rejected"
+      },
+      "max_range_n": {
+        "name": "Maximum range north"
+      },
+      "max_range_ne": {
+        "name": "Maximum range northeast"
+      },
+      "max_range_e": {
+        "name": "Maximum range east"
+      },
+      "max_range_se": {
+        "name": "Maximum range southeast"
+      },
+      "max_range_s": {
+        "name": "Maximum range south"
+      },
+      "max_range_sw": {
+        "name": "Maximum range southwest"
+      },
+      "max_range_w": {
+        "name": "Maximum range west"
+      },
+      "max_range_nw": {
+        "name": "Maximum range northwest"
       }
     },
     "binary_sensor": {
@@ -245,6 +269,11 @@
           "off": "None",
           "on": "Overhead"
         }
+      }
+    },
+    "button": {
+      "reset_range": {
+        "name": "Reset range records"
       }
     }
   }
