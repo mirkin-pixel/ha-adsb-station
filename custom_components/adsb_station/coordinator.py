@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 import logging
 from math import atan2, cos, degrees, radians, sin
@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
@@ -19,13 +20,16 @@ from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
     CONF_PROXIMITY_RADIUS,
+    CONF_ROUTE_SOURCE,
     DEFAULT_PROXIMITY_RADIUS,
+    DEFAULT_ROUTE_SOURCE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EMERGENCY_SQUAWKS,
     SECTORS,
     UNSET_RECEIVER_VERSION,
 )
+from .route import FlightPosition, FlightRoute, build_route_lookup
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,6 +70,12 @@ class AircraftSummary:
     aircraft_type: str | None
     description: str | None
     military: bool
+    # Where it was heard, which no entity shows but a route lookup needs to
+    # tell one flight number from the same one halfway around the world.
+    position: tuple[float, float] | None = None
+    # Filled in after the poll, and only for the aircraft near enough to
+    # matter, when a route source is configured.
+    route: FlightRoute | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -221,12 +231,17 @@ def sector_of(bearing: float) -> str:
     return SECTORS[int(((bearing + 22.5) % 360) // 45)]
 
 
-def _summarise(entry: dict[str, Any], metres: float | None) -> AircraftSummary:
+def _summarise(
+    entry: dict[str, Any],
+    metres: float | None,
+    position: tuple[float, float] | None = None,
+) -> AircraftSummary:
     """Turn one aircraft.json entry into the shape we expose."""
     return AircraftSummary(
         hex=str(entry.get("hex", "")),
         flight=_as_text(entry.get("flight")),
         distance=metres,
+        position=position,
         altitude=_altitude(entry),
         speed=_ground_speed(entry),
         track=_as_float(entry.get("track")),
@@ -273,6 +288,12 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
         self.client = client
         self.receiver_version: str | None = None
+        # None unless the user picked a source to look routes up with, which
+        # is the only thing here that talks to anything off your own network.
+        self.route_lookup = build_route_lookup(
+            async_get_clientsession(hass),
+            config_entry.options.get(CONF_ROUTE_SOURCE, DEFAULT_ROUTE_SOURCE),
+        )
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.
         self.sector_sensors: list[SectorRangeRecord] = []
@@ -363,7 +384,43 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
 
         await self._async_read_receiver()
-        return self._build_aircraft_stats(data)
+        return await self._async_add_routes(self._build_aircraft_stats(data))
+
+    async def _async_add_routes(self, stats: AircraftStats) -> AircraftStats:
+        """Look up where the aircraft near you are flying from and to.
+
+        Only the nearby ones: they are the handful an automation acts on, and
+        every other aircraft in range would be a question asked of someone
+        else's server for a figure nothing displays.
+        """
+        if self.route_lookup is None or not stats.nearby:
+            return stats
+
+        flights = [
+            FlightPosition(
+                callsign=summary.flight,
+                latitude=None if summary.position is None else summary.position[0],
+                longitude=None if summary.position is None else summary.position[1],
+            )
+            for summary in stats.nearby
+            if summary.flight is not None
+        ]
+        if not flights:
+            return stats
+
+        routes = await self.route_lookup.async_resolve(flights)
+        if not routes:
+            return stats
+
+        return replace(
+            stats,
+            nearby=tuple(
+                summary
+                if (route := routes.get(summary.flight or "")) is None
+                else replace(summary, route=route)
+                for summary in stats.nearby
+            ),
+        )
 
     async def _async_get_stats(self) -> ReceiverStats | None:
         """Fetch stats.json, tolerating a receiver that is not reachable."""
@@ -453,7 +510,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 with_position += 1
                 metres = distance(origin_latitude, origin_longitude, *position)
 
-            summary = _summarise(entry, metres)
+            summary = _summarise(entry, metres, position)
 
             # Altitude and speed reach us from aircraft without a position too,
             # so these two are not restricted to the ones we can locate.

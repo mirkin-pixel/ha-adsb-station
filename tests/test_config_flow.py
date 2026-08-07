@@ -20,10 +20,14 @@ from custom_components.adsb_station.const import (
     CONF_FEEDER_TYPE,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
+    CONF_ROUTE_SOURCE,
     CONF_STATS_URL,
     DOMAIN,
     FEEDER_FR24,
+    ROUTE_SOURCE_ADSBDB,
+    ROUTE_SOURCE_NONE,
 )
+from custom_components.adsb_station.route import AdsbdbLookup
 
 from .conftest import (
     AIRCRAFT_URL,
@@ -536,6 +540,34 @@ async def test_options_flow(
     assert mock_config_entry.options == {
         CONF_SCAN_INTERVAL: 45,
         CONF_PROXIMITY_RADIUS: 25,
+        # Nothing asked for a route, so nothing looks one up.
+        CONF_ROUTE_SOURCE: ROUTE_SOURCE_NONE,
     }
     # The coordinator works in metres
     assert mock_config_entry.runtime_data.proximity_radius == 25_000
+    assert mock_config_entry.runtime_data.route_lookup is None
+
+
+async def test_options_flow_turns_route_lookups_on(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that picking a source gives the coordinator one to ask."""
+    assert await setup_integration(hass, mock_config_entry)
+    assert mock_config_entry.runtime_data.route_lookup is None
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SCAN_INTERVAL: 15,
+            CONF_PROXIMITY_RADIUS: 10,
+            CONF_ROUTE_SOURCE: ROUTE_SOURCE_ADSBDB,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    lookup = mock_config_entry.runtime_data.route_lookup
+    assert isinstance(lookup, AdsbdbLookup)

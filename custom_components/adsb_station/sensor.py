@@ -52,6 +52,7 @@ from .entity import (
     AdsbStationEntity,
     AdsbStationReceptionEntity,
 )
+from .route import route_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -130,6 +131,8 @@ def aircraft_attributes(
         attributes["description"] = summary.description
     if summary.military:
         attributes["military"] = True
+    # Empty unless a route source is configured and it recognised the flight.
+    attributes.update(route_attributes(summary.route))
     return attributes
 
 

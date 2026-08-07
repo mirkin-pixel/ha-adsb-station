@@ -11,7 +11,7 @@
 
 ## English
 
-Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**. Everything happens on your own network: the integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it.
+Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**. Everything happens on your own network: the integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception, it is off unless you turn it on, and it has a section of its own: [where a flight is going](#where-a-flight-is-going) is the one thing your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
 
@@ -32,7 +32,7 @@ On top of the decoder it reads the feeders themselves, each of which serves a st
 
 A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too — set up the receiver on its own.
 
-This replaces a handful of hand-written `platform: rest` sensors with a proper device, translated entity names, a config flow, and figures the REST sensors could not give you: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
+What you get is a proper device with translated entity names and a config flow, and figures that are awkward to arrive at by hand: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
 
 ### Entities
 
@@ -47,7 +47,7 @@ Everything from `aircraft.json` — the part every setup gets:
 | Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
-| Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first |
+| Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](#where-a-flight-is-going) |
 | Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver |
@@ -229,25 +229,36 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Two settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities — ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Three settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities — ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The third is [where a flight is going](#where-a-flight-is-going), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
-### Replacing the REST sensors
+### Where a flight is going
 
-If you configured an `fr24feed` station with `platform: rest` sensors before, you can remove that YAML after setting up the integration. The mapping is:
+Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` — and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you pick a source.
 
-| REST sensor | Entity |
+| Source | How it asks | What it adds |
+|---|---|---|
+| `adsbdb.com` | One request per callsign | Airports at both ends, and the airline by name |
+| routeset, via `adsb.im` | Every callsign in one request | Airports at both ends, and it is told the position, so it can judge whether the route it found fits an aircraft seen there |
+
+Neither needs an account or a key. They do not always agree with each other, which is a fair warning about how certain any of this is: ask both about the same flight number and you may get two different departure airports. The routeset service is the one tar1090 itself defaults to, and it is the stricter of the two — a route it does not believe belongs to the aircraft is dropped rather than shown, on the grounds that a wrong route in a notification is worse than none.
+
+Only the aircraft inside your nearby radius are ever looked up. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
+
+When a route is found it appears on each aircraft in the **Aircraft nearby** and **Aircraft overhead** attributes:
+
+| Attribute | Example |
 |---|---|
-| `value_json.feed_alias` | `sensor.<feeder>_feed_alias` |
-| `rx_connected` | `binary_sensor.<feeder>_receiver` |
-| `feed_status` | `binary_sensor.<feeder>_feed` and `sensor.<feeder>_feed_status` |
-| `d11_map_size` | `sensor.<feeder>_map_size` |
-| `feed_num_ac_tracked` | `sensor.<feeder>_aircraft_tracked` |
-| `build_version` | The firmware version on the device page |
-| `value_json.messages` | `sensor.<feeder>_messages` |
-| `aircraft` | `sensor.<feeder>_aircraft_received` and `sensor.<feeder>_aircraft_with_position` |
-| `now` | `sensor.<feeder>_receiver_updated` |
+| `route` | `CDG-AMS` |
+| `origin`, `destination` | `CDG`, `AMS` |
+| `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
+| `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
+| `airline` | `KLM Royal Dutch Airlines` |
+
+Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and a source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
+
+Route data from adsbdb.com comes from the databases of David Taylor (Edinburgh) and Jim Mason (Glasgow), and may not be copied, published or incorporated into other databases without the explicit permission of David J Taylor.
 
 ### Example automations
 
@@ -267,6 +278,29 @@ automation:
             Emergency squawk from
             {{ state_attr('binary_sensor.ads_b_station_emergency_squawk',
                           'aircraft')[0].flight or 'an unknown aircraft' }}.
+```
+
+Notification when something goes over, saying where it is headed. The route is only there with a [source configured](#where-a-flight-is-going), and only for the flights it recognises, so the template falls back rather than reading a missing key:
+
+```yaml
+automation:
+  - alias: "ADS-B: aircraft overhead"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_aircraft_overhead
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            {% set plane = state_attr(
+                 'binary_sensor.ads_b_station_aircraft_overhead',
+                 'aircraft')[0] %}
+            {{ plane.flight or 'An unknown aircraft' }} overhead at
+            {{ plane.altitude }} ft
+            {%- if plane.origin_location is defined %},
+            {{ plane.origin_location }} to {{ plane.destination_location }}
+            {%- endif %}.
 ```
 
 Keep a daily record of your best range:
@@ -311,6 +345,8 @@ Every endpoint is plain, unauthenticated HTTP on your local network:
 
 The last three are read only by the entry set up for that feeder.
 
+Nothing else is contacted unless you ask for it. The single exception is [looking up a route](#where-a-flight-is-going), which reaches `api.adsbdb.com` or `adsb.im` over HTTPS and sends nothing but a callsign and, for routeset, the position it was heard at. Leave that setting off and the integration never leaves your network.
+
 The integration reads them, it never writes. Ranges are measured from the antenna position in `receiver.json`; when the decoder publishes none, the home location of your Home Assistant installation is used, so make sure that location is correct.
 
 Field names differ between decoders. The fr24feed fork reports `altitude` and `speed` where dump1090-fa and readsb report `alt_baro` and `gs`; the integration accepts both. The message rate is derived from two consecutive polls; after a restart of the receiver, the first value is skipped because its counter starts over.
@@ -351,7 +387,7 @@ This is an unofficial integration and is not affiliated with Flightradar24, Flig
 
 ## Nederlands
 
-Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest. Alles gebeurt op je eigen netwerk: de integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast.
+Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest. Alles gebeurt op je eigen netwerk: de integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering, die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat) is het enige wat je antenne niet kan horen.
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
 
@@ -372,7 +408,7 @@ Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen st
 
 Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook — dan zet je alleen de ontvanger op.
 
-Hiermee vervang je een handvol handgeschreven `platform: rest`-sensoren door een echt apparaat, vertaalde entiteitsnamen, een configuratieflow, en cijfers die de REST-sensoren je niet konden geven: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
+Wat je krijgt is een echt apparaat met vertaalde entiteitsnamen en een configuratieflow, en cijfers waar je met de hand lastig aan komt: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
 
 ### Entiteiten
 
@@ -387,7 +423,7 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 | Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
-| Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst |
+| Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](#waar-een-vlucht-heen-gaat) kunnen dragen |
 | Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
@@ -569,25 +605,36 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan twee instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead** — tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan drie instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead** — tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De derde is [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe — precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
-### De REST-sensoren vervangen
+### Waar een vlucht heen gaat
 
-Had je een `fr24feed`-station eerder met `platform: rest`-sensoren ingericht, dan kan die YAML weg zodra de integratie draait. De vertaling is:
+Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` — en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, tar1090 incluis, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je een bron kiest.
 
-| REST-sensor | Entiteit |
+| Bron | Hoe hij vraagt | Wat je krijgt |
+|---|---|---|
+| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten, en de maatschappij bij naam |
+| routeset, via `adsb.im` | Alle callsigns in één verzoek | De vliegvelden aan beide kanten, en hij krijgt de positie mee, zodat hij kan beoordelen of de gevonden route past bij een vliegtuig dat daar gezien is |
+
+Geen van beide vraagt om een account of een sleutel. Ze zijn het onderling niet altijd eens, wat een eerlijke waarschuwing is over hoe zeker dit allemaal is: vraag ze hetzelfde vluchtnummer en je kunt twee verschillende vertrekvelden terugkrijgen. De routeset-dienst is degene waar tar1090 zelf standaard op staat, en de strengste van de twee — een route waarvan hij niet gelooft dat hij bij het vliegtuig hoort wordt weggelaten in plaats van getoond, omdat een verkeerde route in een notificatie erger is dan geen.
+
+Alleen de vliegtuigen binnen je straal "dichtbij" worden opgezocht. Dat is het handjevol waar een automatisering iets mee doet, en vragen naar elk vliegtuig in bereik zou een stroom verzoeken aan andermans server zijn voor een gegeven dat nergens getoond wordt. Antwoorden worden twaalf uur bewaard, zodat de lijnvluchten die er dagelijks overkomen één keer opgezocht worden in plaats van elke poll, en er worden nooit meer dan 25 nieuwe callsigns per poll opgezocht.
+
+Wordt er een route gevonden, dan verschijnt die bij elk vliegtuig in de attributen van **Vliegtuigen dichtbij** en **Vliegtuig overhead**:
+
+| Attribuut | Voorbeeld |
 |---|---|
-| `value_json.feed_alias` | `sensor.<feeder>_feed_alias` |
-| `rx_connected` | `binary_sensor.<feeder>_ontvanger` |
-| `feed_status` | `binary_sensor.<feeder>_feed` en `sensor.<feeder>_feedstatus` |
-| `d11_map_size` | `sensor.<feeder>_kaartgrootte` |
-| `feed_num_ac_tracked` | `sensor.<feeder>_vliegtuigen_gevolgd` |
-| `build_version` | De firmwareversie op de apparaatpagina |
-| `value_json.messages` | `sensor.<feeder>_berichten` |
-| `aircraft` | `sensor.<feeder>_vliegtuigen_ontvangen` en `sensor.<feeder>_vliegtuigen_met_positie` |
-| `now` | `sensor.<feeder>_ontvanger_bijgewerkt` |
+| `route` | `CDG-AMS` |
+| `origin`, `destination` | `CDG`, `AMS` |
+| `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
+| `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
+| `airline` | `KLM Royal Dutch Airlines` |
+
+Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
+
+De routegegevens van adsbdb.com komen uit de databases van David Taylor (Edinburgh) en Jim Mason (Glasgow), en mogen niet gekopieerd, gepubliceerd of in andere databases opgenomen worden zonder uitdrukkelijke toestemming van David J Taylor.
 
 ### Voorbeeldautomatiseringen
 
@@ -607,6 +654,29 @@ automation:
             Noodsquawk van
             {{ state_attr('binary_sensor.ads_b_station_noodsquawk',
                           'aircraft')[0].flight or 'een onbekend vliegtuig' }}.
+```
+
+Melding wanneer er iets overkomt, met waar het heen gaat. De route staat er alleen bij met een [bron ingesteld](#waar-een-vlucht-heen-gaat), en alleen voor de vluchten die herkend worden, dus de template valt terug in plaats van een ontbrekende sleutel te lezen:
+
+```yaml
+automation:
+  - alias: "ADS-B: vliegtuig overhead"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_vliegtuig_overhead
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            {% set plane = state_attr(
+                 'binary_sensor.ads_b_station_vliegtuig_overhead',
+                 'aircraft')[0] %}
+            {{ plane.flight or 'Een onbekend vliegtuig' }} overhead op
+            {{ plane.altitude }} ft
+            {%- if plane.origin_location is defined %},
+            {{ plane.origin_location }} naar {{ plane.destination_location }}
+            {%- endif %}.
 ```
 
 Je beste bereik van de dag bijhouden:
@@ -650,6 +720,8 @@ Alle endpoints zijn gewone HTTP-adressen zonder authenticatie op je lokale netwe
 - `http://<host>:30053/ajax/stats` — de statistieken van `pfclient`.
 
 Die laatste drie worden alleen gelezen door de entry die voor die feeder is ingericht.
+
+Verder wordt er niets benaderd tenzij je erom vraagt. De enige uitzondering is [een route opzoeken](#waar-een-vlucht-heen-gaat), wat via HTTPS `api.adsbdb.com` of `adsb.im` aanspreekt en niets meegeeft behalve een callsign en, bij routeset, de positie waar hij gehoord is. Laat je die instelling uit, dan verlaat de integratie je netwerk nooit.
 
 De integratie leest ze alleen uit en schrijft nooit. Afstanden worden gemeten vanaf de antennepositie in `receiver.json`; publiceert de decoder die niet, dan wordt de thuislocatie van je Home Assistant-installatie gebruikt, dus zorg dat die locatie klopt.
 

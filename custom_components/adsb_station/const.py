@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 DOMAIN = "adsb_station"
 
@@ -126,6 +127,45 @@ CONF_PROXIMITY_RADIUS = "proximity_radius"
 DEFAULT_PROXIMITY_RADIUS = 10
 MIN_PROXIMITY_RADIUS = 1
 MAX_PROXIMITY_RADIUS = 500
+
+# Where a flight came from and where it is going. This is the one thing that
+# cannot come off your own network: no ADS-B message carries a route. An
+# aircraft broadcasts its callsign and nothing more, so the only way to know
+# is to ask someone who keeps a database of flight numbers. That is a request
+# leaving your network, which is why it is off unless you ask for it.
+CONF_ROUTE_SOURCE = "route_source"
+ROUTE_SOURCE_NONE = "none"
+# adsbdb.com. One request per callsign, and it names the airline as well.
+ROUTE_SOURCE_ADSBDB = "adsbdb"
+# The routeset API tar1090 itself uses. Asks about every callsign at once, and
+# judges from the position whether the route it found fits the aircraft.
+ROUTE_SOURCE_ROUTESET = "routeset"
+ROUTE_SOURCES: tuple[str, ...] = (
+    ROUTE_SOURCE_NONE,
+    ROUTE_SOURCE_ADSBDB,
+    ROUTE_SOURCE_ROUTESET,
+)
+DEFAULT_ROUTE_SOURCE = ROUTE_SOURCE_NONE
+
+ADSBDB_URL = "https://api.adsbdb.com/v0/callsign/{callsign}"
+# adsb.lol serves the same API but currently answers empty, so the default
+# points at the host tar1090 itself defaults to.
+ROUTESET_URL = "https://adsb.im/api/0/routeset"
+# What that endpoint accepts in one request.
+ROUTESET_MAX_PLANES = 100
+
+# A flight number keeps its route for the day, so an answer is worth holding
+# on to; over a whole day the same few airliners pass overhead again and
+# again. A callsign that resolves to nothing is remembered for less time,
+# because that is as likely to be a database that has not caught up yet.
+ROUTE_CACHE_TTL = timedelta(hours=12)
+ROUTE_MISS_CACHE_TTL = timedelta(hours=1)
+# Enough for every airliner a station sees in a day, and small enough that a
+# stream of unknown callsigns cannot grow it without bound.
+ROUTE_CACHE_MAX_ENTRIES = 512
+# A ceiling on what one poll may ask, so a wide radius over a busy airport
+# cannot turn into a burst of requests at somebody else's expense.
+ROUTE_MAX_LOOKUPS_PER_POLL = 25
 
 # Where aircraft.json lives on the common receiver images, in the order we
 # prefer them. fr24feed ships its own dump1090 on port 8080 under /dump1090;
