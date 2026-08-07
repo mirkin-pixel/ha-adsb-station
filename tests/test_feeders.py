@@ -234,9 +234,14 @@ async def test_migration_leaves_a_known_feeder_alone(
     entry would come back after an upgrade pointed at the wrong endpoint.
     """
     aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
-    mock_piaware_entry.version = 1
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        unique_id=mock_piaware_entry.unique_id,
+        data=dict(mock_piaware_entry.data),
+    )
 
-    assert await setup_integration(hass, mock_piaware_entry)
+    assert await setup_integration(hass, entry)
 
-    assert mock_piaware_entry.version == 2
-    assert mock_piaware_entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE
+    assert entry.version == 2
+    assert entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE
