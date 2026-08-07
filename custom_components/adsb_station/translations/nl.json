@@ -1,0 +1,200 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ADS-B-station",
+        "description": "Wat draait er op je ontvanger? Alles wat een aircraft.json aanbiedt werkt: dump1090, dump1090-fa met SkyAware, readsb met tar1090. Kies de Flightradar24-feeder er alleen bij als je daadwerkelijk fr24feed draait.",
+        "menu_options": {
+          "feeder": "Flightradar24-feeder (fr24feed)",
+          "receiver": "Alleen een ADS-B-ontvanger"
+        }
+      },
+      "feeder": {
+        "title": "Flightradar24-feeder",
+        "description": "Vul het adres van je Flightradar24-feeder in. Home Assistant leest de statuspagina uit die fr24feed op je eigen ontvanger aanbiedt.",
+        "data": {
+          "host": "Host",
+          "port": "Poort"
+        },
+        "data_description": {
+          "host": "Het IP-adres of de hostnaam van het apparaat waarop fr24feed draait, bijvoorbeeld 192.168.5.7.",
+          "port": "De poort van de fr24feed-statuspagina. Standaard is dat 8754."
+        }
+      },
+      "receiver": {
+        "title": "ADS-B-ontvanger",
+        "description": "Vul het adres in van de machine waarop je decoder draait. Home Assistant zoekt zelf naar de aircraft.json op de gebruikelijke plekken.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "Het IP-adres of de hostnaam van het apparaat waarop de decoder draait, bijvoorbeeld 192.168.5.7."
+        }
+      },
+      "aircraft": {
+        "title": "ADS-B-ontvanger",
+        "description": "Home Assistant kan ook de aircraft.json van je decoder uitlezen voor het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik. Laat het veld leeg om dit over te slaan.",
+        "data": {
+          "aircraft_url": "aircraft.json-URL"
+        },
+        "data_description": {
+          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7:8080/dump1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt."
+        }
+      },
+      "receiver_url": {
+        "title": "aircraft.json",
+        "description": "Hier komt alle data vandaan, dus dit veld is verplicht. Elke decoder die een aircraft.json aanbiedt werkt, ongeacht aan welk netwerk je voedt.",
+        "data": {
+          "aircraft_url": "aircraft.json-URL"
+        },
+        "data_description": {
+          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7/tar1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met de feeder",
+      "invalid_response": "Op dit adres staat geen fr24feed-statuspagina",
+      "cannot_connect_aircraft": "Kan geen verbinding maken met de ADS-B-ontvanger",
+      "invalid_aircraft_response": "Op deze URL staat geen aircraft.json",
+      "aircraft_url_required": "Zonder feeder is een aircraft.json-URL verplicht",
+      "unknown": "Onverwachte fout"
+    },
+    "abort": {
+      "already_configured": "Dit station is al geconfigureerd",
+      "reconfigure_successful": "Het station is bijgewerkt",
+      "wrong_feeder": "Dit adres hoort bij een andere feeder"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opties ADS-B-station",
+        "data": {
+          "scan_interval": "Ververstijd"
+        },
+        "data_description": {
+          "scan_interval": "Hoe vaak het station uitgelezen wordt, in seconden. Alles draait op je eigen netwerk, dus een korte tijd kan prima."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "aircraft_tracked": {
+        "name": "Vliegtuigen gevolgd"
+      },
+      "aircraft_tracked_adsb": {
+        "name": "Vliegtuigen gevolgd via ADS-B"
+      },
+      "aircraft_uploaded": {
+        "name": "Vliegtuigen doorgestuurd"
+      },
+      "feed_status": {
+        "name": "Feedstatus"
+      },
+      "feed_mode": {
+        "name": "Feedmodus"
+      },
+      "feed_alias": {
+        "name": "Feed-alias"
+      },
+      "map_size": {
+        "name": "Kaartgrootte"
+      },
+      "resets": {
+        "name": "Herstarts"
+      },
+      "last_connected": {
+        "name": "Laatst verbonden"
+      },
+      "cpu_temperature": {
+        "name": "CPU-temperatuur"
+      },
+      "aircraft_received": {
+        "name": "Vliegtuigen ontvangen"
+      },
+      "aircraft_with_position": {
+        "name": "Vliegtuigen met positie"
+      },
+      "messages": {
+        "name": "Berichten"
+      },
+      "message_rate": {
+        "name": "Berichten per seconde"
+      },
+      "max_range": {
+        "name": "Maximaal bereik"
+      },
+      "receiver_updated": {
+        "name": "Ontvanger bijgewerkt"
+      },
+      "signal": {
+        "name": "Signaalniveau"
+      },
+      "noise": {
+        "name": "Ruisniveau"
+      },
+      "signal_to_noise": {
+        "name": "Signaal-ruisverhouding"
+      },
+      "peak_signal": {
+        "name": "Piek-signaalniveau"
+      },
+      "strong_signals": {
+        "name": "Te sterke signalen"
+      },
+      "samples_dropped": {
+        "name": "Verloren samples"
+      },
+      "messages_accepted": {
+        "name": "Geaccepteerde berichten"
+      },
+      "tracks": {
+        "name": "Tracks"
+      },
+      "single_message_tracks": {
+        "name": "Tracks met één bericht"
+      },
+      "demodulator_load": {
+        "name": "Demodulatorbelasting"
+      },
+      "closest_aircraft": {
+        "name": "Dichtstbijzijnde vliegtuig"
+      },
+      "gain": {
+        "name": "Gain"
+      }
+    },
+    "binary_sensor": {
+      "receiver": {
+        "name": "Ontvanger",
+        "state": {
+          "off": "Niet verbonden",
+          "on": "Verbonden"
+        }
+      },
+      "feed": {
+        "name": "Feed",
+        "state": {
+          "off": "Niet verbonden",
+          "on": "Verbonden"
+        }
+      },
+      "mlat": {
+        "name": "MLAT",
+        "state": {
+          "off": "Werkt niet",
+          "on": "Werkt"
+        }
+      },
+      "emergency": {
+        "name": "Noodsquawk",
+        "state": {
+          "off": "Geen",
+          "on": "Gedetecteerd"
+        }
+      }
+    }
+  }
+}

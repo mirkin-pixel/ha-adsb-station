@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  release:
+    name: Attach integration zip to release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that manifest.json matches the release tag
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          tag="${tag#v}"
+          version="$(jq -r .version custom_components/adsb_station/manifest.json)"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::manifest.json version ($version) does not match release tag ($tag)"
+            exit 1
+          fi
+
+      - name: Create zip
+        run: |
+          cd custom_components/adsb_station
+          zip -r ../../adsb_station.zip .
+
+      - name: Upload zip to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: adsb_station.zip

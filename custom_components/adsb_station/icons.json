@@ -1,0 +1,90 @@
+{
+  "entity": {
+    "sensor": {
+      "aircraft_tracked": {
+        "default": "mdi:airplane"
+      },
+      "aircraft_tracked_adsb": {
+        "default": "mdi:airplane-marker"
+      },
+      "aircraft_uploaded": {
+        "default": "mdi:cloud-upload"
+      },
+      "feed_status": {
+        "default": "mdi:transit-connection-variant"
+      },
+      "feed_mode": {
+        "default": "mdi:radio-tower"
+      },
+      "feed_alias": {
+        "default": "mdi:identifier"
+      },
+      "map_size": {
+        "default": "mdi:map-outline"
+      },
+      "resets": {
+        "default": "mdi:restart"
+      },
+      "last_connected": {
+        "default": "mdi:clock-check-outline"
+      },
+      "cpu_temperature": {
+        "default": "mdi:thermometer"
+      },
+      "aircraft_received": {
+        "default": "mdi:airplane-search"
+      },
+      "aircraft_with_position": {
+        "default": "mdi:map-marker-radius"
+      },
+      "messages": {
+        "default": "mdi:message-badge-outline"
+      },
+      "message_rate": {
+        "default": "mdi:speedometer"
+      },
+      "max_range": {
+        "default": "mdi:signal-distance-variant"
+      },
+      "receiver_updated": {
+        "default": "mdi:clock-outline"
+      },
+      "signal": {
+        "default": "mdi:signal"
+      },
+      "noise": {
+        "default": "mdi:waveform"
+      },
+      "signal_to_noise": {
+        "default": "mdi:signal-variant"
+      },
+      "peak_signal": {
+        "default": "mdi:signal-cellular-3"
+      },
+      "strong_signals": {
+        "default": "mdi:alert-decagram-outline"
+      },
+      "samples_dropped": {
+        "default": "mdi:package-variant-remove"
+      },
+      "messages_accepted": {
+        "default": "mdi:check-network-outline"
+      },
+      "tracks": {
+        "default": "mdi:vector-polyline"
+      },
+      "single_message_tracks": {
+        "default": "mdi:vector-point"
+      },
+      "demodulator_load": {
+        "default": "mdi:chip"
+      },
+      "closest_aircraft": {
+        "default": "mdi:airplane-landing"
+      },
+      "gain": {
+        "default": "mdi:tune-vertical"
+      }
+    }
+  }
+}

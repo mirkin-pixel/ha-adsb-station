@@ -1,0 +1,25 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["custom_components/adsb_station"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["custom_components.adsb_station"]
+combine-as-imports = true

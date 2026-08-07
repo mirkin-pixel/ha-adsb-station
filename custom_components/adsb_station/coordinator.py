@@ -1,0 +1,471 @@
+"""Data update coordinator for the ADS-B Station integration."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+import logging
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_SCAN_INTERVAL
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+from homeassistant.util.location import distance
+
+from .api import AdsbStationClient, AdsbStationError, read_gain
+from .const import (
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    EMERGENCY_SQUAWKS,
+    UNSET_RECEIVER_VERSION,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+type AdsbStationConfigEntry = ConfigEntry[AdsbStationDataUpdateCoordinator]
+
+# dump1090 keeps several windows in stats.json. The one-minute window follows
+# the receiver closely; the longer ones cover the first seconds after a restart,
+# when the shorter window has not measured a signal yet.
+STATS_PERIODS = ("last1min", "last5min", "total")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ClosestAircraft:
+    """The aircraft nearest to the antenna in a single poll."""
+
+    hex: str
+    flight: str | None
+    distance: float
+    altitude: float | None
+    speed: float | None
+    track: float | None
+    rssi: float | None
+    seen: float | None
+    registration: str | None
+    aircraft_type: str | None
+    description: str | None
+    military: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class EmergencyAircraft:
+    """An aircraft squawking one of the emergency codes."""
+
+    hex: str
+    flight: str | None
+    squawk: str | None
+    reason: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class AircraftStats:
+    """Figures derived from a single aircraft.json poll."""
+
+    total: int
+    with_position: int
+    messages: int | None
+    message_rate: float | None
+    max_range: float | None
+    updated: datetime | None
+    closest: ClosestAircraft | None
+    emergencies: tuple[EmergencyAircraft, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReceiverStats:
+    """Figures derived from a single stats.json poll."""
+
+    period: str
+    signal: float | None
+    noise: float | None
+    signal_to_noise: float | None
+    peak_signal: float | None
+    strong_signals: int | None
+    samples_dropped: int | None
+    accepted: int | None
+    tracks: int | None
+    single_message_tracks: int | None
+    demodulator_load: float | None
+    gain: float | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class AdsbStationData:
+    """The data of one poll cycle."""
+
+    # None when the station runs no fr24feed, which is the whole of the data
+    # for anyone feeding another network or feeding none at all.
+    monitor: dict[str, Any] | None = field(default=None)
+    aircraft: AircraftStats | None
+    stats: ReceiverStats | None = field(default=None)
+
+
+def _as_float(value: Any) -> float | None:
+    """Parse a value that should be a number."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_int(value: Any) -> int | None:
+    """Parse a value that should be a whole number."""
+    number = _as_float(value)
+    return None if number is None else int(number)
+
+
+def _as_text(value: Any) -> str | None:
+    """Return a non-empty, trimmed string, or None."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _position(entry: dict[str, Any]) -> tuple[float, float] | None:
+    """Return the position of an aircraft, if it reported one."""
+    latitude = _as_float(entry.get("lat"))
+    longitude = _as_float(entry.get("lon"))
+    if latitude is None or longitude is None:
+        return None
+    return latitude, longitude
+
+
+def _altitude(entry: dict[str, Any]) -> float | None:
+    """Return the barometric altitude in feet.
+
+    The fr24feed fork of dump1090 calls this field 'altitude' and reports the
+    string 'ground' for aircraft on the ground; dump1090-fa and readsb call it
+    'alt_baro'.
+    """
+    for key in ("alt_baro", "altitude"):
+        if key in entry:
+            return _as_float(entry[key])
+    return None
+
+
+def _ground_speed(entry: dict[str, Any]) -> float | None:
+    """Return the ground speed in knots, under either of its two names."""
+    for key in ("gs", "speed"):
+        if key in entry:
+            return _as_float(entry[key])
+    return None
+
+
+def _is_military(entry: dict[str, Any]) -> bool:
+    """Return True if readsb flags this aircraft as military.
+
+    dbFlags is a bitfield; bit 0 is the military flag. Decoders without an
+    aircraft database omit the field entirely.
+    """
+    flags = _as_int(entry.get("dbFlags"))
+    return flags is not None and bool(flags & 1)
+
+
+def _emergency_reason(entry: dict[str, Any]) -> str | None:
+    """Return why an aircraft counts as an emergency, or None."""
+    # dump1090-fa states it outright; every decoder gives us the squawk.
+    reported = _as_text(entry.get("emergency"))
+    if reported is not None and reported.lower() not in ("none", "no"):
+        return reported.lower()
+    return EMERGENCY_SQUAWKS.get(str(entry.get("squawk", "")).strip())
+
+
+class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
+    """Polls monitor.json and, when configured, aircraft.json and stats.json."""
+
+    config_entry: AdsbStationConfigEntry
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: AdsbStationConfigEntry,
+        client: AdsbStationClient,
+    ) -> None:
+        """Initialize the coordinator."""
+        scan_interval = config_entry.options.get(
+            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+        )
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=config_entry,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=scan_interval),
+        )
+        self.client = client
+        self.receiver_version: str | None = None
+        self._previous_messages: tuple[int, float] | None = None
+        self._aircraft_failed = False
+        self._stats_failed = False
+        self._antenna: tuple[float, float] | None = None
+        self._antenna_checked = False
+
+    @property
+    def origin(self) -> tuple[float, float]:
+        """Return the point that ranges are measured from."""
+        if self._antenna is not None:
+            return self._antenna
+        return self.hass.config.latitude, self.hass.config.longitude
+
+    async def _async_update_data(self) -> AdsbStationData:
+        """Fetch every endpoint; only the primary source is fatal.
+
+        The feeder is the primary source when there is one, so a receiver that
+        stops answering does not take the feed entities with it. Without a
+        feeder the receiver is all there is, and failing to read it is fatal.
+        """
+        monitor: dict[str, Any] | None = None
+        if self.client.has_feeder:
+            try:
+                monitor = await self.client.async_get_monitor()
+            except AdsbStationError as err:
+                raise UpdateFailed(err) from err
+
+        return AdsbStationData(
+            monitor=monitor,
+            aircraft=await self._async_get_aircraft(
+                required=not self.client.has_feeder
+            ),
+            stats=await self._async_get_stats(),
+        )
+
+    async def _async_get_aircraft(self, *, required: bool) -> AircraftStats | None:
+        """Fetch aircraft.json.
+
+        A receiver that is not reachable is tolerated unless it is the only
+        source this station has.
+        """
+        if not self.client.aircraft_url:
+            return None
+        try:
+            data = await self.client.async_get_aircraft()
+        except AdsbStationError as err:
+            if required:
+                raise UpdateFailed(err) from err
+            # The feeder keeps working without the decoder, so degrade instead
+            # of taking every entity down. Report the outage only once.
+            if not self._aircraft_failed:
+                self._aircraft_failed = True
+                _LOGGER.warning(
+                    "Could not read %s: %s. The aircraft entities become "
+                    "unavailable until the receiver answers again",
+                    self.client.aircraft_url,
+                    err,
+                )
+            return None
+
+        if self._aircraft_failed:
+            self._aircraft_failed = False
+            _LOGGER.info("%s can be read again", self.client.aircraft_url)
+
+        await self._async_read_receiver()
+        return self._build_aircraft_stats(data)
+
+    async def _async_get_stats(self) -> ReceiverStats | None:
+        """Fetch stats.json, tolerating a receiver that is not reachable."""
+        if not self.client.stats_url:
+            return None
+        try:
+            data = await self.client.async_get_stats()
+        except AdsbStationError as err:
+            if not self._stats_failed:
+                self._stats_failed = True
+                _LOGGER.warning(
+                    "Could not read %s: %s. The reception statistics become "
+                    "unavailable until the receiver answers again",
+                    self.client.stats_url,
+                    err,
+                )
+            return None
+
+        if self._stats_failed:
+            self._stats_failed = False
+            _LOGGER.info("%s can be read again", self.client.stats_url)
+
+        return self._build_receiver_stats(data)
+
+    async def _async_read_receiver(self) -> None:
+        """Read receiver.json, once: the antenna position and the decoder."""
+        if self._antenna_checked:
+            return
+        self._antenna_checked = True
+        try:
+            data = await self.client.async_get_receiver()
+        except AdsbStationError as err:
+            _LOGGER.debug("No receiver position available: %s", err)
+            return
+
+        # Without a feeder this is the only thing that identifies the decoder
+        # on the device page. The fr24feed fork never expands its placeholder.
+        version = _as_text(data.get("version"))
+        if version is not None and version != UNSET_RECEIVER_VERSION:
+            self.receiver_version = version
+
+        position = _position({"lat": data.get("lat"), "lon": data.get("lon")})
+        # The fr24feed fork serves a receiver.json without coordinates, and an
+        # unconfigured receiver reports the null island. Both mean "no answer",
+        # so fall back to the location of Home Assistant itself.
+        if position is None or position == (0.0, 0.0):
+            _LOGGER.debug(
+                "receiver.json has no usable position; measuring range from the "
+                "Home Assistant home location instead"
+            )
+            return
+
+        self._antenna = position
+        _LOGGER.debug("Measuring range from the receiver position in receiver.json")
+
+    def _build_aircraft_stats(self, data: dict[str, Any]) -> AircraftStats:
+        """Turn a raw aircraft.json document into the figures we expose."""
+        aircraft: list[dict[str, Any]] = [
+            entry for entry in data["aircraft"] if isinstance(entry, dict)
+        ]
+        origin_latitude, origin_longitude = self.origin
+
+        with_position = 0
+        max_range: float | None = None
+        closest: ClosestAircraft | None = None
+        emergencies: list[EmergencyAircraft] = []
+
+        for entry in aircraft:
+            if (reason := _emergency_reason(entry)) is not None:
+                emergencies.append(
+                    EmergencyAircraft(
+                        hex=str(entry.get("hex", "")),
+                        flight=_as_text(entry.get("flight")),
+                        squawk=_as_text(entry.get("squawk")),
+                        reason=reason,
+                    )
+                )
+
+            if (position := _position(entry)) is None:
+                continue
+            with_position += 1
+            metres = distance(origin_latitude, origin_longitude, *position)
+            if metres is None:
+                continue
+            if max_range is None or metres > max_range:
+                max_range = metres
+            if closest is None or metres < closest.distance:
+                closest = ClosestAircraft(
+                    hex=str(entry.get("hex", "")),
+                    flight=_as_text(entry.get("flight")),
+                    distance=metres,
+                    altitude=_altitude(entry),
+                    speed=_ground_speed(entry),
+                    track=_as_float(entry.get("track")),
+                    rssi=_as_float(entry.get("rssi")),
+                    seen=_as_float(entry.get("seen")),
+                    # Only readsb with an aircraft database fills these in.
+                    registration=_as_text(entry.get("r")),
+                    aircraft_type=_as_text(entry.get("t")),
+                    description=_as_text(entry.get("desc")),
+                    military=_is_military(entry),
+                )
+
+        now = _as_float(data.get("now"))
+        messages = _as_int(data.get("messages"))
+
+        return AircraftStats(
+            total=len(aircraft),
+            with_position=with_position,
+            messages=messages,
+            message_rate=self._message_rate(messages, now),
+            max_range=max_range,
+            updated=None if now is None else dt_util.utc_from_timestamp(now),
+            closest=closest,
+            emergencies=tuple(emergencies),
+        )
+
+    def _message_rate(self, messages: int | None, now: float | None) -> float | None:
+        """Return the messages per second since the previous poll."""
+        if messages is None or now is None:
+            return None
+
+        previous = self._previous_messages
+        self._previous_messages = (messages, now)
+        if previous is None:
+            return None
+
+        previous_messages, previous_now = previous
+        elapsed = now - previous_now
+        # A restarted receiver resets its counter and its clock, so a negative
+        # delta means the previous sample is worthless rather than a real rate.
+        if elapsed <= 0 or messages < previous_messages:
+            return None
+        return (messages - previous_messages) / elapsed
+
+    def _build_receiver_stats(self, data: dict[str, Any]) -> ReceiverStats:
+        """Turn a raw stats.json document into the figures we expose."""
+        period, window = self._pick_period(data)
+        local = window.get("local")
+        local = local if isinstance(local, dict) else {}
+
+        signal = _as_float(local.get("signal"))
+        noise = _as_float(local.get("noise"))
+        tracks = window.get("tracks")
+        tracks = tracks if isinstance(tracks, dict) else {}
+
+        return ReceiverStats(
+            period=period,
+            signal=signal,
+            noise=noise,
+            signal_to_noise=None if signal is None or noise is None else signal - noise,
+            peak_signal=_as_float(local.get("peak_signal")),
+            strong_signals=_as_int(local.get("strong_signals")),
+            samples_dropped=_as_int(local.get("samples_dropped")),
+            accepted=_accepted(local.get("accepted")),
+            tracks=_as_int(tracks.get("all")),
+            single_message_tracks=_as_int(tracks.get("single_message")),
+            demodulator_load=_demodulator_load(window),
+            gain=read_gain(window),
+        )
+
+    @staticmethod
+    def _pick_period(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """Return the shortest window that actually measured a signal."""
+        fallback: tuple[str, dict[str, Any]] = ("last1min", {})
+        for name in STATS_PERIODS:
+            window = data.get(name)
+            if not isinstance(window, dict):
+                continue
+            if not fallback[1]:
+                fallback = (name, window)
+            local = window.get("local")
+            if isinstance(local, dict) and local.get("signal") is not None:
+                return name, window
+        return fallback
+
+
+def _accepted(value: Any) -> int | None:
+    """Return the accepted message count.
+
+    dump1090 reports one entry per bit-error correction level, so the total is
+    the sum of the list.
+    """
+    if isinstance(value, list):
+        counts = [_as_int(item) for item in value]
+        return sum(count for count in counts if count is not None)
+    return _as_int(value)
+
+
+def _demodulator_load(window: dict[str, Any]) -> float | None:
+    """Return how much of the window dump1090 spent on the CPU, in percent."""
+    cpu = window.get("cpu")
+    if not isinstance(cpu, dict):
+        return None
+    start = _as_float(window.get("start"))
+    end = _as_float(window.get("end"))
+    if start is None or end is None or end <= start:
+        return None
+
+    # The counters are milliseconds of CPU time inside a window of seconds.
+    spent = [_as_float(cpu.get(key)) for key in ("demod", "reader", "background")]
+    used = sum(value for value in spent if value is not None)
+    return used / ((end - start) * 1000) * 100

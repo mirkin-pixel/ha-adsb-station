@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Python test dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    assignees:
+      - "mirkin-pixel"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps"
+    groups:
+      pip:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "mirkin-pixel"
+    commit-message:
+      prefix: "deps"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
