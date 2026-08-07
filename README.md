@@ -15,15 +15,22 @@ Custom integration for [Home Assistant](https://www.home-assistant.io/) that rea
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
 
-| Setup | Works | What you get |
-|---|---|---|
-| readsb or tar1090 | Yes | Every receiver entity, and the most of them — see [Which decoder](#which-decoder) |
-| dump1090-fa, PiAware or SkyAware (FlightAware) | Yes | Every receiver entity |
-| dump1090, dump1090-mutability | Yes | The receiver entities its build reports |
-| pfclient (Plane Finder) alongside a decoder | Yes | The receiver entities of that decoder |
-| fr24feed (Flightradar24) | Yes | The receiver entities **plus** the feed status of the feeder |
+| Decoder | What you get |
+|---|---|
+| readsb or tar1090 | Every receiver entity, and the most of them — see [Which decoder](#which-decoder) |
+| dump1090-fa or SkyAware | Every receiver entity |
+| dump1090, dump1090-mutability | The receiver entities its build reports |
+| The dump1090 fork bundled with fr24feed | The receiver entities that fork reports |
 
-Only the feed status entities need `fr24feed`; everything else comes from the decoder. Plane Finder's own client is not read directly, but pfclient runs next to a decoder, and that decoder is what the integration reads.
+On top of the decoder it reads the feeders themselves, each of which serves a status page of its own on your network:
+
+| Feeder | Network | Status page |
+|---|---|---|
+| `fr24feed` | Flightradar24 | `:8754/monitor.json` |
+| PiAware | FlightAware | `:8080/status.json` |
+| `pfclient` | Plane Finder | `:30053/ajax/stats` |
+
+A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too — set up the receiver on its own.
 
 This replaces a handful of hand-written `platform: rest` sensors with a proper device, translated entity names, a config flow, and figures the REST sensors could not give you: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
 
@@ -75,7 +82,11 @@ Altitudes are in feet, ground speeds in knots and distances in kilometres, which
 
 The reception figures come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.
 
-Everything from `monitor.json` — **only when you run `fr24feed`**:
+### Feeders
+
+Each feeder adds its own entities, on its own device. Which of these you see depends on which feeder that entry was set up for.
+
+**Flightradar24**, from the `monitor.json` of `fr24feed`:
 
 | Entity | Type | Description |
 |---|---|---|
@@ -96,6 +107,35 @@ Everything from `monitor.json` — **only when you run `fr24feed`**:
 | Timing source | Sensor (diagnostic) | What the feeder synchronises its clock against, for example NTP |
 | Feed server | Sensor (diagnostic) | The Flightradar24 server this feeder talks to |
 | Resyncs | Sensor (diagnostic) | How often the feeder had to resynchronise |
+
+**FlightAware**, from the `status.json` of PiAware:
+
+| Entity | Type | Description |
+|---|---|---|
+| Radio | Sensor | Whether the decoder is being heard |
+| Feed | Sensor | The connection to FlightAware |
+| MLAT | Sensor | Multilateration |
+| PiAware service | Sensor (diagnostic) | The feeder itself |
+| CPU load | Sensor (%, diagnostic) | Load on the host |
+| Uptime | Sensor (h, diagnostic) | How long the host has been up |
+| CPU temperature | Sensor (diagnostic) | Only created on a host that reads one |
+
+Those four are green, amber or red rather than on or off, because amber says something neither of the other two can: a feeder reporting an unstable clock is running fine but will never multilaterate. The colour is the state and the sentence behind it — *"Local clock source is unstable"* — is on the entity as a `message` attribute.
+
+**Plane Finder**, from the `/ajax/stats` of `pfclient`:
+
+| Entity | Type | Description |
+|---|---|---|
+| Message rate | Sensor (msg/s) | Mode S packets per second, as pfclient counts them |
+| MLAT | Binary sensor (connectivity) | On while multilateration data is being uploaded |
+| Mode S messages | Sensor (diagnostic) | Total packets since the client started |
+| Mode A/C messages | Sensor (diagnostic) | Of those, the Mode A/C ones |
+| CRC errors | Sensor (diagnostic) | Packets that failed their checksum |
+| Uploaded | Sensor (MB, diagnostic) | Sent to Plane Finder |
+| MLAT uploaded | Sensor (kB, diagnostic) | Of that, the multilateration share |
+| Receiver data rate | Sensor (B/s, diagnostic) | Coming in from the decoder |
+
+pfclient publishes no multilateration flag of its own, but it does count what it has sent, and a station whose clock is too unstable to multilaterate sends nothing at all — so the byte counter is the sensor.
 
 With a feeder, the feeder and the receiver are read independently: if the decoder stops answering, only the aircraft entities become unavailable and the feed entities keep working. Without a feeder the decoder is the only source, so an outage takes everything with it.
 
@@ -168,9 +208,12 @@ Requires Home Assistant 2026.3 or newer.
 
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **ADS-B Station**.
-3. Choose what your station runs:
-   - **ADS-B receiver only** — enter the address of the machine running your decoder, for example `192.168.5.7`. The integration looks for its `aircraft.json` and shows you what it found.
-   - **Flightradar24 feeder (fr24feed)** — enter the address of the machine running `fr24feed` and the port of its status page (`8754` by default). The receiver is asked for in a second step and may be left empty.
+3. Choose what this entry is for:
+   - **Flightradar24 feeder (fr24feed)** — the address of the machine running it, and the port of its status page, `8754` by default.
+   - **FlightAware feeder (PiAware)** — likewise, port `8080` by default. A station whose web server was taken over by something else may serve `status.json` elsewhere; on one running tar1090 behind nginx it is worth trying port 80.
+   - **Plane Finder feeder (pfclient)** — likewise, port `30053` by default.
+   - **ADS-B receiver only** — for a station that feeds nowhere, or as the entry that carries the decoder.
+4. Every path then offers the receiver. Attach it to one entry and leave it empty on the others, or the aircraft figures are counted several times over.
 
 These paths are probed automatically, on port 8080 where fr24feed and PiAware serve them and on port 80 where readsb with tar1090 does:
 
@@ -186,7 +229,7 @@ All candidates are probed at the same time, and the first one in that order that
 
 Two settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities — ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
-Adding `fr24feed` to a station you set up as receiver-only means adding it as a second integration entry, or removing the entry and adding it again through the feeder path.
+Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
 ### Replacing the REST sensors
 
@@ -260,7 +303,11 @@ Every endpoint is plain, unauthenticated HTTP on your local network:
 
 - `http://<host>:8080/<path>/aircraft.json` — the aircraft list of your decoder.
 - `<path>/stats.json` and `<path>/receiver.json` — found automatically next to `aircraft.json`.
-- `http://<host>:8754/monitor.json` — the status page of `fr24feed`, when you run one.
+- `http://<host>:8754/monitor.json` — the status page of `fr24feed`.
+- `http://<host>:8080/status.json` — the status page of PiAware.
+- `http://<host>:30053/ajax/stats` — the statistics of `pfclient`.
+
+The last three are read only by the entry set up for that feeder.
 
 The integration reads them, it never writes. Ranges are measured from the antenna position in `receiver.json`; when the decoder publishes none, the home location of your Home Assistant installation is used, so make sure that location is correct.
 
@@ -308,15 +355,22 @@ Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **j
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
 
-| Opstelling | Werkt | Wat je krijgt |
-|---|---|---|
-| readsb of tar1090 | Ja | Alle ontvanger-entiteiten, en daarvan de meeste — zie [Welke decoder](#welke-decoder) |
-| dump1090-fa, PiAware of SkyAware (FlightAware) | Ja | Alle ontvanger-entiteiten |
-| dump1090, dump1090-mutability | Ja | De ontvanger-entiteiten die deze build meldt |
-| pfclient (Plane Finder) naast een decoder | Ja | De ontvanger-entiteiten van die decoder |
-| fr24feed (Flightradar24) | Ja | De ontvanger-entiteiten **plus** de feedstatus van de feeder |
+| Decoder | Wat je krijgt |
+|---|---|
+| readsb of tar1090 | Alle ontvanger-entiteiten, en daarvan de meeste — zie [Welke decoder](#welke-decoder) |
+| dump1090-fa of SkyAware | Alle ontvanger-entiteiten |
+| dump1090, dump1090-mutability | De ontvanger-entiteiten die deze build meldt |
+| De dump1090-fork die fr24feed meelevert | De ontvanger-entiteiten die die fork meldt |
 
-Alleen de feedstatus-entiteiten hebben `fr24feed` nodig; al het andere komt uit de decoder. De eigen client van Plane Finder wordt niet direct uitgelezen, maar pfclient draait naast een decoder, en die decoder is wat de integratie leest.
+Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen statuspagina op je netwerk aanbieden:
+
+| Feeder | Netwerk | Statuspagina |
+|---|---|---|
+| `fr24feed` | Flightradar24 | `:8754/monitor.json` |
+| PiAware | FlightAware | `:8080/status.json` |
+| `pfclient` | Plane Finder | `:30053/ajax/stats` |
+
+Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook — dan zet je alleen de ontvanger op.
 
 Hiermee vervang je een handvol handgeschreven `platform: rest`-sensoren door een echt apparaat, vertaalde entiteitsnamen, een configuratieflow, en cijfers die de REST-sensoren je niet konden geven: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
 
@@ -368,7 +422,11 @@ Hoogtes staan in voet, grondsnelheden in knopen en afstanden in kilometers, zoal
 
 De ontvangstcijfers komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.
 
-Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
+### Feeders
+
+Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je ziet hangt af van de feeder waarvoor die entry is ingericht.
+
+**Flightradar24**, uit de `monitor.json` van `fr24feed`:
 
 | Entiteit | Type | Omschrijving |
 |---|---|---|
@@ -389,6 +447,35 @@ Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
 | Tijdbron | Sensor (diagnostisch) | Waar de feeder zijn klok mee gelijkzet, bijvoorbeeld NTP |
 | Feed-server | Sensor (diagnostisch) | De Flightradar24-server waar deze feeder mee praat |
 | Hersynchronisaties | Sensor (diagnostisch) | Hoe vaak de feeder opnieuw moest synchroniseren |
+
+**FlightAware**, uit de `status.json` van PiAware:
+
+| Entiteit | Type | Omschrijving |
+|---|---|---|
+| Radio | Sensor | Of de decoder gehoord wordt |
+| Feed | Sensor | De verbinding met FlightAware |
+| MLAT | Sensor | Multilateratie |
+| PiAware-dienst | Sensor (diagnostisch) | De feeder zelf |
+| CPU-belasting | Sensor (%, diagnostisch) | Belasting van de host |
+| Bedrijfstijd | Sensor (u, diagnostisch) | Hoe lang de host draait |
+| CPU-temperatuur | Sensor (diagnostisch) | Alleen aangemaakt op een host die er een uitleest |
+
+Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iets wat de andere twee niet kunnen: een feeder die een onstabiele klok meldt draait prima, maar zal nooit multilatereren. De kleur is de state en de zin erachter — *"Local clock source is unstable"* — staat als attribuut `message` op de entiteit.
+
+**Plane Finder**, uit de `/ajax/stats` van `pfclient`:
+
+| Entiteit | Type | Omschrijving |
+|---|---|---|
+| Berichten per seconde | Sensor (msg/s) | Mode S-pakketten per seconde, zoals pfclient ze telt |
+| MLAT | Binary sensor (verbinding) | Aan zolang er multilateratiedata verstuurd wordt |
+| Mode S-berichten | Sensor (diagnostisch) | Totaal aantal pakketten sinds de client startte |
+| Mode A/C-berichten | Sensor (diagnostisch) | Daarvan de Mode A/C-pakketten |
+| CRC-fouten | Sensor (diagnostisch) | Pakketten die hun controlegetal niet haalden |
+| Geüpload | Sensor (MB, diagnostisch) | Verstuurd naar Plane Finder |
+| MLAT geüpload | Sensor (kB, diagnostisch) | Daarvan het multilateratie-aandeel |
+| Datasnelheid ontvanger | Sensor (B/s, diagnostisch) | Wat er van de decoder binnenkomt |
+
+pfclient publiceert zelf geen multilateratie-vlag, maar telt wel wat het verstuurt — en een station waarvan de klok te onstabiel is om te multilatereren verstuurt niets. Die bytesteller is dus de sensor.
 
 Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als de decoder niet meer antwoordt, worden alleen de vliegtuig-entiteiten onbeschikbaar en blijven de feed-entiteiten werken. Zonder feeder is de decoder de enige bron, en neemt een storing alles mee.
 
@@ -461,9 +548,12 @@ Vereist Home Assistant 2026.3 of nieuwer.
 
 1. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen**.
 2. Zoek naar **ADS-B Station**.
-3. Kies wat er op je station draait:
-   - **Alleen een ADS-B-ontvanger** — vul het adres in van de machine waarop je decoder draait, bijvoorbeeld `192.168.5.7`. De integratie zoekt de `aircraft.json` en laat zien wat ze gevonden heeft.
-   - **Flightradar24-feeder (fr24feed)** — vul het adres in van de machine waarop `fr24feed` draait en de poort van de statuspagina (standaard `8754`). De ontvanger wordt in een tweede stap gevraagd en mag leeg blijven.
+3. Kies waar deze entry voor is:
+   - **Flightradar24-feeder (fr24feed)** — het adres van de machine waarop hij draait, en de poort van de statuspagina, standaard `8754`.
+   - **FlightAware-feeder (PiAware)** — idem, standaard poort `8080`. Staat er een andere webserver op die poort, dan kan `status.json` elders staan; op een station met tar1090 achter nginx is poort 80 het proberen waard.
+   - **Plane Finder-feeder (pfclient)** — idem, standaard poort `30053`.
+   - **Alleen een ADS-B-ontvanger** — voor een station dat nergens aan voedt, of als de entry die de decoder draagt.
+4. Elk pad biedt daarna de ontvanger aan. Koppel die aan één entry en laat hem bij de andere leeg, anders tellen de vliegtuigcijfers dubbel.
 
 Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware ze aanbieden en op poort 80 waar readsb met tar1090 dat doet:
 
@@ -479,7 +569,7 @@ Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die ant
 
 Er staan twee instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead** — tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
-Wil je `fr24feed` toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede integratie-item toe, of verwijder het item en voeg het opnieuw toe via het feeder-pad.
+Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe — precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
 ### De REST-sensoren vervangen
 
@@ -553,7 +643,11 @@ Alle endpoints zijn gewone HTTP-adressen zonder authenticatie op je lokale netwe
 
 - `http://<host>:8080/<pad>/aircraft.json` — de vliegtuiglijst van je decoder.
 - `<pad>/stats.json` en `<pad>/receiver.json` — worden automatisch naast `aircraft.json` gevonden.
-- `http://<host>:8754/monitor.json` — de statuspagina van `fr24feed`, als je die draait.
+- `http://<host>:8754/monitor.json` — de statuspagina van `fr24feed`.
+- `http://<host>:8080/status.json` — de statuspagina van PiAware.
+- `http://<host>:30053/ajax/stats` — de statistieken van `pfclient`.
+
+Die laatste drie worden alleen gelezen door de entry die voor die feeder is ingericht.
 
 De integratie leest ze alleen uit en schrijft nooit. Afstanden worden gemeten vanaf de antennepositie in `receiver.json`; publiceert de decoder die niet, dan wordt de thuislocatie van je Home Assistant-installatie gebruikt, dus zorg dat die locatie klopt.
 

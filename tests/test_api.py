@@ -18,7 +18,6 @@ from custom_components.adsb_station.api import (
     web_root,
 )
 from custom_components.adsb_station.const import (
-    DEFAULT_PORT,
     FEATURE_AIRCRAFT_TYPES,
     FEATURE_FREQUENCY_ERROR,
     FEATURE_GAIN,
@@ -27,6 +26,7 @@ from custom_components.adsb_station.const import (
 
 from .conftest import (
     AIRCRAFT_URL,
+    DEFAULT_PORT,
     MOCK_HOST,
     MOCK_STATS,
     MOCK_STATS_READSB,
@@ -112,9 +112,9 @@ async def test_monitor_without_a_port(hass: HomeAssistant) -> None:
     client = AdsbStationClient(async_get_clientsession(hass), MOCK_HOST)
 
     assert not client.has_feeder
-    assert client.monitor_url is None
+    assert client.feeder_url is None
     with pytest.raises(AdsbStationInvalidResponseError):
-        await client.async_get_monitor()
+        await client.async_get_feeder()
 
 
 async def test_stats_detection_without_an_endpoint(

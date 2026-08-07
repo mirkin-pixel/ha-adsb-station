@@ -13,19 +13,31 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_station.api import build_candidate_urls
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_FEEDER_TYPE,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
     DEFAULT_AIRCRAFT_PORT,
-    DEFAULT_PORT,
     DOMAIN,
+    FEEDER_FR24,
+    FEEDER_PIAWARE,
+    FEEDER_PLANEFINDER,
+    FEEDERS,
 )
+
+DEFAULT_PORT = FEEDERS[FEEDER_FR24].port
+PIAWARE_PORT = FEEDERS[FEEDER_PIAWARE].port
+PLANEFINDER_PORT = FEEDERS[FEEDER_PLANEFINDER].port
 
 MOCK_HOST = "192.168.5.7"
 MOCK_ALIAS = "T-EHXX23"
 # What the config flow derives for a station without a feeder, and with it the
 # prefix of every entity unique_id on such an entry.
 RECEIVER_UNIQUE_ID = f"receiver:{MOCK_HOST}"
-MONITOR_URL = f"http://{MOCK_HOST}:{DEFAULT_PORT}/monitor.json"
+PIAWARE_UNIQUE_ID = f"piaware:{MOCK_HOST}:8080"
+PLANEFINDER_UNIQUE_ID = f"planefinder:{MOCK_HOST}:30053"
+FEEDER_URL = f"http://{MOCK_HOST}:{DEFAULT_PORT}/monitor.json"
+PIAWARE_URL = f"http://{MOCK_HOST}:{PIAWARE_PORT}/status.json"
+PLANEFINDER_URL = f"http://{MOCK_HOST}:{PLANEFINDER_PORT}/ajax/stats"
 _DATA_URL = f"http://{MOCK_HOST}:{DEFAULT_AIRCRAFT_PORT}/dump1090/data"
 AIRCRAFT_URL = f"{_DATA_URL}/aircraft.json"
 STATS_URL = f"{_DATA_URL}/stats.json"
@@ -217,6 +229,51 @@ MOCK_STATS_READSB: dict[str, Any] = {
     "total": {"start": 1786040000.0, "end": 1786094145.0, "messages": 0},
 }
 
+# Straight from a PiAware 11.0 on an x86 host. Note cpu_temp_celcius: a machine
+# with nothing to read reports a flat zero rather than leaving the field out,
+# and the key really is spelled that way.
+MOCK_PIAWARE: dict[str, Any] = {
+    "modes_enabled": True,
+    "interval": 5000,
+    "cpu_load_percent": 17,
+    "time": 1786100414712,
+    "site_url": "https://flightaware.com/adsb/stats/user/Someone#stats-280586",
+    "system_uptime": 4595,
+    "expiry": 1786100425712,
+    "piaware": {"status": "green", "message": "PiAware 11.0 is running"},
+    "uat_enabled": False,
+    "cpu_temp_celcius": 0.0,
+    "adept": {"status": "green", "message": "Connected to FlightAware and logged in"},
+    "mlat": {"status": "amber", "message": "Local clock source is unstable"},
+    "piaware_version": "11.0",
+    "radio": {"status": "green", "message": "Received Mode S data recently"},
+}
+
+# Straight from a pfclient 5.4.211. mlat_bytes_out stays at zero on a station
+# whose clock is too unstable to multilaterate.
+MOCK_PLANEFINDER: dict[str, Any] = {
+    "executable_start_time": 1786095828.3634164,
+    "client_version": "5.4.211 amd64",
+    "total_modes_packets": 58855,
+    "total_modes_packets_ps": 59,
+    "total_modeac_packets": 276,
+    "total_modeac_packets_ps": 0,
+    "total_uat_packets": 0,
+    "master_server_bytes_out": 347983,
+    "master_server_bytes_in": 95565,
+    "local_server_bytes_out": 0,
+    "local_server_bytes_in": 88,
+    "mlat_bytes_out": 0,
+    "mlat_bytes_in": 0,
+    "receiver_bytes_out": 0,
+    "receiver_bytes_in": 1089724,
+    "receiver_bytes_out_ps": 0,
+    "receiver_bytes_in_ps": 1092,
+    "total_modes_crc_bad": 2,
+    "total_modes_crc_corrected": 0,
+    "total_modes_types": {"0": 7420, "11": 19036, "17": 7501, "21": 2301},
+}
+
 # The fr24feed fork serves this: no coordinates and an unexpanded placeholder
 # where the version should be.
 MOCK_RECEIVER: dict[str, Any] = {
@@ -260,8 +317,45 @@ def mock_config_entry() -> MockConfigEntry:
         data={
             CONF_HOST: MOCK_HOST,
             CONF_PORT: DEFAULT_PORT,
+            CONF_FEEDER_TYPE: FEEDER_FR24,
             CONF_AIRCRAFT_URL: AIRCRAFT_URL,
             CONF_STATS_URL: STATS_URL,
+            CONF_RECEIVER_FEATURES: [],
+        },
+    )
+
+
+@pytest.fixture
+def mock_piaware_entry() -> MockConfigEntry:
+    """Return an entry for a PiAware feeder with no receiver of its own."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="PiAware feeder",
+        unique_id=PIAWARE_UNIQUE_ID,
+        data={
+            CONF_HOST: MOCK_HOST,
+            CONF_PORT: PIAWARE_PORT,
+            CONF_FEEDER_TYPE: FEEDER_PIAWARE,
+            CONF_AIRCRAFT_URL: None,
+            CONF_STATS_URL: None,
+            CONF_RECEIVER_FEATURES: [],
+        },
+    )
+
+
+@pytest.fixture
+def mock_planefinder_entry() -> MockConfigEntry:
+    """Return an entry for a Plane Finder feeder with no receiver of its own."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Plane Finder feeder",
+        unique_id=PLANEFINDER_UNIQUE_ID,
+        data={
+            CONF_HOST: MOCK_HOST,
+            CONF_PORT: PLANEFINDER_PORT,
+            CONF_FEEDER_TYPE: FEEDER_PLANEFINDER,
+            CONF_AIRCRAFT_URL: None,
+            CONF_STATS_URL: None,
             CONF_RECEIVER_FEATURES: [],
         },
     )
@@ -310,7 +404,7 @@ def set_responses(
     """Replace the mocked responses of every endpoint."""
     aioclient_mock.clear_requests()
     aioclient_mock.get(
-        MONITOR_URL, **(monitor_kwargs or {"json": monitor or MOCK_MONITOR})
+        FEEDER_URL, **(monitor_kwargs or {"json": monitor or MOCK_MONITOR})
     )
     aioclient_mock.get(
         AIRCRAFT_URL, **(aircraft_kwargs or {"json": aircraft or MOCK_AIRCRAFT})

@@ -9,11 +9,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import web_root
 from .const import (
-    DEFAULT_FEEDER_NAME,
     DEFAULT_STATION_NAME,
     DOMAIN,
-    MANUFACTURER,
-    MODEL_FEEDER,
+    FEEDER_FR24,
+    FEEDERS,
     MODEL_RECEIVER,
 )
 from .coordinator import AdsbStationDataUpdateCoordinator, AircraftStats, ReceiverStats
@@ -47,16 +46,36 @@ def _device_info(
             configuration_url=None if aircraft_url is None else web_root(aircraft_url),
         )
 
-    monitor = coordinator.data.monitor or {}
+    payload = coordinator.data.feeder or {}
+    kind = FEEDERS[client.feeder_type]
     return DeviceInfo(
         identifiers={(DOMAIN, device_id)},
-        manufacturer=MANUFACTURER,
-        model=MODEL_FEEDER,
-        name=_text(monitor.get("feed_alias")) or DEFAULT_FEEDER_NAME,
-        sw_version=_text(monitor.get("build_version")),
-        hw_version=_text(monitor.get("build_arch")),
+        manufacturer=kind.manufacturer,
+        model=kind.model,
+        name=_feeder_name(kind.key, payload) or kind.default_name,
+        sw_version=_feeder_version(payload),
+        hw_version=_text(payload.get("build_arch")),
         configuration_url=f"http://{client.host}:{client.port}/",
     )
+
+
+def _feeder_name(feeder_type: str, payload: dict[str, Any]) -> str | None:
+    """Return what this feeder calls itself, if it says.
+
+    Only fr24feed publishes a name of its own; the others are known by what
+    they are, so they fall back to the default for their kind.
+    """
+    if feeder_type == FEEDER_FR24:
+        return _text(payload.get("feed_alias"))
+    return None
+
+
+def _feeder_version(payload: dict[str, Any]) -> str | None:
+    """Return the version this feeder reports, under whichever name it uses."""
+    for key in ("build_version", "piaware_version", "client_version"):
+        if (version := _text(payload.get(key))) is not None:
+            return version
+    return None
 
 
 class AdsbStationEntity(CoordinatorEntity[AdsbStationDataUpdateCoordinator]):
@@ -73,14 +92,14 @@ class AdsbStationEntity(CoordinatorEntity[AdsbStationDataUpdateCoordinator]):
         self._attr_device_info = _device_info(coordinator, device_id)
 
     @property
-    def monitor(self) -> dict[str, Any]:
-        """Return the last monitor.json payload.
+    def feeder(self) -> dict[str, Any]:
+        """Return the last status document the feeder served.
 
         Only entities that exist alongside a feeder read this, so an empty
         payload means the feeder has not answered yet rather than that there
         is none.
         """
-        return self.coordinator.data.monitor or {}
+        return self.coordinator.data.feeder or {}
 
 
 class AdsbStationAircraftEntity(AdsbStationEntity):
