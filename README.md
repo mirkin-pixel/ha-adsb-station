@@ -42,7 +42,7 @@ Everything from `aircraft.json` — the part every setup gets:
 |---|---|---|
 | Aircraft received | Sensor | Aircraft in the last `aircraft.json` |
 | Aircraft with position | Sensor | Of those, the number with a known position |
-| Maximum range | Sensor (km) | Distance to the furthest aircraft |
+| Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, computed between two polls |
 | Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
@@ -54,6 +54,8 @@ Everything from `aircraft.json` — the part every setup gets:
 | Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
 
 The highest and the fastest also count aircraft that never broadcast a position: altitude and speed reach us from Mode S alone, and leaving those out would understate both. Their `distance` attribute is then empty.
+
+Those two and the maximum range keep what they last saw rather than blanking when the sky empties, and they survive a restart. A station that hears a couple of aircraft an hour would otherwise report nothing most of the time. The `seen_at` attribute says how long ago it was, and each still follows the sky — a lower aircraft later replaces the reading. That is what separates them from the [sector records](#where-your-antenna-is-blocked), which only ever grow.
 
 And, when your receiver also serves `stats.json`, the health of your reception:
 
@@ -382,7 +384,7 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 |---|---|---|
 | Vliegtuigen ontvangen | Sensor | Vliegtuigen in de laatste `aircraft.json` |
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
-| Maximaal bereik | Sensor (km) | Afstand tot het verste vliegtuig |
+| Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, berekend tussen twee metingen |
 | Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
@@ -394,6 +396,8 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 | Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
 
 Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzenden: hoogte en snelheid komen al via Mode S binnen, en die weglaten zou beide cijfers te laag maken. Hun attribuut `distance` is dan leeg.
+
+Die twee en het maximale bereik houden vast wat ze het laatst zagen in plaats van leeg te lopen zodra de lucht leeg is, en ze overleven een herstart. Een station dat een paar vliegtuigen per uur hoort zou anders het grootste deel van de tijd niets melden. Het attribuut `seen_at` zegt hoe lang geleden dat was, en elk volgt nog steeds de lucht — een lager toestel later vervangt de waarde. Dat is het verschil met de [sectorrecords](#waar-je-antenne-geblokkeerd-zit), die alleen maar groeien.
 
 En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 

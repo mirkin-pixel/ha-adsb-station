@@ -54,7 +54,10 @@ async def async_migrate_entry(
         return True
 
     data = {**entry.data}
-    data[CONF_FEEDER_TYPE] = FEEDER_FR24 if data.get(CONF_PORT) is not None else None
+    if CONF_FEEDER_TYPE not in data:
+        data[CONF_FEEDER_TYPE] = (
+            FEEDER_FR24 if data.get(CONF_PORT) is not None else None
+        )
     hass.config_entries.async_update_entry(entry, data=data, version=2)
     return True
 

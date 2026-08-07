@@ -917,7 +917,11 @@ async def test_highest_and_fastest_outlive_the_aircraft(
 
     assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
     assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450)
+    assert float(_state(hass, "max_range")) == pytest.approx(
+        EXPECTED_MAX_RANGE_KM, abs=0.5
+    )
     assert _attributes(hass, "highest_aircraft")["flight"] == "TRA45"
+    assert _attributes(hass, "max_range")["flight"] == "TRA45"
     assert _attributes(hass, "highest_aircraft")["seen_at"] is not None
     # And the live figures do go blank, because those are about right now
     assert _state(hass, "aircraft_received") == "0"

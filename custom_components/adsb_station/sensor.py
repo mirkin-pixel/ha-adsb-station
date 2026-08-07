@@ -478,16 +478,6 @@ AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
         value_fn=lambda stats: stats.message_rate,
     ),
     AdsbStationAircraftSensorEntityDescription(
-        key="max_range",
-        translation_key="max_range",
-        device_class=SensorDeviceClass.DISTANCE,
-        native_unit_of_measurement=UnitOfLength.METERS,
-        suggested_unit_of_measurement=UnitOfLength.KILOMETERS,
-        suggested_display_precision=1,
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda stats: stats.max_range,
-    ),
-    AdsbStationAircraftSensorEntityDescription(
         key="receiver_updated",
         translation_key="receiver_updated",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -666,6 +656,7 @@ async def async_setup_entry(
             for description in AIRCRAFT_SENSORS
         )
         entities.append(AdsbStationClosestAircraftSensor(coordinator))
+        entities.append(AdsbStationMaxRangeSensor(coordinator))
         entities.append(AdsbStationHighestAircraftSensor(coordinator))
         entities.append(AdsbStationFastestAircraftSensor(coordinator))
         entities.append(AdsbStationNearbySensor(coordinator))
@@ -906,6 +897,24 @@ class AdsbStationHighestAircraftSensor(AdsbStationRememberedAircraftSensor):
             "highest_aircraft",
             lambda aircraft: aircraft.highest,
             lambda summary: summary.altitude,
+        )
+
+
+class AdsbStationMaxRangeSensor(AdsbStationRememberedAircraftSensor):
+    """Distance to the furthest aircraft heard."""
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.METERS
+    _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            "max_range",
+            lambda aircraft: aircraft.furthest,
+            lambda summary: summary.distance,
         )
 
 

@@ -10,7 +10,12 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_station.const import CONF_AIRCRAFT_URL, DOMAIN
+from custom_components.adsb_station.const import (
+    CONF_AIRCRAFT_URL,
+    CONF_FEEDER_TYPE,
+    DOMAIN,
+    FEEDER_PIAWARE,
+)
 
 from .conftest import (
     MOCK_HOST,
@@ -215,3 +220,23 @@ async def test_a_second_feeder_is_not_offered_the_same_decoder(
     )
     await hass.async_block_till_done()
     assert result["data"][CONF_AIRCRAFT_URL] is None
+
+
+async def test_migration_leaves_a_known_feeder_alone(
+    hass: HomeAssistant,
+    mock_piaware_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that upgrading does not turn another feeder into fr24feed.
+
+    Entries older than the migration record no kind at all and can only be
+    fr24feed. One that already names its kind has to keep it, or a PiAware
+    entry would come back after an upgrade pointed at the wrong endpoint.
+    """
+    aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
+    mock_piaware_entry.version = 1
+
+    assert await setup_integration(hass, mock_piaware_entry)
+
+    assert mock_piaware_entry.version == 2
+    assert mock_piaware_entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE

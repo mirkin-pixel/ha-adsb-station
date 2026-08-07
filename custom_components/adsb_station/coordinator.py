@@ -89,6 +89,7 @@ class AircraftStats:
     max_range: float | None
     updated: datetime | None
     closest: AircraftSummary | None
+    furthest: AircraftSummary | None = None
     highest: AircraftSummary | None = None
     fastest: AircraftSummary | None = None
     # Everything inside the configured radius, nearest first.
@@ -429,6 +430,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         with_position = 0
         max_range: float | None = None
         closest: AircraftSummary | None = None
+        furthest: AircraftSummary | None = None
         highest: AircraftSummary | None = None
         fastest: AircraftSummary | None = None
         nearby: list[AircraftSummary] = []
@@ -472,6 +474,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 continue
             if max_range is None or metres > max_range:
                 max_range = metres
+                furthest = summary
             if closest is None or closest.distance is None or metres < closest.distance:
                 closest = summary
             if metres <= radius:
@@ -494,6 +497,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             max_range=max_range,
             updated=None if now is None else dt_util.utc_from_timestamp(now),
             closest=closest,
+            furthest=furthest,
             highest=highest,
             fastest=fastest,
             nearby=tuple(nearby),

@@ -67,7 +67,12 @@ async def test_unknown_values(
     """Test values that the integration cannot interpret."""
     set_responses(
         aioclient_mock,
-        monitor={"feed_alias": MOCK_ALIAS, "feed_status": "reconnecting"},
+        monitor={
+            "feed_alias": MOCK_ALIAS,
+            "feed_status": "reconnecting",
+            # Present, so the sensor exists, but not something we can read
+            "mlat_ok": "maybe",
+        },
     )
 
     assert await setup_integration(hass, mock_config_entry)
