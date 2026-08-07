@@ -512,7 +512,10 @@ class AdsbStationHighestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
     """Altitude of the highest aircraft in range."""
 
     _attr_translation_key = "highest_aircraft"
-    _attr_device_class = SensorDeviceClass.DISTANCE
+    # No distance device class on purpose. It would let Home Assistant convert
+    # the altitude to metres on a metric system, and aviation altitudes are
+    # feet everywhere. This also keeps the state and the altitude attribute in
+    # the same unit.
     _attr_native_unit_of_measurement = UnitOfLength.FEET
     _attr_suggested_display_precision = 0
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -540,7 +543,8 @@ class AdsbStationFastestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
     """Ground speed of the fastest aircraft in range."""
 
     _attr_translation_key = "fastest_aircraft"
-    _attr_device_class = SensorDeviceClass.SPEED
+    # No speed device class either, for the same reason: ground speeds are
+    # knots in aviation, and a converted value would not match the attribute.
     _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
     _attr_suggested_display_precision = 0
     _attr_state_class = SensorStateClass.MEASUREMENT
