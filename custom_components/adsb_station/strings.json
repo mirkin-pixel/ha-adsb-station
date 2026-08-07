@@ -59,7 +59,7 @@
       },
       "aircraft": {
         "title": "ADS-B receiver",
-        "description": "Home Assistant can also read the aircraft.json of your decoder for the number of aircraft received, the message rate and the maximum range. Leave the field empty to skip this.",
+        "description": "Home Assistant can also read the aircraft.json of your decoder for the number of aircraft received, the message rate and the maximum range. Leave the field empty to skip this. Leave it empty if another entry on this station already reads the decoder, or its aircraft will be counted twice.",
         "data": {
           "aircraft_url": "aircraft.json URL"
         },

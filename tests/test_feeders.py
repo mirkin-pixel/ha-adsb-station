@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_station.const import DOMAIN
+from custom_components.adsb_station.const import CONF_AIRCRAFT_URL, DOMAIN
 
 from .conftest import (
+    MOCK_HOST,
     MOCK_PIAWARE,
     MOCK_PLANEFINDER,
+    PIAWARE_PORT,
     PIAWARE_UNIQUE_ID,
     PIAWARE_URL,
     PLANEFINDER_UNIQUE_ID,
@@ -171,3 +175,42 @@ async def test_a_feeder_without_a_receiver_has_no_aircraft_entities(
             )
             is None
         ), key
+
+
+async def test_a_second_feeder_is_not_offered_the_same_decoder(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that the decoder is not prefilled once an entry already reads it.
+
+    A station feeding several networks sets up one entry per feeder off a
+    single decoder. Offering the detected aircraft.json again is how all of
+    them end up reading it and the aircraft get counted several times over.
+    """
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "piaware"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: MOCK_HOST, CONF_PORT: PIAWARE_PORT}
+    )
+
+    assert result["step_id"] == "aircraft"
+    for marker in result["data_schema"].schema:
+        if marker == CONF_AIRCRAFT_URL:
+            assert marker.description["suggested_value"] == ""
+            break
+    else:
+        raise AssertionError("the aircraft URL is not in the form")
+
+    # Accepting the empty field leaves this entry a feed and nothing more
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_AIRCRAFT_URL: ""}
+    )
+    await hass.async_block_till_done()
+    assert result["data"][CONF_AIRCRAFT_URL] is None

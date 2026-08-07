@@ -293,10 +293,29 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             current = self._get_reconfigure_entry().data.get(CONF_AIRCRAFT_URL)
             if current:
                 return str(current)
+        if self._decoder_already_read():
+            # Offering the URL again is how you end up counting one decoder
+            # several times over, so the second feeder on a station starts
+            # with an empty field and has to be told otherwise on purpose.
+            return ""
         detected = await async_detect_aircraft_url(
             async_get_clientsession(self.hass), self._host
         )
         return detected or ""
+
+    def _decoder_already_read(self) -> bool:
+        """Return True if another entry already reads this host's decoder."""
+        reconfiguring = (
+            self._get_reconfigure_entry().entry_id
+            if self.source == SOURCE_RECONFIGURE
+            else None
+        )
+        return any(
+            entry.entry_id != reconfiguring
+            and entry.data.get(CONF_AIRCRAFT_URL)
+            and entry.data.get(CONF_HOST) == self._host
+            for entry in self._async_current_entries()
+        )
 
     async def _async_validate_feeder(
         self, host: str, port: int, feeder_type: str

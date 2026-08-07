@@ -59,7 +59,7 @@
       },
       "aircraft": {
         "title": "ADS-B-ontvanger",
-        "description": "Home Assistant kan ook de aircraft.json van je decoder uitlezen voor het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik. Laat het veld leeg om dit over te slaan.",
+        "description": "Home Assistant kan ook de aircraft.json van je decoder uitlezen voor het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik. Laat het veld leeg om dit over te slaan. Laat het leeg als een andere entry op dit station de decoder al uitleest, anders tellen die vliegtuigen dubbel.",
         "data": {
           "aircraft_url": "aircraft.json-URL"
         },
