@@ -17,7 +17,13 @@ from custom_components.adsb_station.api import (
     sibling_url,
     web_root,
 )
-from custom_components.adsb_station.const import DEFAULT_PORT, FEATURE_GAIN
+from custom_components.adsb_station.const import (
+    DEFAULT_PORT,
+    FEATURE_AIRCRAFT_TYPES,
+    FEATURE_FREQUENCY_ERROR,
+    FEATURE_GAIN,
+    FEATURE_POSITIONS,
+)
 
 from .conftest import (
     AIRCRAFT_URL,
@@ -221,12 +227,24 @@ def test_read_gain() -> None:
     assert read_gain({"local": {"gain_db": 32.8}}, {"gain_db": 49.6}) == 32.8
 
 
-async def test_detects_readsb_root_level_gain(
+async def test_detects_everything_readsb_reports(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Test that readsb, which reports gain at the root, gets the feature."""
+    """Test the features of readsb, which reports the most of any decoder.
+
+    Its gain and the two counters beside it sit at the root of the document,
+    where only readsb puts them.
+    """
     aioclient_mock.get(STATS_URL, json=MOCK_STATS_READSB)
 
-    assert await async_detect_statistics(
+    url, features = await async_detect_statistics(
         async_get_clientsession(hass), AIRCRAFT_URL
-    ) == (STATS_URL, [FEATURE_GAIN])
+    )
+
+    assert url == STATS_URL
+    assert set(features) == {
+        FEATURE_GAIN,
+        FEATURE_AIRCRAFT_TYPES,
+        FEATURE_FREQUENCY_ERROR,
+        FEATURE_POSITIONS,
+    }
