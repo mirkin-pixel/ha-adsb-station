@@ -433,7 +433,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             tracks=_as_int(tracks.get("all")),
             single_message_tracks=_as_int(tracks.get("single_message")),
             demodulator_load=_demodulator_load(window),
-            gain=read_gain(window),
+            # readsb reports the gain once for the document, not per window.
+            gain=read_gain(window, data),
         )
 
     @staticmethod

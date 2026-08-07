@@ -29,12 +29,14 @@ from .conftest import (
     EXPECTED_DEMODULATOR_LOAD,
     EXPECTED_GAIN,
     EXPECTED_MAX_RANGE_KM,
+    EXPECTED_READSB_GAIN,
     MOCK_AIRCRAFT,
     MOCK_ALIAS,
     MOCK_HOST,
     MOCK_MONITOR,
     MOCK_MONITOR_X86,
     MOCK_STATS,
+    MOCK_STATS_READSB,
     MOCK_STATS_WITH_GAIN,
     set_responses,
     setup_integration,
@@ -536,6 +538,28 @@ async def test_gain_sensor(
 
     # The adaptive value, not the configured one
     assert float(_state(hass, "gain")) == pytest.approx(EXPECTED_GAIN)
+
+
+async def test_gain_sensor_reads_the_readsb_layout(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the gain sensor on readsb, which reports it at the document root."""
+    set_responses(aioclient_mock, stats=MOCK_STATS_READSB)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=mock_config_entry.unique_id,
+        data={**mock_config_entry.data, CONF_RECEIVER_FEATURES: [FEATURE_GAIN]},
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert float(_state(hass, "gain")) == pytest.approx(EXPECTED_READSB_GAIN)
+    # This station hears nothing, so there is a noise floor but no signal
+    assert _state(hass, "noise") == "-45.1"
+    assert _state(hass, "signal") == STATE_UNKNOWN
+    assert _state(hass, "signal_to_noise") == STATE_UNKNOWN
 
 
 async def test_closest_aircraft_database_fields(

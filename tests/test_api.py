@@ -23,6 +23,7 @@ from .conftest import (
     AIRCRAFT_URL,
     MOCK_HOST,
     MOCK_STATS,
+    MOCK_STATS_READSB,
     MOCK_STATS_WITH_GAIN,
     RECEIVER_URL,
     STATS_URL,
@@ -203,7 +204,7 @@ async def test_no_gain_support_on_the_fr24feed_fork(
 
 
 def test_read_gain() -> None:
-    """Test both places a decoder may report its gain, and bad values."""
+    """Test every place a decoder may report its gain, and bad values."""
     assert read_gain({"local": {"gain_db": 49.6}}) == 49.6
     # Adaptive gain wins, because that is the value actually in use
     both = {"local": {"gain_db": 49.6}, "adaptive": {"gain_db": 32.8}}
@@ -211,3 +212,21 @@ def test_read_gain() -> None:
     assert read_gain({"local": {"signal": -30}}) is None
     assert read_gain({"local": {"gain_db": "loud"}}) is None
     assert read_gain({"local": "not a mapping"}) is None
+
+    # readsb reports it once for the whole document
+    assert read_gain({"local": {"noise": -45.1}}, {"gain_db": 49.6}) == 49.6
+    assert read_gain({}, {"estimated_ppm": 45.7}) is None
+    assert read_gain({}, {"gain_db": "loud"}) is None
+    # A window that carries one of its own still wins over the root
+    assert read_gain({"local": {"gain_db": 32.8}}, {"gain_db": 49.6}) == 32.8
+
+
+async def test_detects_readsb_root_level_gain(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that readsb, which reports gain at the root, gets the feature."""
+    aioclient_mock.get(STATS_URL, json=MOCK_STATS_READSB)
+
+    assert await async_detect_statistics(
+        async_get_clientsession(hass), AIRCRAFT_URL
+    ) == (STATS_URL, [FEATURE_GAIN])

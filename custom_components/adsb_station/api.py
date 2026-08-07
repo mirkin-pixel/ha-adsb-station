@@ -162,25 +162,45 @@ def stats_report_gain(data: dict[str, Any]) -> bool:
     The dump1090 fork that fr24feed ships reports none, so its users would
     otherwise get a gain sensor that can never have a value.
     """
-    for window in data.values():
-        if not isinstance(window, dict):
-            continue
-        if read_gain(window) is not None:
-            return True
-    return False
+    if _as_gain(data.get("gain_db")) is not None:
+        return True
+    return any(
+        isinstance(window, dict) and read_gain(window) is not None
+        for window in data.values()
+    )
 
 
-def read_gain(window: dict[str, Any]) -> float | None:
-    """Return the gain of one stats.json window, in dB."""
-    # dump1090-fa puts the configured gain under "local"; with adaptive gain
-    # the value that is actually in use sits in its own block.
+def _as_gain(value: Any) -> float | None:
+    """Parse a gain figure, which is a number of decibels or nothing."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        _LOGGER.debug("Could not parse gain %r", value)
+        return None
+
+
+def read_gain(
+    window: dict[str, Any], document: dict[str, Any] | None = None
+) -> float | None:
+    """Return the gain the dongle is running at, in dB.
+
+    The two decoder families disagree on where it lives. dump1090-fa reports it
+    per window under "local", or under "adaptive" when adaptive gain is running
+    and that is the value actually in use. readsb puts a single "gain_db" at the
+    root of the document instead, which is the more honest place: the gain
+    belongs to the dongle, not to a measurement window.
+    """
     for section in ("adaptive", "local"):
         block = window.get(section)
-        if isinstance(block, dict) and block.get("gain_db") is not None:
-            try:
-                return float(block["gain_db"])
-            except (TypeError, ValueError):
-                _LOGGER.debug("Could not parse gain %r", block["gain_db"])
+        if (
+            isinstance(block, dict)
+            and (gain := _as_gain(block.get("gain_db"))) is not None
+        ):
+            return gain
+    if document is not None:
+        return _as_gain(document.get("gain_db"))
     return None
 
 
