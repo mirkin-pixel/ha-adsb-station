@@ -71,6 +71,8 @@ And, when your receiver also serves `stats.json`, the health of your reception:
 | Positions decoded | Sensor (diagnostic) | Positions accepted in the window |
 | Positions rejected | Sensor (diagnostic) | Positions thrown out by the sanity checks. A rising share points at a noisy signal |
 
+Altitudes are in feet, ground speeds in knots and distances in kilometres, which is how aviation reads them. Every one of those carries a device class, so you can switch an individual entity to metres, miles, km/h or mph under **Settings → Entity → Unit of measurement**, and history and statistics follow.
+
 The reception figures come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.
 
 Everything from `monitor.json` — **only when you run `fr24feed`**:
@@ -96,6 +98,19 @@ Everything from `monitor.json` — **only when you run `fr24feed`**:
 | Resyncs | Sensor (diagnostic) | How often the feeder had to resynchronise |
 
 With a feeder, the feeder and the receiver are read independently: if the decoder stops answering, only the aircraft entities become unavailable and the feed entities keep working. Without a feeder the decoder is the only source, so an outage takes everything with it.
+
+#### Where your antenna is blocked
+
+A single maximum range figure hides the shape of your coverage: 250 km to the south and 40 km to the north is a very different station from 145 km all round. Eight sensors keep the furthest an aircraft has ever been heard in each compass sector, spanning 45 degrees centred on their direction, so **Maximum range north** covers 337.5° to 22.5°.
+
+| Entity | Type | Description |
+|---|---|---|
+| Maximum range north … northwest | Sensor (km) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
+| Reset range records | Button | Clears all eight |
+
+The records only ever grow, and they survive a restart of Home Assistant — a record that started over every restart would be worth nothing. The sensors also stay readable when nothing is flying, because a record from last month is still a reading.
+
+That same growth makes them wrong the moment the antenna moves or a neighbour puts up a shed, which is what the button is for. Pressing it while aircraft are in view immediately sets fresh records from them, measured from where the antenna is now.
 
 ### Which decoder
 
@@ -349,6 +364,8 @@ En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 | Posities gedecodeerd | Sensor (diagnostisch) | Posities die in het venster geaccepteerd zijn |
 | Posities verworpen | Sensor (diagnostisch) | Posities die de plausibiliteitscontrole niet haalden. Een stijgend aandeel wijst op een ruizig signaal |
 
+Hoogtes staan in voet, grondsnelheden in knopen en afstanden in kilometers, zoals dat in de luchtvaart gelezen wordt. Elk daarvan heeft een device class, dus je kunt een losse entiteit omzetten naar meters, mijlen, km/h of mph via **Instellingen → Entiteit → Maateenheid**, en historie en statistieken gaan mee.
+
 De ontvangstcijfers komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.
 
 Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
@@ -374,6 +391,19 @@ Alles uit `monitor.json` — **alleen als je `fr24feed` draait**:
 | Hersynchronisaties | Sensor (diagnostisch) | Hoe vaak de feeder opnieuw moest synchroniseren |
 
 Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als de decoder niet meer antwoordt, worden alleen de vliegtuig-entiteiten onbeschikbaar en blijven de feed-entiteiten werken. Zonder feeder is de decoder de enige bron, en neemt een storing alles mee.
+
+#### Waar je antenne geblokkeerd zit
+
+Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting — **Maximaal bereik noord** dekt dus 337,5° tot 22,5°.
+
+| Entiteit | Type | Omschrijving |
+|---|---|---|
+| Maximaal bereik noord … noordwest | Sensor (km) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
+| Bereikrecords wissen | Knop | Wist alle acht |
+
+De records groeien alleen maar, en ze overleven een herstart van Home Assistant — een record dat bij elke herstart opnieuw begint is niets waard. De sensoren blijven ook leesbaar als er niets vliegt, want een record van vorige maand is nog steeds een meting.
+
+Datzelfde groeien maakt ze onjuist zodra je antenne verhuist of de buurman een schuur neerzet; daar is de knop voor. Druk je erop terwijl er toestellen in beeld zijn, dan zet hij meteen nieuwe records vanaf de plek waar je antenne nu staat.
 
 ### Welke decoder
 
