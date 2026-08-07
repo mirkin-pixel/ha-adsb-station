@@ -34,4 +34,5 @@ async def async_get_config_entry_diagnostics(
         "aircraft": None if data.aircraft is None else asdict(data.aircraft),
         "reception": None if data.stats is None else asdict(data.stats),
         "range_measured_from": coordinator.origin,
+        "range_measured_from_source": coordinator.origin_source,
     }

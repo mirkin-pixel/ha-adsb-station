@@ -33,6 +33,7 @@ from .conftest import (
     MOCK_ALIAS,
     MOCK_HOST,
     MOCK_MONITOR,
+    MOCK_MONITOR_X86,
     MOCK_STATS,
     MOCK_STATS_WITH_GAIN,
     set_responses,
@@ -229,6 +230,42 @@ async def test_device_falls_back_to_a_generic_name(
     assert device is not None
     assert device.name == "FR24 feeder"
     assert device.sw_version is None
+
+
+async def test_no_cpu_sensor_on_a_feeder_without_a_soc(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an x86 feeder gets no temperature sensor it could never fill.
+
+    Its monitor.json has no cpu block, so the sensor would sit on unknown for
+    the life of the entry.
+    """
+    set_responses(aioclient_mock, monitor=MOCK_MONITOR_X86)
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, f"{MOCK_ALIAS}_cpu_temperature")
+        is None
+    )
+    # The rest of the feeder sensors are there, parsed out of quoted strings
+    assert _state(hass, "aircraft_tracked") == "0"
+    assert _state(hass, "map_size") == "0"
+    assert _state(hass, "feed_mode") == "UDP"
+
+
+async def test_cpu_sensor_on_a_feeder_with_a_soc(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a single board computer still gets its temperature sensor."""
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert _state(hass, "cpu_temperature") == "45.1"
 
 
 def test_parse_helpers() -> None:

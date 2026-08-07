@@ -55,6 +55,25 @@ MOCK_MONITOR: dict[str, Any] = {
     "rx_connected": 1,
 }
 
+# An x86 feeder, taken from a real one. It quotes every value as a string and
+# carries no cpu block at all, because there is no SoC to read a temperature
+# from.
+MOCK_MONITOR_X86: dict[str, Any] = {
+    "build_arch": "static_amd64",
+    "build_os": "Linux",
+    "build_version": "1.0.57-1",
+    "d11_map_size": "0",
+    "feed_alias": MOCK_ALIAS,
+    "feed_current_mode": "UDP",
+    "feed_last_ac_sent_num": "0",
+    "feed_last_connected_time": "1786084265",
+    "feed_num_ac_adsb_tracked": "0",
+    "feed_num_ac_tracked": "0",
+    "feed_status": "connected",
+    "num_resets": "0",
+    "rx_connected": "1",
+}
+
 # The first aircraft uses the field names of the dump1090 fork that fr24feed
 # ships ("altitude", "speed"), the second the names of dump1090-fa and readsb
 # ("alt_baro", "gs"). Both have to work.

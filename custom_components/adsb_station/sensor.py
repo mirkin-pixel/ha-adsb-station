@@ -90,11 +90,24 @@ def _cpu_temperature(monitor: dict[str, Any]) -> float | None:
     return _as_float(cpu.get("gpu_temp"))
 
 
+def _reports_cpu_temperature(monitor: dict[str, Any]) -> bool:
+    """Return True if this feeder reports a host temperature.
+
+    Only the builds for single board computers read one out. On x86 there is
+    no SoC to measure, and monitor.json carries no cpu block at all.
+    """
+    return _cpu_temperature(monitor) is not None
+
+
 @dataclass(frozen=True, kw_only=True)
 class AdsbStationSensorEntityDescription(SensorEntityDescription):
     """Describes a sensor that reads monitor.json."""
 
     value_fn: Callable[[dict[str, Any]], Any]
+    # What monitor.json holds differs per build. When set, this decides from
+    # the first poll whether the feeder reports the field at all, so a build
+    # that never sends it does not get a sensor stuck on unknown.
+    supported_fn: Callable[[dict[str, Any]], bool] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -180,6 +193,7 @@ FEEDER_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=_cpu_temperature,
+        supported_fn=_reports_cpu_temperature,
     ),
 )
 
@@ -331,9 +345,11 @@ async def async_setup_entry(
 
     entities: list[SensorEntity] = []
     if coordinator.client.has_feeder:
+        monitor = coordinator.data.monitor or {}
         entities.extend(
             AdsbStationSensor(coordinator, description)
             for description in FEEDER_SENSORS
+            if description.supported_fn is None or description.supported_fn(monitor)
         )
     if coordinator.client.aircraft_url:
         entities.extend(

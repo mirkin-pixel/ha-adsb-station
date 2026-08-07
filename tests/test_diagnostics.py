@@ -44,6 +44,8 @@ async def test_diagnostics(
     assert diagnostics["reception"]["strong_signals"] == 6
     assert diagnostics["reception"]["period"] == "last1min"
     assert diagnostics["range_measured_from"] == (HOME_LATITUDE, HOME_LONGITUDE)
+    # This receiver.json carries no position, so the fallback is in use
+    assert diagnostics["range_measured_from_source"] == "home_location"
     assert diagnostics["has_feeder"] is True
     # The fr24feed fork never expands the placeholder in its receiver.json
     assert diagnostics["receiver_version"] is None
@@ -64,6 +66,8 @@ async def test_diagnostics_without_a_feeder(
     assert diagnostics["monitor"] is None
     assert diagnostics["receiver_version"] == MOCK_RECEIVER_VERSION
     assert diagnostics["aircraft"]["total"] == 3
+    # readsb publishes its antenna position, so ranges come off that
+    assert diagnostics["range_measured_from_source"] == "receiver"
 
 
 async def test_diagnostics_without_receiver_data(

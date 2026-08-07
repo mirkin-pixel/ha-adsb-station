@@ -213,6 +213,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             return self._antenna
         return self.hass.config.latitude, self.hass.config.longitude
 
+    @property
+    def origin_source(self) -> str:
+        """Return where the point ranges are measured from came from.
+
+        The two are indistinguishable from the coordinates alone, and which one
+        is in use decides whether the range figures mean anything.
+        """
+        return "receiver" if self._antenna is not None else "home_location"
+
     async def _async_update_data(self) -> AdsbStationData:
         """Fetch every endpoint; only the primary source is fatal.
 
