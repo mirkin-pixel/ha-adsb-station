@@ -353,10 +353,12 @@ def _routeset_route(item: dict[str, Any]) -> FlightRoute | None:
         return None
     # A flight with a stop on the way lists every leg. The two ends are what
     # a route means to someone watching one of the legs go over.
+    # No airline: routeset answers with the designator it read off the front
+    # of the callsign, which is the same three letters we read there ourselves
+    # and can put a name to. A code where a name belongs is worse than either.
     return FlightRoute(
         origin=airports[0],
         destination=airports[-1] if len(airports) > 1 else None,
-        airline=_text(item.get("airline_code")),
     )
 
 

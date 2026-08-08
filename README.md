@@ -254,8 +254,10 @@ Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` �
 
 | Source | How it asks | What it adds |
 |---|---|---|
-| `adsbdb.com` | One request per callsign | Airports at both ends, and the airline by name |
+| `adsbdb.com` | One request per callsign | Airports at both ends, and the airline under its full name |
 | routeset, via `adsb.im` | Every callsign in one request | Airports at both ends, and it is told the position, so it can judge whether the route it found fits an aircraft seen there |
+
+Neither is needed for the airline any more — that [comes off a table on your own disk](#names-for-the-codes) whichever of these you pick, or none of them. What they are for is the route, which is the part that changes daily and cannot be anywhere but on somebody's server. adsbdb still names the airline more fully than the table does, "KLM Royal Dutch Airlines" against "KLM", and where it answers that name is used.
 
 Neither needs an account or a key. They do not always agree with each other, which is a fair warning about how certain any of this is: ask both about the same flight number and you may get two different departure airports. The routeset service is the one tar1090 itself defaults to, and it is the stricter of the two — a route it does not believe belongs to the aircraft is dropped rather than shown, on the grounds that a wrong route in a notification is worse than none.
 
@@ -658,8 +660,10 @@ Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` �
 
 | Bron | Hoe hij vraagt | Wat je krijgt |
 |---|---|---|
-| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten, en de maatschappij bij naam |
+| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten, en de maatschappij met haar volledige naam |
 | routeset, via `adsb.im` | Alle callsigns in één verzoek | De vliegvelden aan beide kanten, en hij krijgt de positie mee, zodat hij kan beoordelen of de gevonden route past bij een vliegtuig dat daar gezien is |
+
+Voor de maatschappij heb je geen van beide meer nodig — die [komt van een tabel op je eigen schijf](#namen-bij-de-codes), welke van deze twee je ook kiest, of geen. Waar ze voor zijn is de route, en dat is het deel dat dagelijks verandert en nergens anders kan staan dan op andermans server. adsbdb noemt de maatschappij nog wel voluit waar de tabel dat niet doet — "KLM Royal Dutch Airlines" tegenover "KLM" — en waar hij antwoordt wordt die naam gebruikt.
 
 Geen van beide vraagt om een account of een sleutel. Ze zijn het onderling niet altijd eens, wat een eerlijke waarschuwing is over hoe zeker dit allemaal is: vraag ze hetzelfde vluchtnummer en je kunt twee verschillende vertrekvelden terugkrijgen. De routeset-dienst is degene waar tar1090 zelf standaard op staat, en de strengste van de twee — een route waarvan hij niet gelooft dat hij bij het vliegtuig hoort wordt weggelaten in plaats van getoond, omdat een verkeerde route in een notificatie erger is dan geen.
 

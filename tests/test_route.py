@@ -293,7 +293,9 @@ async def test_routeset_resolves_a_callsign(
 
     route = routes[NEARBY_CALLSIGN]
     assert route.label == "GOT-AMS"
-    assert route.airline == "KLM"
+    # The answer carries an airline_code, which is the designator out of the
+    # callsign and not a name. The table we ship names that one itself.
+    assert route.airline is None
     assert route.destination is not None
     assert route.destination.location == "Amsterdam"
 
