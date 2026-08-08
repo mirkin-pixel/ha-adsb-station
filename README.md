@@ -350,6 +350,25 @@ Alt 4100ft, Spd 250kn        Alt 2000ft, Spd ?kn
 Trk 263deg, Vr -1088ft/min   Trk 90deg, Vr 0ft/min
 ```
 
+For metres and kilometres per hour, only the message changes, with the same factors as [the cards](#the-panel-and-the-board):
+
+```yaml
+          message: |-
+            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
+            Alt {{ (trigger.event.data.altitude * 0.3048) | round | int }}m, Spd {{ (trigger.event.data.speed * 1.852) | round | int if trigger.event.data.speed else '?' }}km/h
+            Trk {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Vr {{ (trigger.event.data.vertical_rate | default(0) * 0.00508) | round(1) }}m/s
+```
+
+Which reads as this, with a real flight through it:
+
+```
+Delta Air Lines
+FRA-JFK
+Airbus A-330-200
+Alt 8702m, Spd 891km/h
+Trk 290deg, Vr 2.9m/s
+```
+
 The logo is yours to supply: the app takes a `/local/` path into your `www` folder, so `www/airline_logos/DLH.png` and one `unknown.png` beside it covers every aircraft. Airline logos are trademarks and are not something this integration can ship for you. Give every notification the same `tag` and each aircraft replaces the one before it rather than filling your screen; leave the `tag` out and keep the `group` to see them all.
 
 #### The panel and the board
@@ -928,6 +947,25 @@ CDG-AMS                      1,1 km
 Airbus A-320neo
 Hgt 4100ft, Snh 250kn        Hgt 2000ft, Snh ?kn
 Krs 263deg, Stg -1088ft/min  Krs 90deg, Stg 0ft/min
+```
+
+Voor meters en kilometers per uur verandert alleen het bericht, met dezelfde factoren als bij [de cards](#het-paneel-en-het-bord):
+
+```yaml
+          message: |-
+            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
+            Hgt {{ (trigger.event.data.altitude * 0.3048) | round | int }}m, Snh {{ (trigger.event.data.speed * 1.852) | round | int if trigger.event.data.speed else '?' }}km/h
+            Krs {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Stg {{ (trigger.event.data.vertical_rate | default(0) * 0.00508) | round(1) }}m/s
+```
+
+Wat er dan uitkomt, met een echte vlucht erdoorheen:
+
+```
+Delta Air Lines
+FRA-JFK
+Airbus A-330-200
+Hgt 8702m, Snh 891km/h
+Krs 290deg, Stg 2,9m/s
 ```
 
 Het logo lever je zelf: de app accepteert een `/local/`-pad naar je `www`-map, dus `www/airline_logos/DLH.png` met een `unknown.png` ernaast dekt elk vliegtuig. Logo's van maatschappijen zijn merken, en die kan deze integratie niet voor je meeleveren. Geef elke melding dezelfde `tag` en elk toestel vervangt het vorige in plaats van je scherm vol te zetten; laat je de `tag` weg en houd je de `group`, dan zie je ze allemaal staan.
