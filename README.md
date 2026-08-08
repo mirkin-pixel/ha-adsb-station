@@ -350,6 +350,48 @@ recorder:
       - sensor.ads_b_station_passages_today
 ```
 
+#### On your lock screen
+
+The companion app can put a passage on your lock screen and in the Dynamic Island as a [Live Activity](https://companion.home-assistant.io/docs/notifications/live-activities/), which is the closest thing to a flight wall you can carry around.
+
+**This only works on the TestFlight build of the companion app, with Live Activities switched on under Labs**, and it needs Home Assistant 2026.7 or newer. It is not in the App Store release, so treat it as something to try rather than something to build on.
+
+It needs nothing from this integration. A Live Activity is an ordinary notification carrying `live_update: true` and a `tag`, and what starts it is the passage event:
+
+```yaml
+automation:
+  - alias: "ADS-B: overhead on the lock screen"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "{{ trigger.event.data.airline | default('Overhead') }}"
+          message: >-
+            {{ trigger.event.data.description | default('') }}
+            {{ trigger.event.data.altitude }} ft
+            {%- if trigger.event.data.route is defined %},
+            {{ trigger.event.data.route }}{% endif %}
+          data:
+            tag: adsb-overhead
+            live_update: true
+
+  - alias: "ADS-B: the sky is empty again"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_aircraft_overhead
+        to: "off"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          message: clear_notification
+          data:
+            tag: adsb-overhead
+```
+
+The same `tag` on the next aircraft replaces the one before it without a banner or a sound, and the second automation takes it off your screen when there is nothing left up there. iOS limits how often an activity may start and how often it may be redrawn, which is why this hangs off the passage event and off a state going to off rather than off the poll: one message per aircraft instead of one every fifteen seconds.
+
 ### Example automations
 
 Notification when an aircraft in range declares an emergency:
@@ -826,6 +868,48 @@ recorder:
     entities:
       - sensor.ads_b_station_passages_vandaag
 ```
+
+#### Op je vergrendelscherm
+
+De companion-app kan een passage op je vergrendelscherm en in het Dynamic Island zetten als [Live Activity](https://companion.home-assistant.io/docs/notifications/live-activities/), en dat is het dichtst bij een flight wall dat je op zak kunt dragen.
+
+**Dit werkt alleen op de TestFlight-versie van de companion-app, met Live Activities aangezet onder Labs**, en je hebt Home Assistant 2026.7 of nieuwer nodig. In de App Store-versie zit het niet, dus zie het als iets om te proberen en niet als iets om op te bouwen.
+
+Van deze integratie vraagt het niets. Een Live Activity is een gewone notificatie met `live_update: true` en een `tag` erin, en wat hem start is het passage-event:
+
+```yaml
+automation:
+  - alias: "ADS-B: overhead op het vergrendelscherm"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app_jouw_telefoon
+        data:
+          title: "{{ trigger.event.data.airline | default('Overhead') }}"
+          message: >-
+            {{ trigger.event.data.description | default('') }}
+            {{ trigger.event.data.altitude }} ft
+            {%- if trigger.event.data.route is defined %},
+            {{ trigger.event.data.route }}{% endif %}
+          data:
+            tag: adsb-overhead
+            live_update: true
+
+  - alias: "ADS-B: de lucht is weer leeg"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_vliegtuig_overhead
+        to: "off"
+    action:
+      - service: notify.mobile_app_jouw_telefoon
+        data:
+          message: clear_notification
+          data:
+            tag: adsb-overhead
+```
+
+Dezelfde `tag` bij het volgende toestel vervangt het vorige zonder banner en zonder geluid, en de tweede automatisering haalt hem van je scherm als er niets meer boven je hangt. iOS beperkt hoe vaak een activity mag starten en hoe vaak hij opnieuw getekend mag worden, en daarom hangt dit aan het passage-event en aan een state die naar off gaat en niet aan de meting: één bericht per vliegtuig in plaats van één per vijftien seconden.
 
 ### Voorbeeldautomatiseringen
 
