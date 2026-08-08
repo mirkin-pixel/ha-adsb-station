@@ -32,7 +32,7 @@ from .const import (
     SECTORS,
     UNSET_RECEIVER_VERSION,
 )
-from .reference import EMPTY as EMPTY_REFERENCE, ReferenceTables
+from .reference import EMPTY as EMPTY_REFERENCE, ReferenceTables, designator_of
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,6 +78,9 @@ class AircraftSummary:
     # Read off the callsign against a table we ship, so this is filled in
     # whether or not a route source is configured.
     airline: str | None = None
+    # The designator the callsign opens with, whether or not the table has a
+    # name for it. It is what a dashboard looks an airline logo up by.
+    airline_code: str | None = None
     # Where it was heard, which no entity shows but a route lookup needs to
     # tell one flight number from the same one halfway around the world.
     position: tuple[float, float] | None = None
@@ -326,6 +329,7 @@ def _summarise(
         description=_as_text(entry.get("desc")) or reference.model_of(aircraft_type),
         military=_is_military(entry),
         airline=reference.airline_of(flight),
+        airline_code=designator_of(flight),
     )
 
 
@@ -362,6 +366,8 @@ def aircraft_attributes(
         attributes["description"] = summary.description
     if summary.military:
         attributes["military"] = True
+    if summary.airline_code is not None:
+        attributes["airline_code"] = summary.airline_code
     if summary.airline is not None:
         attributes["airline"] = summary.airline
     # Empty unless a route source is configured and it recognised the flight.
