@@ -139,6 +139,11 @@ EVENT_AIRCRAFT_PASSAGE = f"{DOMAIN}_aircraft_passage"
 # the edge of the radius would otherwise ring the doorbell every poll.
 PASSAGE_GAP = timedelta(minutes=10)
 
+# How many passages the board keeps. Long enough to be a record of the
+# afternoon, short enough that writing the whole list to the database on every
+# arrival stays cheap.
+PASSAGE_BOARD_LENGTH = 20
+
 # What an altitude in feet is in metres, for measuring the real distance to an
 # aircraft rather than the distance to the ground beneath it.
 FEET_TO_METRES = 0.3048

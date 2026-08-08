@@ -106,6 +106,10 @@ class Passage:
     # The aircraft at its closest approach, and how close that was in metres.
     closest: AircraftSummary
     closest_distance: float
+    # And as it was on the last poll that saw it, which is what a panel
+    # showing what is above you right now wants to read.
+    current: AircraftSummary
+    current_distance: float
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -415,6 +419,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # across polls, because a passage is a thing that lasts and a poll is
         # only a look at it.
         self.passages: dict[str, Passage] = {}
+        # The nearest of those on the last poll, which is what a panel showing
+        # one aircraft shows. None the moment the sky above you is empty.
+        self.overhead: Passage | None = None
         self._previous_messages: tuple[int, float] | None = None
         self._aircraft_failed = False
         self._stats_failed = False
@@ -518,6 +525,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         """
         now = dt_util.utcnow()
         radius = self.proximity_radius
+        in_view: list[Passage] = []
 
         for summary in stats.nearby:
             metres = slant_distance(summary)
@@ -532,15 +540,30 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     last_seen=now,
                     closest=summary,
                     closest_distance=metres,
+                    current=summary,
+                    current_distance=metres,
                 )
                 self.passages[summary.hex] = passage
+                in_view.append(passage)
                 self._announce(passage, metres)
                 continue
 
+            in_view.append(passage)
             passage.last_seen = now
+            passage.current = summary
+            passage.current_distance = metres
             if metres < passage.closest_distance:
                 passage.closest = summary
                 passage.closest_distance = metres
+
+        # Of the aircraft this poll actually saw, the nearest is the one to
+        # look up at. A passage that was not seen is not overhead, however
+        # recently it was there.
+        self.overhead = (
+            min(in_view, key=lambda passage: passage.current_distance)
+            if in_view
+            else None
+        )
 
         # An aircraft that has been gone longer than a passage can be paused
         # for is gone, and holding on to it would grow this without bound.

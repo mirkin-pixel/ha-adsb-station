@@ -49,6 +49,8 @@ Everything from `aircraft.json`, the part every setup gets:
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](#where-a-flight-is-going) |
 | Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
+| Overhead flight | Sensor | The one aircraft above you, nearest first and measured through the air. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](#when-something-comes-over) |
+| Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver |
 | Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
@@ -304,6 +306,50 @@ Two things stop it becoming a nuisance.
 
 **An aircraft has to leave before it can arrive again.** Reception drops out, aircraft circle, and one on the edge of the radius flickers in and out. An aircraft that goes and comes back inside ten minutes is the same passage; longer than that and it is a new one. So a helicopter working a field nearby rings once, not once a minute.
 
+#### The panel and the board
+
+Two sensors read those passages, and between them they are a departure board for your own roof.
+
+**Overhead flight** is the aircraft above you right now, the nearest one measured through the air, with everything about it as attributes: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, the route if you look them up, and `since`, which is when it arrived. It keeps the last aircraft rather than blanking when the sky empties, because a panel that goes empty between aircraft is not worth looking at. The `overhead` attribute says which of the two you are looking at, and `seen_at` says when it was read.
+
+That is enough for a panel, with nothing but a markdown card:
+
+```yaml
+type: markdown
+content: |
+  {% set plane = states.sensor.ads_b_station_overhead_flight %}
+  ## {{ plane.attributes.airline | default(plane.state) }}
+  {% if plane.attributes.route is defined %}### {{ plane.attributes.route }}{% endif %}
+  {{ plane.attributes.description | default(plane.attributes.aircraft_type) | default('') }}
+
+  `Alt {{ plane.attributes.altitude }}ft  Spd {{ plane.attributes.speed }}kn`
+  `Trk {{ plane.attributes.track | round | int }}deg  Vr {{ plane.attributes.vertical_rate or 0 }}ft/min`
+
+  {% if not plane.attributes.overhead %}*Last seen {{ relative_time(plane.last_changed) }} ago*{% endif %}
+```
+
+**Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came. Both survive a restart of Home Assistant, so the board is a record rather than a session.
+
+Each entry holds the aircraft at its closest approach rather than at its arrival, because an aircraft is first seen at the edge of the radius and is worth looking up at when it is overhead. It appears on the board as soon as it arrives and is rewritten while it is still in view, so the board is current and ends up correct.
+
+```yaml
+type: markdown
+content: |
+  {% for plane in state_attr('sensor.ads_b_station_passages_today', 'passages') %}
+  `{{ as_timestamp(plane.at) | timestamp_custom('%H:%M') }}` **{{ plane.airline | default(plane.flight) | default('?') }}**
+  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} km
+  {% endfor %}
+```
+
+One thing to know before you leave that running: twenty entries are written to the database every time an aircraft comes over. On a busy station that is worth keeping out of the recorder, which costs you nothing but the history of a board you read live anyway:
+
+```yaml
+recorder:
+  exclude:
+    entities:
+      - sensor.ads_b_station_passages_today
+```
+
 ### Example automations
 
 Notification when an aircraft in range declares an emergency:
@@ -480,6 +526,8 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](#waar-een-vlucht-heen-gaat) kunnen dragen |
 | Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
+| Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde door de lucht gemeten. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](#als-er-iets-overkomt) |
+| Passages vandaag | Sensor | Hoeveel vliegtuigen er vandaag overkwamen, met de laatste twintig als attributen, meest recente eerst |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
 | Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
@@ -734,6 +782,50 @@ Twee dingen houden het draaglijk.
 **De afstand telt de hoogte mee.** Elke andere afstand in deze integratie wordt over de grond gemeten, en dat is het juiste antwoord op hoe ver je antenne reikt en het verkeerde op wat er boven je hangt. Een verkeersvliegtuig op 37.000 voet dat negen kilometer noordelijk passeert zit op de kaart binnen een straal van tien kilometer, en is veertien kilometer bij je vandaan door de lucht. Hij telt als dichtbij, en dat hoort ook, en hij is geen passage, en dat hoort ook. De `distance` in het event is nog steeds die over de grond; `slant_distance` is de echte.
 
 **Een vliegtuig moet eerst weg zijn voor het opnieuw kan aankomen.** De ontvangst valt weg, toestellen draaien rondjes, en eentje op de rand van de straal knippert in en uit. Een vliegtuig dat weggaat en binnen tien minuten terugkomt is dezelfde passage; duurt het langer, dan is het een nieuwe. Een helikopter die vlakbij een perceel afwerkt belt dus één keer aan, niet elke minuut.
+
+#### Het paneel en het bord
+
+Twee sensoren lezen die passages uit, en samen zijn ze een vertrekbord voor je eigen dak.
+
+**Vlucht overhead** is het toestel dat nu boven je hangt, het dichtstbijzijnde door de lucht gemeten, met alles erover als attributen: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, de route als je die opzoekt, en `since`, het moment dat hij aankwam. Hij houdt het laatste toestel vast in plaats van leeg te lopen als de lucht leeg raakt, want een paneel dat tussen twee vliegtuigen door leeg staat is het ophangen niet waard. Het attribuut `overhead` zegt welke van de twee je ziet, en `seen_at` wanneer het gelezen is.
+
+Meer heb je voor een paneel niet nodig, alleen een markdown-card:
+
+```yaml
+type: markdown
+content: |
+  {% set plane = states.sensor.ads_b_station_vlucht_overhead %}
+  ## {{ plane.attributes.airline | default(plane.state) }}
+  {% if plane.attributes.route is defined %}### {{ plane.attributes.route }}{% endif %}
+  {{ plane.attributes.description | default(plane.attributes.aircraft_type) | default('') }}
+
+  `Hgt {{ plane.attributes.altitude }}ft  Snh {{ plane.attributes.speed }}kn`
+  `Krs {{ plane.attributes.track | round | int }}deg  Stg {{ plane.attributes.vertical_rate or 0 }}ft/min`
+
+  {% if not plane.attributes.overhead %}*Laatst gezien {{ relative_time(plane.last_changed) }} geleden*{% endif %}
+```
+
+**Passages vandaag** is de teller, en de laatste twintig staan als attributen op de sensor: hoe laat ze aankwamen, de callsign, de maatschappij, het type, hoe hoog en hoe dichtbij ze kwamen. Allebei overleven ze een herstart van Home Assistant, zodat het bord een verslag is en niet een sessie.
+
+Elke regel houdt het toestel op zijn dichtste punt vast en niet bij aankomst, want je ziet een vliegtuig het eerst aan de rand van de straal en het best als het recht boven je staat. Hij verschijnt op het bord zodra het toestel aankomt en wordt bijgewerkt zolang het in beeld is, dus het bord loopt bij en klopt uiteindelijk.
+
+```yaml
+type: markdown
+content: |
+  {% for plane in state_attr('sensor.ads_b_station_passages_vandaag', 'passages') %}
+  `{{ as_timestamp(plane.at) | timestamp_custom('%H:%M') }}` **{{ plane.airline | default(plane.flight) | default('?') }}**
+  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} km
+  {% endfor %}
+```
+
+Eén ding om te weten voor je dat laat draaien: er worden twintig regels naar de database geschreven elke keer dat er een vliegtuig overkomt. Op een druk station is het de moeite waard om dat buiten de recorder te houden, wat je niets kost behalve de historie van een bord dat je toch live afleest:
+
+```yaml
+recorder:
+  exclude:
+    entities:
+      - sensor.ads_b_station_passages_vandaag
+```
 
 ### Voorbeeldautomatiseringen
 
