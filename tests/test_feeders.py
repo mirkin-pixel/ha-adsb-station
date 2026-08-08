@@ -243,5 +243,5 @@ async def test_migration_leaves_a_known_feeder_alone(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 2
+    assert entry.version == 3
     assert entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE
