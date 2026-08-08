@@ -19,10 +19,10 @@ from homeassistant.util.location import distance
 from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
+    CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_RADIUS,
-    CONF_ROUTE_SOURCE,
+    DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
-    DEFAULT_ROUTE_SOURCE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EMERGENCY_SQUAWKS,
@@ -322,7 +322,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # is the only thing here that talks to anything off your own network.
         self.route_lookup = build_route_lookup(
             async_get_clientsession(hass),
-            config_entry.options.get(CONF_ROUTE_SOURCE, DEFAULT_ROUTE_SOURCE),
+            config_entry.options.get(CONF_LOOK_UP_ROUTES, DEFAULT_LOOK_UP_ROUTES),
         )
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.

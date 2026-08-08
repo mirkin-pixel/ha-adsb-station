@@ -14,26 +14,22 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
-    ADSBDB_URL,
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_RADIUS,
-    CONF_ROUTE_SOURCE,
     CONF_STATS_URL,
     DOMAIN,
     FEEDER_FR24,
     ROUTE_CACHE_TTL,
     ROUTE_MISS_CACHE_TTL,
-    ROUTE_SOURCE_ADSBDB,
-    ROUTE_SOURCE_ROUTESET,
     ROUTESET_URL,
 )
 from custom_components.adsb_station.route import (
-    AdsbdbLookup,
     Airport,
     FlightPosition,
     FlightRoute,
-    RoutesetLookup,
+    RouteLookup,
     build_route_lookup,
     route_attributes,
 )
@@ -50,29 +46,6 @@ from .conftest import (
 
 # The callsign of the only aircraft in MOCK_AIRCRAFT that is inside the radius.
 NEARBY_CALLSIGN = "KLM123"
-ADSBDB_NEARBY_URL = ADSBDB_URL.format(callsign=NEARBY_CALLSIGN)
-
-# Trimmed from a real answer.
-ADSBDB_ANSWER: dict[str, Any] = {
-    "response": {
-        "flightroute": {
-            "callsign": NEARBY_CALLSIGN,
-            "airline": {"name": "KLM Royal Dutch Airlines", "icao": "KLM"},
-            "origin": {
-                "iata_code": "CDG",
-                "icao_code": "LFPG",
-                "municipality": "Paris",
-                "name": "Charles de Gaulle International Airport",
-            },
-            "destination": {
-                "iata_code": "AMS",
-                "icao_code": "EHAM",
-                "municipality": "Amsterdam",
-                "name": "Amsterdam Airport Schiphol",
-            },
-        }
-    }
-}
 
 # What routeset answers, trimmed from a real one.
 ROUTESET_ANSWER: list[dict[str, Any]] = [
@@ -99,16 +72,21 @@ ROUTESET_ANSWER: list[dict[str, Any]] = [
     }
 ]
 
+# A callsign the database has never heard of comes back as a null in the list,
+# in the place where its answer would have been.
+NO_SUCH_FLIGHT: list[Any] = [None]
+
 HERE = FlightPosition(callsign=NEARBY_CALLSIGN, latitude=52.0, longitude=5.0)
 
 
 @pytest.fixture
 def route_entry() -> MockConfigEntry:
-    """Return an entry that looks routes up through adsbdb."""
+    """Return an entry that looks routes up."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="FR24 feeder",
         unique_id=MOCK_ALIAS,
+        version=3,
         data={
             "host": MOCK_HOST,
             "port": DEFAULT_PORT,
@@ -120,108 +98,139 @@ def route_entry() -> MockConfigEntry:
         options={
             CONF_SCAN_INTERVAL: 15,
             CONF_PROXIMITY_RADIUS: 10,
-            CONF_ROUTE_SOURCE: ROUTE_SOURCE_ADSBDB,
+            CONF_LOOK_UP_ROUTES: True,
         },
     )
 
 
-def build_lookup(
-    hass: HomeAssistant, source: str = ROUTE_SOURCE_ADSBDB
-) -> AdsbdbLookup | RoutesetLookup:
+def build_lookup(hass: HomeAssistant) -> RouteLookup:
     """Return a lookup wired to the mocked session."""
-    lookup = build_route_lookup(async_get_clientsession(hass), source)
+    lookup = build_route_lookup(async_get_clientsession(hass), True)
     assert lookup is not None
     return lookup
 
 
-async def test_no_lookup_without_a_source(hass: HomeAssistant) -> None:
+async def test_no_lookup_when_routes_are_off(hass: HomeAssistant) -> None:
     """Test that leaving routes off builds nothing that could ask anyone."""
-    assert build_route_lookup(async_get_clientsession(hass), "none") is None
-    assert build_route_lookup(async_get_clientsession(hass), "nonsense") is None
+    assert build_route_lookup(async_get_clientsession(hass), False) is None
 
 
-async def test_adsbdb_resolves_a_callsign(
+async def test_resolves_a_callsign(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Test reading a route out of an adsbdb answer."""
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json=ADSBDB_ANSWER)
+    """Test reading a route out of an answer."""
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
 
     routes = await build_lookup(hass).async_resolve([HERE])
 
     route = routes[NEARBY_CALLSIGN]
-    assert route.label == "CDG-AMS"
-    assert route.airline == "KLM Royal Dutch Airlines"
+    assert route.label == "GOT-AMS"
     assert route.origin == Airport(
-        iata="CDG",
-        icao="LFPG",
-        name="Charles de Gaulle International Airport",
-        location="Paris",
+        iata="GOT",
+        icao="ESGG",
+        name="Gothenburg-Landvetter Airport",
+        location="Gothenburg",
     )
     assert route.destination is not None
-    assert route.destination.code == "AMS"
+    assert route.destination.location == "Amsterdam"
+
+    # It is told where the aircraft was heard, which is what lets it judge.
+    assert aioclient_mock.mock_calls[0][2] == {
+        "planes": [{"callsign": NEARBY_CALLSIGN, "lat": 52.0, "lng": 5.0}]
+    }
+
+
+async def test_asks_about_every_callsign_at_once(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that a batch of callsigns costs one request rather than many."""
+    aioclient_mock.post(ROUTESET_URL, json=[])
+    flights = [
+        FlightPosition(callsign=f"TEST{number}", latitude=52.0, longitude=5.0)
+        for number in range(5)
+    ]
+
+    await build_lookup(hass).async_resolve(flights)
+
+    assert aioclient_mock.call_count == 1
+    assert len(aioclient_mock.mock_calls[0][2]["planes"]) == 5
+
+
+async def test_keeps_the_two_ends_of_a_flight_with_a_stop(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that a multi-leg route is reported as where it starts and ends."""
+    answer = [
+        {
+            **ROUTESET_ANSWER[0],
+            "_airports": [
+                {"iata": "GOT", "icao": "ESGG", "location": "Gothenburg", "name": "A"},
+                {"iata": "CPH", "icao": "EKCH", "location": "Copenhagen", "name": "B"},
+                {"iata": "AMS", "icao": "EHAM", "location": "Amsterdam", "name": "C"},
+            ],
+        }
+    ]
+    aioclient_mock.post(ROUTESET_URL, json=answer)
+
+    routes = await build_lookup(hass).async_resolve([HERE])
+
+    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
 
 
 @pytest.mark.parametrize(
     "answer",
     [
-        # An unknown callsign, which adsbdb says in words rather than a shape.
-        {"response": "unknown callsign"},
-        # A callsign it knows as an aircraft but not as a flight.
-        {"response": {"aircraft": {"registration": "PH-BXA"}}},
-        [],
+        # The API saying it has nothing.
+        [{"callsign": NEARBY_CALLSIGN, "airport_codes": "unknown", "_airports": []}],
+        # A route it found but does not believe belongs to this aircraft. This
+        # is also what an aircraft with no position gets, because the API
+        # judges every route it finds against where it was told the aircraft is.
+        [{**ROUTESET_ANSWER[0], "plausible": False}],
+        # Nothing usable in the answer at all.
+        [{**ROUTESET_ANSWER[0], "_airports": []}],
+        NO_SUCH_FLIGHT,
+        ["not a route"],
+        {"planes": []},
     ],
 )
-async def test_adsbdb_without_a_route(
+async def test_without_a_usable_route(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, answer: Any
 ) -> None:
-    """Test that an answer holding no route resolves to nothing."""
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json=answer)
+    """Test that a doubtful route is left out rather than guessed at."""
+    aioclient_mock.post(ROUTESET_URL, json=answer)
 
     assert await build_lookup(hass).async_resolve([HERE]) == {}
-
-
-async def test_adsbdb_treats_a_404_as_an_answer(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
-    """Test that a callsign the database never heard of is not an error."""
-    aioclient_mock.get(ADSBDB_NEARBY_URL, status=404)
-    lookup = build_lookup(hass)
-
-    assert await lookup.async_resolve([HERE]) == {}
-    # And it is remembered, so the next poll does not ask again.
-    assert await lookup.async_resolve([HERE]) == {}
-    assert aioclient_mock.call_count == 1
 
 
 async def test_a_failing_source_costs_nothing_but_the_route(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Test that a source that is down is not cached and not fatal."""
-    aioclient_mock.get(ADSBDB_NEARBY_URL, status=500)
+    """Test that the source being down is not remembered as "no route"."""
+    aioclient_mock.post(ROUTESET_URL, status=502)
     lookup = build_lookup(hass)
 
     assert await lookup.async_resolve([HERE]) == {}
+    assert not lookup._cache
 
     # Nothing was learned, so the next poll is free to try again.
     aioclient_mock.clear_requests()
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json=ADSBDB_ANSWER)
-    routes = await lookup.async_resolve([HERE])
-    assert routes[NEARBY_CALLSIGN].label == "CDG-AMS"
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
 
 
 async def test_an_answer_is_kept_until_it_expires(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
     """Test that the same callsign is not asked about twice in a day."""
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json=ADSBDB_ANSWER)
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
     lookup = build_lookup(hass)
 
-    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "CDG-AMS"
-    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "CDG-AMS"
+    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
+    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
     assert aioclient_mock.call_count == 1
 
     freezer.tick(ROUTE_CACHE_TTL + timedelta(minutes=1))
-    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "CDG-AMS"
+    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
     assert aioclient_mock.call_count == 2
 
 
@@ -233,7 +242,7 @@ async def test_a_callsign_with_no_route_is_retried_sooner(
     A flight the database has not caught up with yet is worth asking about
     again, but not on every poll.
     """
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json={"response": "unknown callsign"})
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
     lookup = build_lookup(hass)
 
     assert await lookup.async_resolve([HERE]) == {}
@@ -250,8 +259,7 @@ async def test_the_cache_does_not_grow_without_bound(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test that a stream of unknown callsigns cannot fill memory."""
-    for number in range(4):
-        aioclient_mock.get(ADSBDB_URL.format(callsign=f"TEST{number}"), status=404)
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
     lookup = build_lookup(hass)
 
     with patch("custom_components.adsb_station.route.ROUTE_CACHE_MAX_ENTRIES", 2):
@@ -266,115 +274,45 @@ async def test_the_cache_does_not_grow_without_bound(
 async def test_only_so_many_callsigns_are_asked_about_per_poll(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Test that a busy sky cannot turn into a burst of requests."""
+    """Test that a busy sky cannot turn into one enormous request."""
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
     flights = [
         FlightPosition(callsign=f"TEST{number}", latitude=52.0, longitude=5.0)
         for number in range(5)
     ]
-    for flight in flights:
-        aioclient_mock.get(ADSBDB_URL.format(callsign=flight.callsign), status=404)
     lookup = build_lookup(hass)
 
     with patch("custom_components.adsb_station.route.ROUTE_MAX_LOOKUPS_PER_POLL", 2):
         await lookup.async_resolve(flights)
-        assert aioclient_mock.call_count == 2
+        assert [p["callsign"] for p in aioclient_mock.mock_calls[0][2]["planes"]] == [
+            "TEST0",
+            "TEST1",
+        ]
         # The rest are still unknown, so the next poll picks them up.
         await lookup.async_resolve(flights)
-        assert aioclient_mock.call_count == 4
+        assert [p["callsign"] for p in aioclient_mock.mock_calls[1][2]["planes"]] == [
+            "TEST2",
+            "TEST3",
+        ]
 
 
-async def test_routeset_resolves_a_callsign(
+async def test_a_batch_larger_than_the_api_accepts_is_split(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """Test reading a route out of a routeset answer."""
-    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
-
-    routes = await build_lookup(hass, ROUTE_SOURCE_ROUTESET).async_resolve([HERE])
-
-    route = routes[NEARBY_CALLSIGN]
-    assert route.label == "GOT-AMS"
-    assert route.airline == "KLM"
-    assert route.destination is not None
-    assert route.destination.location == "Amsterdam"
-
-    # It is told where the aircraft was heard, which is what lets it judge.
-    assert aioclient_mock.mock_calls[0][2] == {
-        "planes": [{"callsign": NEARBY_CALLSIGN, "lat": 52.0, "lng": 5.0}]
-    }
-
-
-async def test_routeset_asks_about_every_callsign_at_once(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
-    """Test that a batch of callsigns costs one request rather than many."""
-    aioclient_mock.post(ROUTESET_URL, json=[])
+    """Test that more callsigns than fit in one request become two."""
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
     flights = [
         FlightPosition(callsign=f"TEST{number}", latitude=52.0, longitude=5.0)
         for number in range(5)
     ]
 
-    await build_lookup(hass, ROUTE_SOURCE_ROUTESET).async_resolve(flights)
+    with (
+        patch("custom_components.adsb_station.route.ROUTESET_MAX_PLANES", 2),
+        patch("custom_components.adsb_station.route.ROUTE_MAX_LOOKUPS_PER_POLL", 5),
+    ):
+        await build_lookup(hass).async_resolve(flights)
 
-    assert aioclient_mock.call_count == 1
-    assert len(aioclient_mock.mock_calls[0][2]["planes"]) == 5
-
-
-async def test_routeset_keeps_the_two_ends_of_a_flight_with_a_stop(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
-    """Test that a multi-leg route is reported as where it starts and ends."""
-    answer = [
-        {
-            **ROUTESET_ANSWER[0],
-            "_airports": [
-                {"iata": "GOT", "icao": "ESGG", "location": "Gothenburg", "name": "A"},
-                {"iata": "CPH", "icao": "EKCH", "location": "Copenhagen", "name": "B"},
-                {"iata": "AMS", "icao": "EHAM", "location": "Amsterdam", "name": "C"},
-            ],
-        }
-    ]
-    aioclient_mock.post(ROUTESET_URL, json=answer)
-
-    routes = await build_lookup(hass, ROUTE_SOURCE_ROUTESET).async_resolve([HERE])
-
-    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
-
-
-@pytest.mark.parametrize(
-    "answer",
-    [
-        # The API saying it has nothing.
-        [{"callsign": NEARBY_CALLSIGN, "airport_codes": "unknown", "_airports": []}],
-        # A route it found but does not believe belongs to this aircraft.
-        [{**ROUTESET_ANSWER[0], "plausible": False}],
-        # Nothing usable in the answer at all.
-        [{**ROUTESET_ANSWER[0], "_airports": []}],
-        ["not a route"],
-        {"planes": []},
-    ],
-)
-async def test_routeset_without_a_usable_route(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, answer: Any
-) -> None:
-    """Test that a doubtful route is left out rather than guessed at."""
-    aioclient_mock.post(ROUTESET_URL, json=answer)
-
-    assert await build_lookup(hass, ROUTE_SOURCE_ROUTESET).async_resolve([HERE]) == {}
-
-
-async def test_a_failing_routeset_is_not_held_against_the_callsign(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
-    """Test that routeset being down is not remembered as "no route"."""
-    aioclient_mock.post(ROUTESET_URL, status=502)
-    lookup = build_lookup(hass, ROUTE_SOURCE_ROUTESET)
-
-    assert await lookup.async_resolve([HERE]) == {}
-    assert not lookup._cache
-
-    aioclient_mock.clear_requests()
-    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
-    assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
+    assert aioclient_mock.call_count == 3
 
 
 async def test_route_attributes_leave_out_what_is_not_known() -> None:
@@ -392,33 +330,31 @@ async def test_route_attributes_leave_out_what_is_not_known() -> None:
     assert route_attributes(FlightRoute(origin=nameless, destination=None)) == {}
 
 
-async def test_adsbdb_answering_with_blanks(
+async def test_answering_with_blanks(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test that empty and missing fields are treated as absent, not as text."""
-    aioclient_mock.get(
-        ADSBDB_NEARBY_URL,
-        json={
-            "response": {
-                "flightroute": {
-                    "airline": {"name": "   "},
-                    "origin": {"iata_code": "CDG", "name": None},
-                    "destination": "not an airport",
-                }
+    aioclient_mock.post(
+        ROUTESET_URL,
+        json=[
+            {
+                **ROUTESET_ANSWER[0],
+                "_airports": [{"iata": "  ", "icao": "ESGG", "name": None}],
             }
-        },
+        ],
     )
 
     route = (await build_lookup(hass).async_resolve([HERE]))[NEARBY_CALLSIGN]
 
-    assert route.label == "CDG-?"
-    assert route.airline is None
+    # One airport is a flight with an end and no beginning, or the other way
+    # about; either way there is nothing to call the other end.
+    assert route.label == "ESGG-?"
     assert route.origin is not None
     assert route.origin.name is None
     assert route.destination is None
 
 
-async def test_routeset_skips_an_entry_without_a_callsign(
+async def test_skips_an_entry_without_a_callsign(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     """Test that an answer we cannot tie to an aircraft is passed over."""
@@ -427,7 +363,7 @@ async def test_routeset_skips_an_entry_without_a_callsign(
         json=[{**ROUTESET_ANSWER[0], "callsign": ""}, *ROUTESET_ANSWER],
     )
 
-    routes = await build_lookup(hass, ROUTE_SOURCE_ROUTESET).async_resolve([HERE])
+    routes = await build_lookup(hass).async_resolve([HERE])
 
     assert list(routes) == [NEARBY_CALLSIGN]
 
@@ -439,7 +375,7 @@ async def test_the_nearby_aircraft_carry_their_route(
 ) -> None:
     """Test the whole way through: a route reaches the entity attributes."""
     set_responses(aioclient_mock)
-    aioclient_mock.get(ADSBDB_NEARBY_URL, json=ADSBDB_ANSWER)
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
 
     assert await setup_integration(hass, route_entry)
 
@@ -448,15 +384,18 @@ async def test_the_nearby_aircraft_carry_their_route(
     nearby = state.attributes["aircraft"]
     assert len(nearby) == 1
     assert nearby[0]["flight"] == NEARBY_CALLSIGN
-    assert nearby[0]["route"] == "CDG-AMS"
-    assert nearby[0]["origin"] == "CDG"
-    assert nearby[0]["origin_location"] == "Paris"
+    assert nearby[0]["route"] == "GOT-AMS"
+    assert nearby[0]["origin"] == "GOT"
+    assert nearby[0]["origin_location"] == "Gothenburg"
     assert nearby[0]["destination"] == "AMS"
-    assert nearby[0]["airline"] == "KLM Royal Dutch Airlines"
+    # The answer carries an airline_code and is not read for it: the airline
+    # comes off the callsign against the table we ship, so it reads the same
+    # on the flights the source knows nothing about.
+    assert nearby[0]["airline"] == "KLM"
 
     overhead = hass.states.get("binary_sensor.t_ehxx23_aircraft_overhead")
     assert overhead is not None
-    assert overhead.attributes["aircraft"][0]["route"] == "CDG-AMS"
+    assert overhead.attributes["aircraft"][0]["route"] == "GOT-AMS"
 
 
 async def test_an_aircraft_without_a_callsign_is_not_asked_about(
