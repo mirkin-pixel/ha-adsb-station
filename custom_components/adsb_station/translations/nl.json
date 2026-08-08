@@ -198,6 +198,12 @@
       "aircraft_nearby": {
         "name": "Vliegtuigen dichtbij"
       },
+      "overhead_flight": {
+        "name": "Vlucht overhead"
+      },
+      "passages_today": {
+        "name": "Passages vandaag"
+      },
       "highest_aircraft": {
         "name": "Hoogste vliegtuig"
       },

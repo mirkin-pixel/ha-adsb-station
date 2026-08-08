@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_station.const import (
     DEFAULT_SCAN_INTERVAL,
     EVENT_AIRCRAFT_PASSAGE,
+    PASSAGE_BOARD_LENGTH,
     PASSAGE_GAP,
 )
 from custom_components.adsb_station.coordinator import AircraftSummary, slant_distance
@@ -241,3 +242,138 @@ async def test_a_passage_keeps_its_closest_approach(
     assert passage.closest.altitude == 3000
 
 
+
+
+async def test_the_overhead_sensor_shows_the_nearest(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that the panel shows the aircraft nearest through the air."""
+    # A shade over a kilometre away and low, against one right overhead but
+    # three kilometres up, which is the further of the two.
+    higher = {**OVERHEAD, "hex": "484124", "flight": "EZY22"}
+    higher.update(lat=52.0, lon=5.0, alt_baro=10000)
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, higher))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get("sensor.t_ehxx23_overhead_flight")
+    assert state.state == "KLM123"
+    assert state.attributes["overhead"] is True
+    assert state.attributes["airline"] == "KLM"
+    assert state.attributes["slant_distance"] == pytest.approx(1.3, abs=0.2)
+    assert "since" in state.attributes
+
+
+async def test_the_overhead_sensor_keeps_the_last_aircraft(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an empty sky leaves the panel showing what was last there.
+
+    A panel that goes blank between aircraft is not worth hanging up, so the
+    reading stands and the overhead attribute says it is no longer up there.
+    """
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    assert await setup_integration(hass, mock_config_entry)
+
+    set_responses(aioclient_mock, aircraft=poll())
+    await next_poll(hass, freezer)
+
+    state = hass.states.get("sensor.t_ehxx23_overhead_flight")
+    assert state.state == "KLM123"
+    assert state.attributes["overhead"] is False
+
+
+async def test_an_aircraft_without_a_callsign_shows_its_hex(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that something overhead is shown even when it will not say who."""
+    nameless = {key: value for key, value in OVERHEAD.items() if key != "flight"}
+    set_responses(aioclient_mock, aircraft=poll(nameless))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get("sensor.t_ehxx23_overhead_flight").state == "484123"
+
+
+async def test_the_board_records_what_came_over(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the tally and the board behind it."""
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    assert await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get("sensor.t_ehxx23_passages_today")
+    assert state.state == "1"
+    entry = state.attributes["passages"][0]
+    assert entry["flight"] == "KLM123"
+    assert entry["description"] == "Boeing 737-800"
+    assert entry["altitude"] == 2000
+
+    # A second aircraft goes on top of the board, most recent first
+    second = {**OVERHEAD, "hex": "484124", "flight": "EZY22"}
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, second))
+    await next_poll(hass, freezer)
+
+    state = hass.states.get("sensor.t_ehxx23_passages_today")
+    assert state.state == "2"
+    assert [entry["flight"] for entry in state.attributes["passages"]] == [
+        "EZY22",
+        "KLM123",
+    ]
+
+
+async def test_a_board_entry_follows_the_aircraft_down(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an entry ends up holding the closest approach.
+
+    It is written as soon as the aircraft arrives, so the board is current,
+    and rewritten while it is in view, because how close it came is not known
+    until it has come that close.
+    """
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "alt_baro": 9000}))
+    assert await setup_integration(hass, mock_config_entry)
+    board = hass.states.get("sensor.t_ehxx23_passages_today").attributes["passages"]
+    assert board[0]["altitude"] == 9000
+
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "alt_baro": 2000}))
+    await next_poll(hass, freezer)
+
+    state = hass.states.get("sensor.t_ehxx23_passages_today")
+    # Still one passage, now holding the lower reading
+    assert state.state == "1"
+    assert state.attributes["passages"][0]["altitude"] == 2000
+
+
+async def test_the_board_is_capped(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a busy station cannot grow the board without bound."""
+    aircraft = [
+        {**OVERHEAD, "hex": f"48412{number}", "flight": f"TEST{number}"}
+        for number in range(PASSAGE_BOARD_LENGTH + 5)
+    ]
+    set_responses(aioclient_mock, aircraft=poll(*aircraft))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get("sensor.t_ehxx23_passages_today")
+    assert state.state == str(PASSAGE_BOARD_LENGTH + 5)
+    assert len(state.attributes["passages"]) == PASSAGE_BOARD_LENGTH
