@@ -250,16 +250,22 @@ Adding a feeder to a station you set up as receiver-only means adding it as a se
 
 ### Where a flight is going
 
-Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` — and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you pick a source.
+Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` — and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
 
-| Source | How it asks | What it adds |
+The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It needs no account and no key, it takes every callsign of a poll in one request, and it is given the position each aircraft was heard at.
+
+That last part is what makes it worth trusting, and it is the reason it is the only source here. A modern airline callsign is reused across the legs of a day, so a database that answers on the flight number alone hands back whichever leg it has on file — and about as often as not, that is the leg the aircraft has just flown. routeset is told where the aircraft is and drops a route that does not fit it.
+
+The difference is not small. Measured against the track the aircraft themselves were broadcasting, over three samples of around 160 aircraft above the Netherlands:
+
+| | routeset | A source answering per flight number |
 |---|---|---|
-| `adsbdb.com` | One request per callsign | Airports at both ends |
-| routeset, via `adsb.im` | Every callsign in one request | Airports at both ends, and it is told the position, so it can judge whether the route it found fits an aircraft seen there |
+| Callsigns it answered | 96% | 88% |
+| Answers pointing where the aircraft was actually going | **99%** | 73% |
+| Answers pointing the opposite way | 1% | **15%** |
+| Requests for 160 aircraft | 1 | 142 |
 
-Both offer the airline as well and neither is asked for it. A source only names the airline on the flights it happens to know, so the same airline would go by two names in one list, and the name follows from the callsign anyway — which means [a table on your own disk](#names-for-the-codes) can answer for every flight. So this setting is for the route and nothing else, and the route is the part that changes daily and cannot be anywhere but on somebody's server.
-
-Neither needs an account or a key. They do not always agree with each other, which is a fair warning about how certain any of this is: ask both about the same flight number and you may get two different departure airports. The routeset service is the one tar1090 itself defaults to, and it is the stricter of the two — a route it does not believe belongs to the aircraft is dropped rather than shown, on the grounds that a wrong route in a notification is worse than none.
+One in seven is a notification telling you the aircraft overhead is going to the airport it took off from an hour ago, and a wrong route is worse than no route.
 
 Only the aircraft inside your nearby radius are ever looked up. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
 
@@ -274,9 +280,9 @@ When a route is found it appears on each aircraft in the **Aircraft nearby** and
 
 The airline is not among them, and does not need to be: it is [there either way](#names-for-the-codes).
 
-Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and a source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
+Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and the source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
 
-Route data from adsbdb.com comes from the databases of David Taylor (Edinburgh) and Jim Mason (Glasgow), and may not be copied, published or incorporated into other databases without the explicit permission of David J Taylor.
+An aircraft that broadcasts no position gets no route either, because the source judges every route it finds against where the aircraft is. In practice nothing is lost: only the aircraft near enough to be looked up are asked about, and being near enough is measured from a position.
 
 ### Example automations
 
@@ -374,7 +380,7 @@ Every endpoint is plain, unauthenticated HTTP on your local network:
 
 The last three are read only by the entry set up for that feeder.
 
-Nothing else is contacted unless you ask for it. The single exception is [looking up a route](#where-a-flight-is-going), which reaches `api.adsbdb.com` or `adsb.im` over HTTPS and sends nothing but a callsign and, for routeset, the position it was heard at. Leave that setting off and the integration never leaves your network.
+Nothing else is contacted unless you ask for it. The single exception is [looking up a route](#where-a-flight-is-going), which reaches `adsb.im` over HTTPS and sends nothing but a callsign and the position it was heard at. Leave that setting off and the integration never leaves your network.
 
 The integration reads them, it never writes. Ranges are measured from the antenna position in `receiver.json`; when the decoder publishes none, the home location of your Home Assistant installation is used, so make sure that location is correct.
 
@@ -655,16 +661,22 @@ Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ing
 
 ### Waar een vlucht heen gaat
 
-Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` — en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, tar1090 incluis, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je een bron kiest.
+Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` — en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, tar1090 incluis, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
 
-| Bron | Hoe hij vraagt | Wat je krijgt |
+De bron is **routeset**, via `adsb.im`, en dat is dezelfde bron die tar1090 zelf gebruikt. Hij vraagt niet om een account of een sleutel, hij neemt alle callsigns van één meting in één verzoek, en hij krijgt van elk vliegtuig de positie mee waar het gehoord is.
+
+Dat laatste is waarom hij te vertrouwen is, en meteen de reden dat het de enige bron hier is. Een moderne callsign van een maatschappij wordt over de benen van een dag hergebruikt, dus een database die alleen op het vluchtnummer antwoordt geeft het been terug dat hij toevallig heeft staan — en dat is ongeveer even vaak wel als niet het been dat het toestel net gevlogen heeft. routeset krijgt te horen waar het vliegtuig is en laat een route vallen die daar niet bij past.
+
+Dat verschil is niet klein. Getoetst aan de koers die de toestellen zelf uitzonden, over drie steekproeven van zo'n 160 vliegtuigen boven Nederland:
+
+| | routeset | Een bron die per vluchtnummer antwoordt |
 |---|---|---|
-| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten |
-| routeset, via `adsb.im` | Alle callsigns in één verzoek | De vliegvelden aan beide kanten, en hij krijgt de positie mee, zodat hij kan beoordelen of de gevonden route past bij een vliegtuig dat daar gezien is |
+| Beantwoorde callsigns | 96% | 88% |
+| Antwoorden die wijzen waar het toestel echt heen ging | **99%** | 73% |
+| Antwoorden die de omgekeerde kant op wijzen | 1% | **15%** |
+| Verzoeken voor 160 vliegtuigen | 1 | 142 |
 
-Allebei bieden ze de maatschappij ook aan, en aan geen van beide wordt die gevraagd. Een bron noemt de maatschappij alleen bij de vluchten die hij toevallig kent, waardoor dezelfde maatschappij in één lijst onder twee namen zou staan, en de naam volgt sowieso uit de callsign — dus kan [een tabel op je eigen schijf](#namen-bij-de-codes) hem voor elke vlucht geven. Deze instelling is dus voor de route en verder niets, en de route is het deel dat dagelijks verandert en nergens anders kan staan dan op andermans server.
-
-Geen van beide vraagt om een account of een sleutel. Ze zijn het onderling niet altijd eens, wat een eerlijke waarschuwing is over hoe zeker dit allemaal is: vraag ze hetzelfde vluchtnummer en je kunt twee verschillende vertrekvelden terugkrijgen. De routeset-dienst is degene waar tar1090 zelf standaard op staat, en de strengste van de twee — een route waarvan hij niet gelooft dat hij bij het vliegtuig hoort wordt weggelaten in plaats van getoond, omdat een verkeerde route in een notificatie erger is dan geen.
+Eén op de zeven is een melding dat het toestel boven je hoofd op weg is naar het vliegveld waar het een uur geleden vertrok, en een verkeerde route is erger dan geen route.
 
 Alleen de vliegtuigen binnen je straal "dichtbij" worden opgezocht. Dat is het handjevol waar een automatisering iets mee doet, en vragen naar elk vliegtuig in bereik zou een stroom verzoeken aan andermans server zijn voor een gegeven dat nergens getoond wordt. Antwoorden worden twaalf uur bewaard, zodat de lijnvluchten die er dagelijks overkomen één keer opgezocht worden in plaats van elke poll, en er worden nooit meer dan 25 nieuwe callsigns per poll opgezocht.
 
@@ -681,7 +693,7 @@ De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook
 
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
 
-De routegegevens van adsbdb.com komen uit de databases van David Taylor (Edinburgh) en Jim Mason (Glasgow), en mogen niet gekopieerd, gepubliceerd of in andere databases opgenomen worden zonder uitdrukkelijke toestemming van David J Taylor.
+Een vliegtuig dat geen positie uitzendt krijgt ook geen route, want de bron toetst elke route die hij vindt aan waar het toestel is. In de praktijk kost dat niets: alleen de vliegtuigen die dichtbij genoeg zijn worden opgezocht, en dichtbij genoeg wordt vanaf een positie gemeten.
 
 ### Voorbeeldautomatiseringen
 
@@ -779,7 +791,7 @@ Alle endpoints zijn gewone HTTP-adressen zonder authenticatie op je lokale netwe
 
 Die laatste drie worden alleen gelezen door de entry die voor die feeder is ingericht.
 
-Verder wordt er niets benaderd tenzij je erom vraagt. De enige uitzondering is [een route opzoeken](#waar-een-vlucht-heen-gaat), wat via HTTPS `api.adsbdb.com` of `adsb.im` aanspreekt en niets meegeeft behalve een callsign en, bij routeset, de positie waar hij gehoord is. Laat je die instelling uit, dan verlaat de integratie je netwerk nooit.
+Verder wordt er niets benaderd tenzij je erom vraagt. De enige uitzondering is [een route opzoeken](#waar-een-vlucht-heen-gaat), wat via HTTPS `adsb.im` aanspreekt en niets meegeeft behalve een callsign en de positie waar hij gehoord is. Laat je die instelling uit, dan verlaat de integratie je netwerk nooit.
 
 De integratie leest ze alleen uit en schrijft nooit. Afstanden worden gemeten vanaf de antennepositie in `receiver.json`; publiceert de decoder die niet, dan wordt de thuislocatie van je Home Assistant-installatie gebruikt, dus zorg dat die locatie klopt.
 

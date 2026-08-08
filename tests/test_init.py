@@ -20,8 +20,10 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_LOOK_UP_ROUTES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    ROUTESET_URL,
 )
 
 from .conftest import (
@@ -307,3 +309,43 @@ async def test_statistics_outage_is_reported_once(
     await _refresh(hass)
     assert _state(hass, "sensor", "strong_signals") == "6"
     assert f"{STATS_URL} can be read again" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        # Either source meant "yes, look them up", and one of the two is gone
+        ("routeset", True),
+        ("adsbdb", True),
+        ("none", False),
+        (None, False),
+    ],
+)
+async def test_migration_keeps_the_answer_to_the_route_question(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    stored: str | None,
+    expected: bool,
+) -> None:
+    """Test that an entry naming a route source becomes a yes or a no.
+
+    The setting used to be a choice between two databases and is now a switch,
+    so anyone who picked either source has to come out of the upgrade still
+    getting routes, without being asked again.
+    """
+    mock_api.post(ROUTESET_URL, json=[])
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+        options={CONF_SCAN_INTERVAL: 15, "route_source": stored},
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert entry.version == 3
+    assert entry.options[CONF_LOOK_UP_ROUTES] is expected
+    assert "route_source" not in entry.options
+    assert (entry.runtime_data.route_lookup is not None) is expected
