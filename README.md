@@ -273,6 +273,37 @@ Attributes that are not known are left out rather than left empty, so a template
 
 An aircraft that broadcasts no position gets no route either, because the source judges every route it finds against where the aircraft is. In practice nothing is lost: only the aircraft near enough to be looked up are asked about, and being near enough is measured from a position.
 
+### When something comes over
+
+**Aircraft overhead** answers one question, and it answers it well: is there anything up there. It cannot tell you that a second aircraft has arrived while the first is still in view, because nothing changed. It was on, and it stays on.
+
+So an aircraft crossing the sky above you fires an event of its own, once, the moment it arrives:
+
+```yaml
+automation:
+  - alias: "ADS-B: something went over"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            {{ trigger.event.data.airline | default('An unknown aircraft') }}
+            at {{ trigger.event.data.slant_distance }} km
+            {%- if trigger.event.data.route is defined %},
+            {{ trigger.event.data.route }}
+            {%- endif %}.
+```
+
+The event carries the same keys as the aircraft attributes, so everything in the notification above is there: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, the route if you look them up, and `entry_id` and `station` to tell one station from another. It adds one key of its own, `slant_distance`, which is the subject of the next paragraph.
+
+Two things stop it becoming a nuisance.
+
+**The distance counts the height.** Every other distance in this integration is measured across the ground, which is the right answer for how far your antenna reaches and the wrong one for what is above you. An airliner at 37,000 feet passing nine kilometres to the north is inside a ten kilometre radius on the map, and is fourteen kilometres away from you in the sky. It counts as nearby, as it should, and it is not a passage, as it should not be. The `distance` in the event is still the one across the ground; `slant_distance` is the real one.
+
+**An aircraft has to leave before it can arrive again.** Reception drops out, aircraft circle, and one on the edge of the radius flickers in and out. An aircraft that goes and comes back inside ten minutes is the same passage; longer than that and it is a new one. So a helicopter working a field nearby rings once, not once a minute.
+
 ### Example automations
 
 Notification when an aircraft in range declares an emergency:
@@ -672,6 +703,37 @@ De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll; de vliegtuigentiteiten zelf hangen er nooit van af.
 
 Een vliegtuig dat geen positie uitzendt krijgt ook geen route, want de bron toetst elke route die hij vindt aan waar het toestel is. In de praktijk kost dat niets: alleen de vliegtuigen die dichtbij genoeg zijn worden opgezocht, en dichtbij genoeg wordt vanaf een positie gemeten.
+
+### Als er iets overkomt
+
+**Vliegtuig overhead** beantwoordt één vraag, en dat doet hij goed: hangt er iets boven me. Wat hij niet kan vertellen is dat er een tweede toestel is aangekomen terwijl het eerste er nog is, want er verandert niets. Hij stond aan, en hij blijft aan.
+
+Daarom vuurt een vliegtuig dat de lucht boven je oversteekt een eigen event af, één keer, op het moment dat het aankomt:
+
+```yaml
+automation:
+  - alias: "ADS-B: er kwam iets over"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            {{ trigger.event.data.airline | default('Een onbekend vliegtuig') }}
+            op {{ trigger.event.data.slant_distance }} km
+            {%- if trigger.event.data.route is defined %},
+            {{ trigger.event.data.route }}
+            {%- endif %}.
+```
+
+Het event draagt dezelfde sleutels als de vliegtuigattributen, dus alles uit de melding hierboven zit erin: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, de route als je die opzoekt, en `entry_id` en `station` om het ene station van het andere te onderscheiden. Er komt één sleutel bij, `slant_distance`, en die is het onderwerp van de volgende alinea.
+
+Twee dingen houden het draaglijk.
+
+**De afstand telt de hoogte mee.** Elke andere afstand in deze integratie wordt over de grond gemeten, en dat is het juiste antwoord op hoe ver je antenne reikt en het verkeerde op wat er boven je hangt. Een verkeersvliegtuig op 37.000 voet dat negen kilometer noordelijk passeert zit op de kaart binnen een straal van tien kilometer, en is veertien kilometer bij je vandaan door de lucht. Hij telt als dichtbij, en dat hoort ook, en hij is geen passage, en dat hoort ook. De `distance` in het event is nog steeds die over de grond; `slant_distance` is de echte.
+
+**Een vliegtuig moet eerst weg zijn voor het opnieuw kan aankomen.** De ontvangst valt weg, toestellen draaien rondjes, en eentje op de rand van de straal knippert in en uit. Een vliegtuig dat weggaat en binnen tien minuten terugkomt is dezelfde passage; duurt het langer, dan is het een nieuwe. Een helikopter die vlakbij een perceel afwerkt belt dus één keer aan, niet elke minuut.
 
 ### Voorbeeldautomatiseringen
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 import logging
-from math import atan2, cos, degrees, radians, sin
+from math import atan2, cos, degrees, hypot, radians, sin
 from typing import Any, Protocol
 
 from homeassistant.config_entries import ConfigEntry
@@ -26,11 +26,14 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EMERGENCY_SQUAWKS,
+    EVENT_AIRCRAFT_PASSAGE,
+    FEET_TO_METRES,
+    PASSAGE_GAP,
     SECTORS,
     UNSET_RECEIVER_VERSION,
 )
 from .reference import EMPTY as EMPTY_REFERENCE, ReferenceTables
-from .route import FlightPosition, FlightRoute, build_route_lookup
+from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +84,28 @@ class AircraftSummary:
     # Filled in after the poll, and only for the aircraft near enough to
     # matter, when a route source is configured.
     route: FlightRoute | None = None
+
+
+@dataclass(kw_only=True)
+class Passage:
+    """One aircraft crossing the sky above you, start to finish.
+
+    An aircraft is not a state that changes, it is a thing that comes past.
+    Something overhead that stays overhead is one passage however many polls
+    it spans, and the same aircraft an hour later is a second one.
+
+    What it holds is the closest it ever came, not what it looked like when it
+    arrived, because that is the moment worth reporting: an aircraft is first
+    seen at the edge of the radius and is most worth looking up at directly
+    overhead.
+    """
+
+    hex: str
+    started_at: datetime
+    last_seen: datetime
+    # The aircraft at its closest approach, and how close that was in metres.
+    closest: AircraftSummary
+    closest_distance: float
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -220,6 +245,25 @@ def _vertical_rate(entry: dict[str, Any]) -> float | None:
     return None
 
 
+def slant_distance(summary: AircraftSummary) -> float | None:
+    """Return how far away an aircraft really is, in metres.
+
+    Every other distance here is measured across the ground, which is the
+    right answer for how far your antenna reaches. It is the wrong answer for
+    what is above you: an airliner at 37,000 feet passing nine kilometres to
+    the north is eleven kilometres up and fourteen away, and calling that
+    overhead would fill a passage list with traffic nobody can see.
+
+    An aircraft that never reported an altitude keeps its ground distance,
+    which is the best that can be said about it.
+    """
+    if summary.distance is None:
+        return None
+    if summary.altitude is None:
+        return summary.distance
+    return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
+
+
 def _is_military(entry: dict[str, Any]) -> bool:
     """Return True if readsb flags this aircraft as military.
 
@@ -281,6 +325,46 @@ def _summarise(
     )
 
 
+def aircraft_attributes(
+    summary: AircraftSummary, *, include_distance: bool = False
+) -> dict[str, Any]:
+    """Describe one aircraft for the attributes of an entity.
+
+    The distance is left out where the entity state already is the distance.
+    """
+    attributes: dict[str, Any] = {
+        "hex": summary.hex,
+        "flight": summary.flight,
+        "altitude": summary.altitude,
+        "speed": summary.speed,
+        "track": summary.track,
+        # Feet per minute, positive climbing. Absent from aircraft on the
+        # ground and from the ones we only ever hear over Mode S.
+        "vertical_rate": summary.vertical_rate,
+        "rssi": summary.rssi,
+        "seen": summary.seen,
+    }
+    if include_distance:
+        attributes["distance"] = (
+            None if summary.distance is None else round(summary.distance / 1000, 1)
+        )
+    # Decoders without an aircraft database send none of this, and empty
+    # attributes are worse than absent ones on a dashboard.
+    if summary.registration is not None:
+        attributes["registration"] = summary.registration
+    if summary.aircraft_type is not None:
+        attributes["aircraft_type"] = summary.aircraft_type
+    if summary.description is not None:
+        attributes["description"] = summary.description
+    if summary.military:
+        attributes["military"] = True
+    if summary.airline is not None:
+        attributes["airline"] = summary.airline
+    # Empty unless a route source is configured and it recognised the flight.
+    attributes.update(route_attributes(summary.route))
+    return attributes
+
+
 def _emergency_reason(entry: dict[str, Any]) -> str | None:
     """Return why an aircraft counts as an emergency, or None."""
     # dump1090-fa states it outright; every decoder gives us the squawk.
@@ -327,6 +411,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.
         self.sector_sensors: list[SectorRangeRecord] = []
+        # The aircraft currently crossing the sky above you, by hex. Kept
+        # across polls, because a passage is a thing that lasts and a poll is
+        # only a look at it.
+        self.passages: dict[str, Passage] = {}
         self._previous_messages: tuple[int, float] | None = None
         self._aircraft_failed = False
         self._stats_failed = False
@@ -414,7 +502,74 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
 
         await self._async_read_receiver()
-        return await self._async_add_routes(self._build_aircraft_stats(data))
+        stats = await self._async_add_routes(self._build_aircraft_stats(data))
+        # After the routes, so an automation is told where the aircraft it is
+        # being woken for is going.
+        self._track_passages(stats)
+        return stats
+
+    def _track_passages(self, stats: AircraftStats) -> None:
+        """Follow the aircraft crossing the sky above you, and announce them.
+
+        The nearby list is already everything within the radius across the
+        ground, and an aircraft can only be within the real distance if it is
+        within that, so this is a matter of dropping the ones that are high
+        rather than close.
+        """
+        now = dt_util.utcnow()
+        radius = self.proximity_radius
+
+        for summary in stats.nearby:
+            metres = slant_distance(summary)
+            if metres is None or metres > radius:
+                continue
+
+            passage = self.passages.get(summary.hex)
+            if passage is None or now - passage.last_seen > PASSAGE_GAP:
+                passage = Passage(
+                    hex=summary.hex,
+                    started_at=now,
+                    last_seen=now,
+                    closest=summary,
+                    closest_distance=metres,
+                )
+                self.passages[summary.hex] = passage
+                self._announce(passage, metres)
+                continue
+
+            passage.last_seen = now
+            if metres < passage.closest_distance:
+                passage.closest = summary
+                passage.closest_distance = metres
+
+        # An aircraft that has been gone longer than a passage can be paused
+        # for is gone, and holding on to it would grow this without bound.
+        for hex_code in [
+            hex_code
+            for hex_code, passage in self.passages.items()
+            if now - passage.last_seen > PASSAGE_GAP
+        ]:
+            del self.passages[hex_code]
+
+    def _announce(self, passage: Passage, metres: float) -> None:
+        """Fire the event for a passage that has just begun.
+
+        Once per aircraft, where the binary sensor can only say whether there
+        is anything at all overhead: a second aircraft arriving while the
+        first is still in view changes no state and would otherwise pass
+        unnoticed.
+        """
+        self.hass.bus.async_fire(
+            EVENT_AIRCRAFT_PASSAGE,
+            {
+                "entry_id": self.config_entry.entry_id,
+                "station": self.config_entry.title,
+                **aircraft_attributes(passage.closest, include_distance=True),
+                # How far away it really is, where the distance above is the
+                # one measured across the ground.
+                "slant_distance": round(metres / 1000, 1),
+            },
+        )
 
     async def _async_add_routes(self, stats: AircraftStats) -> AircraftStats:
         """Look up where the aircraft near you are flying from and to.
