@@ -150,7 +150,6 @@ async def test_adsbdb_resolves_a_callsign(
 
     route = routes[NEARBY_CALLSIGN]
     assert route.label == "CDG-AMS"
-    assert route.airline == "KLM Royal Dutch Airlines"
     assert route.origin == Airport(
         iata="CDG",
         icao="LFPG",
@@ -293,9 +292,6 @@ async def test_routeset_resolves_a_callsign(
 
     route = routes[NEARBY_CALLSIGN]
     assert route.label == "GOT-AMS"
-    # The answer carries an airline_code, which is the designator out of the
-    # callsign and not a name. The table we ship names that one itself.
-    assert route.airline is None
     assert route.destination is not None
     assert route.destination.location == "Amsterdam"
 
@@ -414,7 +410,6 @@ async def test_adsbdb_answering_with_blanks(
     route = (await build_lookup(hass).async_resolve([HERE]))[NEARBY_CALLSIGN]
 
     assert route.label == "CDG-?"
-    assert route.airline is None
     assert route.origin is not None
     assert route.origin.name is None
     assert route.destination is None
@@ -454,7 +449,10 @@ async def test_the_nearby_aircraft_carry_their_route(
     assert nearby[0]["origin"] == "CDG"
     assert nearby[0]["origin_location"] == "Paris"
     assert nearby[0]["destination"] == "AMS"
-    assert nearby[0]["airline"] == "KLM Royal Dutch Airlines"
+    # The answer calls this one KLM Royal Dutch Airlines and is not read for
+    # it: the airline comes off the callsign against the table we ship, so it
+    # reads the same on the flights no source knows.
+    assert nearby[0]["airline"] == "KLM"
 
     overhead = hass.states.get("binary_sensor.t_ehxx23_aircraft_overhead")
     assert overhead is not None

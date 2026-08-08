@@ -254,10 +254,10 @@ Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` �
 
 | Source | How it asks | What it adds |
 |---|---|---|
-| `adsbdb.com` | One request per callsign | Airports at both ends, and the airline under its full name |
+| `adsbdb.com` | One request per callsign | Airports at both ends |
 | routeset, via `adsb.im` | Every callsign in one request | Airports at both ends, and it is told the position, so it can judge whether the route it found fits an aircraft seen there |
 
-Neither is needed for the airline any more — that [comes off a table on your own disk](#names-for-the-codes) whichever of these you pick, or none of them. What they are for is the route, which is the part that changes daily and cannot be anywhere but on somebody's server. adsbdb still names the airline more fully than the table does, "KLM Royal Dutch Airlines" against "KLM", and where it answers that name is used.
+Both offer the airline as well and neither is asked for it. A source only names the airline on the flights it happens to know, so the same airline would go by two names in one list, and the name follows from the callsign anyway — which means [a table on your own disk](#names-for-the-codes) can answer for every flight. So this setting is for the route and nothing else, and the route is the part that changes daily and cannot be anywhere but on somebody's server.
 
 Neither needs an account or a key. They do not always agree with each other, which is a fair warning about how certain any of this is: ask both about the same flight number and you may get two different departure airports. The routeset service is the one tar1090 itself defaults to, and it is the stricter of the two — a route it does not believe belongs to the aircraft is dropped rather than shown, on the grounds that a wrong route in a notification is worse than none.
 
@@ -271,9 +271,8 @@ When a route is found it appears on each aircraft in the **Aircraft nearby** and
 | `origin`, `destination` | `CDG`, `AMS` |
 | `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
-| `airline` | `KLM Royal Dutch Airlines` |
 
-`airline` is the odd one out in that table: it is also filled in from the [list that ships with the integration](#names-for-the-codes), so it is there whether or not you look routes up. A source that gives the airline in full wins where it does.
+The airline is not among them, and does not need to be: it is [there either way](#names-for-the-codes).
 
 Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and a source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
 
@@ -660,10 +659,10 @@ Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` �
 
 | Bron | Hoe hij vraagt | Wat je krijgt |
 |---|---|---|
-| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten, en de maatschappij met haar volledige naam |
+| `adsbdb.com` | Eén verzoek per callsign | De vliegvelden aan beide kanten |
 | routeset, via `adsb.im` | Alle callsigns in één verzoek | De vliegvelden aan beide kanten, en hij krijgt de positie mee, zodat hij kan beoordelen of de gevonden route past bij een vliegtuig dat daar gezien is |
 
-Voor de maatschappij heb je geen van beide meer nodig — die [komt van een tabel op je eigen schijf](#namen-bij-de-codes), welke van deze twee je ook kiest, of geen. Waar ze voor zijn is de route, en dat is het deel dat dagelijks verandert en nergens anders kan staan dan op andermans server. adsbdb noemt de maatschappij nog wel voluit waar de tabel dat niet doet — "KLM Royal Dutch Airlines" tegenover "KLM" — en waar hij antwoordt wordt die naam gebruikt.
+Allebei bieden ze de maatschappij ook aan, en aan geen van beide wordt die gevraagd. Een bron noemt de maatschappij alleen bij de vluchten die hij toevallig kent, waardoor dezelfde maatschappij in één lijst onder twee namen zou staan, en de naam volgt sowieso uit de callsign — dus kan [een tabel op je eigen schijf](#namen-bij-de-codes) hem voor elke vlucht geven. Deze instelling is dus voor de route en verder niets, en de route is het deel dat dagelijks verandert en nergens anders kan staan dan op andermans server.
 
 Geen van beide vraagt om een account of een sleutel. Ze zijn het onderling niet altijd eens, wat een eerlijke waarschuwing is over hoe zeker dit allemaal is: vraag ze hetzelfde vluchtnummer en je kunt twee verschillende vertrekvelden terugkrijgen. De routeset-dienst is degene waar tar1090 zelf standaard op staat, en de strengste van de twee — een route waarvan hij niet gelooft dat hij bij het vliegtuig hoort wordt weggelaten in plaats van getoond, omdat een verkeerde route in een notificatie erger is dan geen.
 
@@ -677,9 +676,8 @@ Wordt er een route gevonden, dan verschijnt die bij elk vliegtuig in de attribut
 | `origin`, `destination` | `CDG`, `AMS` |
 | `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
-| `airline` | `KLM Royal Dutch Airlines` |
 
-`airline` is de vreemde eend in die tabel: die wordt ook gevuld uit de [lijst die met de integratie meekomt](#namen-bij-de-codes), dus die staat er of je nu routes opzoekt of niet. Een bron die de maatschappij voluit noemt wint waar hij dat doet.
+De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook al](#namen-bij-de-codes).
 
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
 

@@ -10,10 +10,14 @@ it is why it stays off until you pick a source. Two are on offer, and they do
 not always agree with each other, which is a fair warning about how certain
 any of this is:
 
-* adsbdb.com answers about one callsign at a time and names the airline too.
+* adsbdb.com answers about one callsign at a time.
 * routeset is what tar1090 uses. It takes every callsign in one request, and
   because it is given the position as well it can say whether the route it
   found actually fits an aircraft seen there.
+
+Both offer the airline as well and neither is asked for it. That name follows
+from the callsign, which means it can be looked up in a table on your own disk
+for every flight rather than for the ones a source happens to know.
 
 Only the aircraft inside your radius are ever looked up, and answers are kept
 for the day, so a station watching a busy sky still asks a handful of
@@ -73,7 +77,6 @@ class FlightRoute:
 
     origin: Airport | None
     destination: Airport | None
-    airline: str | None = None
 
     @property
     def label(self) -> str | None:
@@ -256,11 +259,13 @@ class AdsbdbLookup(RouteLookup):
         if not isinstance(flightroute, dict):
             return None
 
-        airline = flightroute.get("airline")
+        # The answer names the airline as well, and that name is not read: it
+        # would be there for the flights this source happens to know and not
+        # for the rest, so the same airline would go by two names in one list.
+        # The table the integration ships answers for all of them.
         return FlightRoute(
             origin=_adsbdb_airport(flightroute.get("origin")),
             destination=_adsbdb_airport(flightroute.get("destination")),
-            airline=_text(airline.get("name")) if isinstance(airline, dict) else None,
         )
 
 
@@ -407,6 +412,4 @@ def route_attributes(route: FlightRoute | None) -> dict[str, Any]:
             attributes[f"{key}_location"] = airport.location
         if airport.name is not None:
             attributes[f"{key}_name"] = airport.name
-    if route.airline is not None:
-        attributes["airline"] = route.airline
     return attributes
