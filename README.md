@@ -297,7 +297,7 @@ automation:
                           'aircraft')[0].flight or 'an unknown aircraft' }}.
 ```
 
-Notification when something goes over, saying where it is headed. The route is only there with a [source configured](#where-a-flight-is-going), and only for the flights it recognises, so the template falls back rather than reading a missing key:
+Notification when something goes over, saying what it is and where it is headed:
 
 ```yaml
 automation:
@@ -313,12 +313,23 @@ automation:
             {% set plane = state_attr(
                  'binary_sensor.ads_b_station_aircraft_overhead',
                  'aircraft')[0] %}
-            {{ plane.flight or 'An unknown aircraft' }} overhead at
-            {{ plane.altitude }} ft
+            {{ plane.airline | default(plane.flight or 'An unknown aircraft') }}
+            overhead at {{ plane.altitude }} ft
+            {%- if plane.description is defined %},
+            {{ plane.description }}
+            {%- endif %}
+            {%- if plane.vertical_rate %},
+            {{ 'climbing' if plane.vertical_rate > 0 else 'descending' }}
+            {{ plane.vertical_rate | abs }} ft/min
+            {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} to {{ plane.destination_location }}
             {%- endif %}.
 ```
+
+Which reads as *"Lufthansa overhead at 4100 ft, Airbus A-320neo, descending 1088 ft/min, Paris to Amsterdam."*
+
+Every one of those four is a key that can be missing, and each for its own reason, which is why the template asks rather than reads. The airline and the type name are there for the flights the [shipped tables](#names-for-the-codes) recognise, so a business jet under its registration falls back to the callsign. The rate of climb is absent from aircraft on the ground and zero in level flight, where saying nothing is better than saying "climbing 0". The route needs a [source configured](#where-a-flight-is-going) and is only there for the flights it knows.
 
 Keep a daily record of your best range:
 
@@ -690,7 +701,7 @@ automation:
                           'aircraft')[0].flight or 'een onbekend vliegtuig' }}.
 ```
 
-Melding wanneer er iets overkomt, met waar het heen gaat. De route staat er alleen bij met een [bron ingesteld](#waar-een-vlucht-heen-gaat), en alleen voor de vluchten die herkend worden, dus de template valt terug in plaats van een ontbrekende sleutel te lezen:
+Melding wanneer er iets overkomt, met wat het is en waar het heen gaat:
 
 ```yaml
 automation:
@@ -706,12 +717,23 @@ automation:
             {% set plane = state_attr(
                  'binary_sensor.ads_b_station_vliegtuig_overhead',
                  'aircraft')[0] %}
-            {{ plane.flight or 'Een onbekend vliegtuig' }} overhead op
-            {{ plane.altitude }} ft
+            {{ plane.airline | default(plane.flight or 'Een onbekend vliegtuig') }}
+            overhead op {{ plane.altitude }} ft
+            {%- if plane.description is defined %},
+            een {{ plane.description }}
+            {%- endif %}
+            {%- if plane.vertical_rate %},
+            {{ 'stijgend' if plane.vertical_rate > 0 else 'dalend' }} met
+            {{ plane.vertical_rate | abs }} ft/min
+            {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} naar {{ plane.destination_location }}
             {%- endif %}.
 ```
+
+Wat er zo uitkomt: *"Lufthansa overhead op 4100 ft, een Airbus A-320neo, dalend met 1088 ft/min, Parijs naar Amsterdam."*
+
+Alle vier zijn sleutels die kunnen ontbreken, elk om een eigen reden, en daarom vraagt de template ernaar in plaats van ze te lezen. De maatschappij en de typenaam staan er voor de vluchten die de [meegeleverde tabellen](#namen-bij-de-codes) herkennen, dus een zakenjet onder zijn registratie valt terug op de callsign. De stijgsnelheid ontbreekt bij vliegtuigen aan de grond en is nul in horizontale vlucht, waar niets zeggen beter is dan "stijgend met 0". De route heeft een [bron nodig](#waar-een-vlucht-heen-gaat) en staat er alleen bij voor de vluchten die hij kent.
 
 Je beste bereik van de dag bijhouden:
 
