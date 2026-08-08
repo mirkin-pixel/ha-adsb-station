@@ -114,6 +114,9 @@ def aircraft_attributes(
         "altitude": summary.altitude,
         "speed": summary.speed,
         "track": summary.track,
+        # Feet per minute, positive climbing. Absent from aircraft on the
+        # ground and from the ones we only ever hear over Mode S.
+        "vertical_rate": summary.vertical_rate,
         "rssi": summary.rssi,
         "seen": summary.seen,
     }
@@ -133,6 +136,10 @@ def aircraft_attributes(
         attributes["military"] = True
     # Empty unless a route source is configured and it recognised the flight.
     attributes.update(route_attributes(summary.route))
+    # A route source names the airline in full where it knows the flight, so
+    # the table we ship only fills the gap it leaves.
+    if "airline" not in attributes and summary.airline is not None:
+        attributes["airline"] = summary.airline
     return attributes
 
 

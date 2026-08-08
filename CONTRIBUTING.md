@@ -58,6 +58,7 @@ Linux, so the same `pytest` runs in both places.
 | `api.py` | Reading the local endpoints, and detecting which ones exist |
 | `coordinator.py` | One poll cycle, and everything derived from it |
 | `route.py` | The optional route lookup, and the only code that leaves your network |
+| `reference.py` | The shipped tables that name an airline code and a type code |
 | `sensor.py`, `binary_sensor.py`, `button.py` | The entities |
 | `config_flow.py` | Setting a station up, reconfiguring it, and its options |
 | `const.py` | Constants, and the table of feeder kinds |
@@ -71,6 +72,23 @@ Two things are worth knowing before changing much:
 - **Decoders disagree about field names.** The dump1090 fork that fr24feed
   ships reports `altitude` and `speed`; dump1090-fa and readsb report
   `alt_baro` and `gs`. Both are read, and a new field should assume the same.
+
+## The reference tables
+
+`airlines.json` and `aircraft_models.json` are generated, not edited. They turn
+the codes an aircraft broadcasts into names, and they are committed rather than
+fetched at runtime, because asking a service for something that never changes
+would be a request per aircraft for data that fits in a file.
+
+```bash
+python scripts/build_reference.py
+```
+
+That reads the [standing data of Virtual Radar
+Server](https://github.com/vradarserver/standing-data), which is CC0-1.0, and
+rewrites both files sorted so a regeneration makes a readable diff. Refreshing
+them is a commit of its own; the script's docstring explains how it picks one
+row out of the several that share a type code.
 
 ## Translations
 

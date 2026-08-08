@@ -44,7 +44,7 @@ Everything from `aircraft.json` — the part every setup gets:
 | Aircraft with position | Sensor | Of those, the number with a known position |
 | Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, computed between two polls |
-| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
+| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](#where-a-flight-is-going) |
@@ -190,6 +190,21 @@ Then add the option to `/etc/default/readsb`, in the arguments readsb is started
 
 Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own — the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
 
+#### Names for the codes
+
+An aircraft broadcasts `DLH6CH` and `A20N`. Neither is a name, and no decoder can make one of them, because the names are not in the radio signal at all — they are a list somebody keeps. The integration ships that list, so the aircraft attributes carry a name without anything being asked over the internet:
+
+| Attribute | Read from | Example |
+|---|---|---|
+| `airline` | The first three letters of the callsign | `DLH6CH` → `Lufthansa` |
+| `description` | The ICAO type code, where the decoder does not describe it itself | `A20N` → `Airbus A-320neo` |
+
+A callsign that is not a flight number names no airline. Business jets, gliders and most light aircraft fly under their registration, so `PHABC` is left alone rather than read as an airline code and turned into whatever `PHA` happens to be.
+
+A type code covers a family rather than a single aircraft: an A20N is an A320neo but also the corporate version of it, and a BE20 is any of a dozen King Airs and their military cousins. Nothing in the data says which one you are most likely to see, so the name is the one the code itself spells out. That is right for the airliners and can land on an odd variant for general aviation.
+
+Both tables come from the [standing data of Virtual Radar Server](https://github.com/vradarserver/standing-data), which is in the public domain under CC0-1.0. Like the aircraft database above they are a snapshot; `scripts/build_reference.py` regenerates them from the source.
+
 ### Installation
 
 Requires Home Assistant 2026.3 or newer.
@@ -255,6 +270,8 @@ When a route is found it appears on each aircraft in the **Aircraft nearby** and
 | `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
 | `airline` | `KLM Royal Dutch Airlines` |
+
+`airline` is the odd one out in that table: it is also filled in from the [list that ships with the integration](#names-for-the-codes), so it is there whether or not you look routes up. A source that gives the airline in full wins where it does.
 
 Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and a source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
 
@@ -420,7 +437,7 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
 | Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, berekend tussen twee metingen |
-| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
+| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](#waar-een-vlucht-heen-gaat) kunnen dragen |
@@ -566,6 +583,21 @@ Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee re
 
 Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op — de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
 
+#### Namen bij de codes
+
+Een vliegtuig zendt `DLH6CH` en `A20N` uit. Geen van beide is een naam, en geen decoder kan er een van maken, want die namen zitten niet in het radiosignaal — het is een lijst die iemand bijhoudt. Die lijst wordt met de integratie meegeleverd, dus de vliegtuigattributen dragen een naam zonder dat er iets over internet gevraagd wordt:
+
+| Attribuut | Afgeleid uit | Voorbeeld |
+|---|---|---|
+| `airline` | De eerste drie letters van de callsign | `DLH6CH` → `Lufthansa` |
+| `description` | De ICAO-typecode, als de decoder hem zelf niet omschrijft | `A20N` → `Airbus A-320neo` |
+
+Een callsign die geen vluchtnummer is levert geen maatschappij op. Zakenjets, zweefvliegtuigen en de meeste kleine luchtvaart vliegen onder hun registratie, dus `PHABC` blijft met rust gelaten in plaats van gelezen te worden als een maatschappijcode en te veranderen in wat `PHA` toevallig is.
+
+Een typecode staat voor een familie en niet voor één vliegtuig: een A20N is een A320neo maar ook de zakenversie ervan, en een BE20 is elk van een stuk of tien King Airs plus hun militaire neven. Niets in de gegevens zegt welke je het vaakst boven je hoofd krijgt, dus de naam is degene die de code zelf spelt. Dat klopt voor de lijnvliegtuigen en kan bij de kleine luchtvaart op een vreemde variant uitkomen.
+
+Beide tabellen komen uit de [standing data van Virtual Radar Server](https://github.com/vradarserver/standing-data), die publiek domein is onder CC0-1.0. Net als de vliegtuigdatabase hierboven zijn het momentopnames; `scripts/build_reference.py` maakt ze opnieuw aan vanuit de bron.
+
 ### Installatie
 
 Vereist Home Assistant 2026.3 of nieuwer.
@@ -631,6 +663,8 @@ Wordt er een route gevonden, dan verschijnt die bij elk vliegtuig in de attribut
 | `origin_location`, `destination_location` | `Paris`, `Amsterdam` |
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
 | `airline` | `KLM Royal Dutch Airlines` |
+
+`airline` is de vreemde eend in die tabel: die wordt ook gevuld uit de [lijst die met de integratie meekomt](#namen-bij-de-codes), dus die staat er of je nu routes opzoekt of niet. Een bron die de maatschappij voluit noemt wint waar hij dat doet.
 
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
 
