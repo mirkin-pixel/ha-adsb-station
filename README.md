@@ -252,20 +252,9 @@ Adding a feeder to a station you set up as receiver-only means adding it as a se
 
 Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` — and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
 
-The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It needs no account and no key, it takes every callsign of a poll in one request, and it is given the position each aircraft was heard at.
+The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It asks for no account and no key, and it takes every callsign of a poll in one request.
 
-That last part is what makes it worth trusting, and it is the reason it is the only source here. A modern airline callsign is reused across the legs of a day, so a database that answers on the flight number alone hands back whichever leg it has on file — and about as often as not, that is the leg the aircraft has just flown. routeset is told where the aircraft is and drops a route that does not fit it.
-
-The difference is not small. Measured against the track the aircraft themselves were broadcasting, over three samples of around 160 aircraft above the Netherlands:
-
-| | routeset | A source answering per flight number |
-|---|---|---|
-| Callsigns it answered | 96% | 88% |
-| Answers pointing where the aircraft was actually going | **99%** | 73% |
-| Answers pointing the opposite way | 1% | **15%** |
-| Requests for 160 aircraft | 1 | 142 |
-
-One in seven is a notification telling you the aircraft overhead is going to the airport it took off from an hour ago, and a wrong route is worse than no route.
+It is also told where each aircraft was heard, which is what lets it judge. A modern airline callsign is reused across the legs of a day, so knowing the flight number is not the same as knowing where that aircraft is going; routeset drops a route that does not fit the position rather than showing it, because a wrong route in a notification is worse than none.
 
 Only the aircraft inside your nearby radius are ever looked up. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
 
@@ -663,20 +652,9 @@ Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ing
 
 Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` — en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, tar1090 incluis, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
 
-De bron is **routeset**, via `adsb.im`, en dat is dezelfde bron die tar1090 zelf gebruikt. Hij vraagt niet om een account of een sleutel, hij neemt alle callsigns van één meting in één verzoek, en hij krijgt van elk vliegtuig de positie mee waar het gehoord is.
+De bron is **routeset**, via `adsb.im`, dezelfde bron die tar1090 zelf gebruikt. Hij vraagt niet om een account of een sleutel, en hij neemt alle callsigns van één meting in één verzoek.
 
-Dat laatste is waarom hij te vertrouwen is, en meteen de reden dat het de enige bron hier is. Een moderne callsign van een maatschappij wordt over de benen van een dag hergebruikt, dus een database die alleen op het vluchtnummer antwoordt geeft het been terug dat hij toevallig heeft staan — en dat is ongeveer even vaak wel als niet het been dat het toestel net gevlogen heeft. routeset krijgt te horen waar het vliegtuig is en laat een route vallen die daar niet bij past.
-
-Dat verschil is niet klein. Getoetst aan de koers die de toestellen zelf uitzonden, over drie steekproeven van zo'n 160 vliegtuigen boven Nederland:
-
-| | routeset | Een bron die per vluchtnummer antwoordt |
-|---|---|---|
-| Beantwoorde callsigns | 96% | 88% |
-| Antwoorden die wijzen waar het toestel echt heen ging | **99%** | 73% |
-| Antwoorden die de omgekeerde kant op wijzen | 1% | **15%** |
-| Verzoeken voor 160 vliegtuigen | 1 | 142 |
-
-Eén op de zeven is een melding dat het toestel boven je hoofd op weg is naar het vliegveld waar het een uur geleden vertrok, en een verkeerde route is erger dan geen route.
+Hij krijgt ook te horen waar elk vliegtuig gehoord is, en dat is wat hem laat oordelen. Een moderne callsign van een maatschappij wordt over de benen van een dag hergebruikt, dus het vluchtnummer kennen is niet hetzelfde als weten waar dát toestel heen gaat; routeset laat een route die niet bij de positie past vallen in plaats van hem te tonen, omdat een verkeerde route in een notificatie erger is dan geen.
 
 Alleen de vliegtuigen binnen je straal "dichtbij" worden opgezocht. Dat is het handjevol waar een automatisering iets mee doet, en vragen naar elk vliegtuig in bereik zou een stroom verzoeken aan andermans server zijn voor een gegeven dat nergens getoond wordt. Antwoorden worden twaalf uur bewaard, zodat de lijnvluchten die er dagelijks overkomen één keer opgezocht worden in plaats van elke poll, en er worden nooit meer dan 25 nieuwe callsigns per poll opgezocht.
 
