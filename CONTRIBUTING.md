@@ -34,7 +34,7 @@ pytest --cov        # tests, and the coverage floor
 
 That is everything CI can tell you about the code, so there is no need to push
 a branch to find out whether something is broken. Two workflow jobs are left
-over — hassfest and HACS validation — and they check the manifest and the
+over, hassfest and HACS validation, and they check the manifest and the
 repository layout rather than the code. Both run as containers, so they stay in
 CI; nothing they check changes on a normal code change.
 
@@ -100,6 +100,6 @@ two are identical; a change to one belongs in the other. Entity names come from
 ## Releases
 
 The standard HACS flow: bump `version` in `manifest.json`, merge to the default
-branch, then publish a GitHub release with a matching tag — `v0.2.0` for
+branch, then publish a GitHub release with a matching tag, `v0.2.0` for
 version `0.2.0`. The release workflow checks that the tag matches the manifest
 version and attaches a zip of the integration to the release.
