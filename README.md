@@ -17,7 +17,7 @@ It is not tied to a single network. Anything that serves an `aircraft.json` work
 
 | Decoder | What you get |
 |---|---|
-| readsb or tar1090 | Every receiver entity, and the most of them — see [Which decoder](#which-decoder) |
+| readsb or tar1090 | Every receiver entity, and the most of them; see [Which decoder](#which-decoder) |
 | dump1090-fa or SkyAware | Every receiver entity |
 | dump1090, dump1090-mutability | The receiver entities its build reports |
 | The dump1090 fork bundled with fr24feed | The receiver entities that fork reports |
@@ -30,13 +30,13 @@ On top of the decoder it reads the feeders themselves, each of which serves a st
 | PiAware | FlightAware | `:8080/status.json` |
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
-A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too — set up the receiver on its own.
+A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too: set up the receiver on its own.
 
 What you get is a proper device with translated entity names and a config flow, and figures that are awkward to arrive at by hand: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
 
 ### Entities
 
-Everything from `aircraft.json` — the part every setup gets:
+Everything from `aircraft.json`, the part every setup gets:
 
 | Entity | Type | Description |
 |---|---|---|
@@ -55,7 +55,7 @@ Everything from `aircraft.json` — the part every setup gets:
 
 The highest and the fastest also count aircraft that never broadcast a position: altitude and speed reach us from Mode S alone, and leaving those out would understate both. Their `distance` attribute is then empty.
 
-Those two and the maximum range keep what they last saw rather than blanking when the sky empties, and they survive a restart. A station that hears a couple of aircraft an hour would otherwise report nothing most of the time. The `seen_at` attribute says how long ago it was, and each still follows the sky — a lower aircraft later replaces the reading. That is what separates them from the [sector records](#where-your-antenna-is-blocked), which only ever grow.
+Those two and the maximum range keep what they last saw rather than blanking when the sky empties, and they survive a restart. A station that hears a couple of aircraft an hour would otherwise report nothing most of the time. The `seen_at` attribute says how long ago it was, and each still follows the sky: a lower aircraft later replaces the reading. That is what separates them from the [sector records](#where-your-antenna-is-blocked), which only ever grow.
 
 And, when your receiver also serves `stats.json`, the health of your reception:
 
@@ -122,7 +122,7 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | Uptime | Sensor (h, diagnostic) | How long the host has been up |
 | CPU temperature | Sensor (diagnostic) | Only created on a host that reads one |
 
-Those four are green, amber or red rather than on or off, because amber says something neither of the other two can: a feeder reporting an unstable clock is running fine but will never multilaterate. The colour is the state and the sentence behind it — *"Local clock source is unstable"* — is on the entity as a `message` attribute.
+Those four are green, amber or red rather than on or off, because amber says something neither of the other two can: a feeder reporting an unstable clock is running fine but will never multilaterate. The colour is the state, and the sentence behind it, *"Local clock source is unstable"*, is on the entity as a `message` attribute.
 
 **Plane Finder**, from the `/ajax/stats` of `pfclient`:
 
@@ -137,7 +137,7 @@ Those four are green, amber or red rather than on or off, because amber says som
 | MLAT uploaded | Sensor (kB, diagnostic) | Of that, the multilateration share |
 | Receiver data rate | Sensor (B/s, diagnostic) | Coming in from the decoder |
 
-pfclient publishes no multilateration flag of its own, but it does count what it has sent, and a station whose clock is too unstable to multilaterate sends nothing at all — so the byte counter is the sensor.
+pfclient publishes no multilateration flag of its own, but it does count what it has sent, and a station whose clock is too unstable to multilaterate sends nothing at all, so the byte counter is the sensor.
 
 With a feeder, the feeder and the receiver are read independently: if the decoder stops answering, only the aircraft entities become unavailable and the feed entities keep working. Without a feeder the decoder is the only source, so an outage takes everything with it.
 
@@ -150,7 +150,7 @@ A single maximum range figure hides the shape of your coverage: 250 km to the so
 | Maximum range north … northwest | Sensor (km) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
 | Reset range records | Button | Clears all eight |
 
-The records only ever grow, and they survive a restart of Home Assistant — a record that started over every restart would be worth nothing. The sensors also stay readable when nothing is flying, because a record from last month is still a reading.
+The records only ever grow, and they survive a restart of Home Assistant, because a record that started over every restart would be worth nothing. The sensors also stay readable when nothing is flying, because a record from last month is still a reading.
 
 That same growth makes them wrong the moment the antenna moves or a neighbour puts up a shed, which is what the button is for. Pressing it while aircraft are in view immediately sets fresh records from them, measured from where the antenna is now.
 
@@ -167,7 +167,7 @@ Every decoder gives you the entities above that it has data for; what it reports
 | Registration, type, description | No | No | Yes, with an aircraft database |
 | Military marker | No | No | Yes, with an aircraft database |
 
-Two of those are worth spelling out. Without a gain figure you are tuning your dongle blind, and without an antenna position in `receiver.json` the range is measured from the home location of your Home Assistant installation instead of from your antenna — fine if they are the same place, wrong if your receiver sits elsewhere.
+Two of those are worth spelling out. Without a gain figure you are tuning your dongle blind, and without an antenna position in `receiver.json` the range is measured from the home location of your Home Assistant installation instead of from your antenna, which is fine if they are the same place and wrong if your receiver sits elsewhere.
 
 If you already run `fr24feed` and nothing else, replacing its bundled dump1090 with readsb costs you nothing and adds the gain sensor, the aircraft details and a real antenna position. **Run Reconfigure after upgrading your decoder** to pick up what it can do now.
 
@@ -188,11 +188,11 @@ Then add the option to `/etc/default/readsb`, in the arguments readsb is started
 --db-file /usr/local/share/tar1090/aircraft.csv.gz
 ```
 
-Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own — the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
+Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own: the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
 
 #### Names for the codes
 
-An aircraft broadcasts `DLH6CH` and `A20N`. Neither is a name, and no decoder can make one of them, because the names are not in the radio signal at all — they are a list somebody keeps. The integration ships that list, so the aircraft attributes carry a name without anything being asked over the internet:
+An aircraft broadcasts `DLH6CH` and `A20N`. Neither is a name, and no decoder can make one of them, because the names are not in the radio signal at all: they are a list somebody keeps. The integration ships that list, so the aircraft attributes carry a name without anything being asked over the internet:
 
 | Attribute | Read from | Example |
 |---|---|---|
@@ -226,10 +226,10 @@ Requires Home Assistant 2026.3 or newer.
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **ADS-B Station**.
 3. Choose what this entry is for:
-   - **Flightradar24 feeder (fr24feed)** — the address of the machine running it, and the port of its status page, `8754` by default.
-   - **FlightAware feeder (PiAware)** — likewise, port `8080` by default. A station whose web server was taken over by something else may serve `status.json` elsewhere; on one running tar1090 behind nginx it is worth trying port 80.
-   - **Plane Finder feeder (pfclient)** — likewise, port `30053` by default.
-   - **ADS-B receiver only** — for a station that feeds nowhere, or as the entry that carries the decoder.
+   - **Flightradar24 feeder (fr24feed)**: the address of the machine running it, and the port of its status page, `8754` by default.
+   - **FlightAware feeder (PiAware)**: likewise, port `8080` by default. A station whose web server was taken over by something else may serve `status.json` elsewhere; on one running tar1090 behind nginx it is worth trying port 80.
+   - **Plane Finder feeder (pfclient)**: likewise, port `30053` by default.
+   - **ADS-B receiver only**: for a station that feeds nowhere, or as the entry that carries the decoder.
 4. Every path then offers the receiver. Attach it to one entry and leave it empty on the others, or the aircraft figures are counted several times over.
 
 These paths are probed automatically, on port 8080 where fr24feed and PiAware serve them and on port 80 where readsb with tar1090 does:
@@ -244,13 +244,13 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Three settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities — ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The third is [where a flight is going](#where-a-flight-is-going), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Three settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The third is [where a flight is going](#where-a-flight-is-going), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
 ### Where a flight is going
 
-Your antenna never hears this. An aircraft broadcasts a callsign — `KLM1234` — and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
+Your antenna never hears this. An aircraft broadcasts a callsign, `KLM1234`, and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
 
 The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It asks for no account and no key, and it takes every callsign of a poll in one request.
 
@@ -269,7 +269,7 @@ When a route is found it appears on each aircraft in the **Aircraft nearby** and
 
 The airline is not among them, and does not need to be: it is [there either way](#names-for-the-codes).
 
-Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and the source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
+Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and the source being unreachable simply means no route that poll; the aircraft entities themselves never depend on it.
 
 An aircraft that broadcasts no position gets no route either, because the source judges every route it finds against where the aircraft is. In practice nothing is lost: only the aircraft near enough to be looked up are asked about, and being near enough is measured from a position.
 
@@ -361,11 +361,11 @@ The entity IDs above follow the device name: `ads_b_station` for a station witho
 
 Every endpoint is plain, unauthenticated HTTP on your local network:
 
-- `http://<host>:8080/<path>/aircraft.json` — the aircraft list of your decoder.
-- `<path>/stats.json` and `<path>/receiver.json` — found automatically next to `aircraft.json`.
-- `http://<host>:8754/monitor.json` — the status page of `fr24feed`.
-- `http://<host>:8080/status.json` — the status page of PiAware.
-- `http://<host>:30053/ajax/stats` — the statistics of `pfclient`.
+- `http://<host>:8080/<path>/aircraft.json`, the aircraft list of your decoder.
+- `<path>/stats.json` and `<path>/receiver.json`, found automatically next to `aircraft.json`.
+- `http://<host>:8754/monitor.json`, the status page of `fr24feed`.
+- `http://<host>:8080/status.json`, the status page of PiAware.
+- `http://<host>:30053/ajax/stats`, the statistics of `pfclient`.
 
 The last three are read only by the entry set up for that feeder.
 
@@ -379,7 +379,7 @@ Field names differ between decoders. The fr24feed fork reports `altitude` and `s
 
 If entities stay `unknown` or `unavailable`, collect the two things below and attach them to an [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).
 
-**Enable debug logging.** Go to **Settings → Devices & services → ADS-B Station**, click the three dots and choose **Enable debug logging**. Reproduce the problem, then choose **Disable debug logging** — Home Assistant downloads the log automatically.
+**Enable debug logging.** Go to **Settings → Devices & services → ADS-B Station**, click the three dots and choose **Enable debug logging**. Reproduce the problem, then choose **Disable debug logging**, and Home Assistant downloads the log automatically.
 
 To log across a restart, add this to `configuration.yaml` instead:
 
@@ -396,7 +396,7 @@ Debug logging shows the HTTP status of every poll and any value the integration 
 
 ### Development
 
-Working on the integration itself is covered in [CONTRIBUTING.md](CONTRIBUTING.md): how to set up, the three checks that are the whole of what CI can tell you about the code, how the code is laid out, and how a release is cut. It needs Python 3.14 or newer and nothing else — no Home Assistant installation of your own.
+Working on the integration itself is covered in [CONTRIBUTING.md](CONTRIBUTING.md): how to set up, the three checks that are the whole of what CI can tell you about the code, how the code is laid out, and how a release is cut. It needs Python 3.14 or newer and nothing else: no Home Assistant installation of your own.
 
 ```bash
 pip install -r requirements_test.txt
@@ -417,7 +417,7 @@ De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aan
 
 | Decoder | Wat je krijgt |
 |---|---|
-| readsb of tar1090 | Alle ontvanger-entiteiten, en daarvan de meeste — zie [Welke decoder](#welke-decoder) |
+| readsb of tar1090 | Alle ontvanger-entiteiten, en daarvan de meeste; zie [Welke decoder](#welke-decoder) |
 | dump1090-fa of SkyAware | Alle ontvanger-entiteiten |
 | dump1090, dump1090-mutability | De ontvanger-entiteiten die deze build meldt |
 | De dump1090-fork die fr24feed meelevert | De ontvanger-entiteiten die die fork meldt |
@@ -430,13 +430,13 @@ Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen st
 | PiAware | FlightAware | `:8080/status.json` |
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
-Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook — dan zet je alleen de ontvanger op.
+Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook: dan zet je alleen de ontvanger op.
 
 Wat je krijgt is een echt apparaat met vertaalde entiteitsnamen en een configuratieflow, en cijfers waar je met de hand lastig aan komt: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
 
 ### Entiteiten
 
-Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
+Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 
 | Entiteit | Type | Omschrijving |
 |---|---|---|
@@ -455,7 +455,7 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 
 Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzenden: hoogte en snelheid komen al via Mode S binnen, en die weglaten zou beide cijfers te laag maken. Hun attribuut `distance` is dan leeg.
 
-Die twee en het maximale bereik houden vast wat ze het laatst zagen in plaats van leeg te lopen zodra de lucht leeg is, en ze overleven een herstart. Een station dat een paar vliegtuigen per uur hoort zou anders het grootste deel van de tijd niets melden. Het attribuut `seen_at` zegt hoe lang geleden dat was, en elk volgt nog steeds de lucht — een lager toestel later vervangt de waarde. Dat is het verschil met de [sectorrecords](#waar-je-antenne-geblokkeerd-zit), die alleen maar groeien.
+Die twee en het maximale bereik houden vast wat ze het laatst zagen in plaats van leeg te lopen zodra de lucht leeg is, en ze overleven een herstart. Een station dat een paar vliegtuigen per uur hoort zou anders het grootste deel van de tijd niets melden. Het attribuut `seen_at` zegt hoe lang geleden dat was, en elk volgt nog steeds de lucht: een lager toestel later vervangt de waarde. Dat is het verschil met de [sectorrecords](#waar-je-antenne-geblokkeerd-zit), die alleen maar groeien.
 
 En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 
@@ -522,7 +522,7 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | Bedrijfstijd | Sensor (u, diagnostisch) | Hoe lang de host draait |
 | CPU-temperatuur | Sensor (diagnostisch) | Alleen aangemaakt op een host die er een uitleest |
 
-Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iets wat de andere twee niet kunnen: een feeder die een onstabiele klok meldt draait prima, maar zal nooit multilatereren. De kleur is de state en de zin erachter — *"Local clock source is unstable"* — staat als attribuut `message` op de entiteit.
+Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iets wat de andere twee niet kunnen: een feeder die een onstabiele klok meldt draait prima, maar zal nooit multilatereren. De kleur is de state, en de zin erachter, *"Local clock source is unstable"*, staat als attribuut `message` op de entiteit.
 
 **Plane Finder**, uit de `/ajax/stats` van `pfclient`:
 
@@ -537,20 +537,20 @@ Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iet
 | MLAT geüpload | Sensor (kB, diagnostisch) | Daarvan het multilateratie-aandeel |
 | Datasnelheid ontvanger | Sensor (B/s, diagnostisch) | Wat er van de decoder binnenkomt |
 
-pfclient publiceert zelf geen multilateratie-vlag, maar telt wel wat het verstuurt — en een station waarvan de klok te onstabiel is om te multilatereren verstuurt niets. Die bytesteller is dus de sensor.
+pfclient publiceert zelf geen multilateratie-vlag, maar telt wel wat het verstuurt, en een station waarvan de klok te onstabiel is om te multilatereren verstuurt niets. Die bytesteller is dus de sensor.
 
 Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als de decoder niet meer antwoordt, worden alleen de vliegtuig-entiteiten onbeschikbaar en blijven de feed-entiteiten werken. Zonder feeder is de decoder de enige bron, en neemt een storing alles mee.
 
 #### Waar je antenne geblokkeerd zit
 
-Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting — **Maximaal bereik noord** dekt dus 337,5° tot 22,5°.
+Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting, dus **Maximaal bereik noord** dekt 337,5° tot 22,5°.
 
 | Entiteit | Type | Omschrijving |
 |---|---|---|
 | Maximaal bereik noord … noordwest | Sensor (km) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
 | Bereikrecords wissen | Knop | Wist alle acht |
 
-De records groeien alleen maar, en ze overleven een herstart van Home Assistant — een record dat bij elke herstart opnieuw begint is niets waard. De sensoren blijven ook leesbaar als er niets vliegt, want een record van vorige maand is nog steeds een meting.
+De records groeien alleen maar, en ze overleven een herstart van Home Assistant, want een record dat bij elke herstart opnieuw begint is niets waard. De sensoren blijven ook leesbaar als er niets vliegt, want een record van vorige maand is nog steeds een meting.
 
 Datzelfde groeien maakt ze onjuist zodra je antenne verhuist of de buurman een schuur neerzet; daar is de knop voor. Druk je erop terwijl er toestellen in beeld zijn, dan zet hij meteen nieuwe records vanaf de plek waar je antenne nu staat.
 
@@ -567,7 +567,7 @@ Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij 
 | Registratie, type, omschrijving | Nee | Nee | Ja, met vliegtuigdatabase |
 | Militair-markering | Nee | Nee | Ja, met vliegtuigdatabase |
 
-Twee daarvan zijn het benoemen waard. Zonder gain-waarde stem je je dongle blind af, en zonder antennepositie in `receiver.json` wordt het bereik gemeten vanaf de thuislocatie van je Home Assistant-installatie in plaats van vanaf je antenne — prima als dat dezelfde plek is, fout als je ontvanger elders staat.
+Twee daarvan zijn het benoemen waard. Zonder gain-waarde stem je je dongle blind af, en zonder antennepositie in `receiver.json` wordt het bereik gemeten vanaf de thuislocatie van je Home Assistant-installatie in plaats van vanaf je antenne, wat prima is als dat dezelfde plek is en fout als je ontvanger elders staat.
 
 Draai je nu alleen `fr24feed`, dan kost het vervangen van de meegeleverde dump1090 door readsb je niets en levert het de gain-sensor, de vliegtuigdetails en een echte antennepositie op. **Draai Herconfigureren na een decoder-upgrade** om op te pikken wat hij nu kan.
 
@@ -588,11 +588,11 @@ Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee re
 --db-file /usr/local/share/tar1090/aircraft.csv.gz
 ```
 
-Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op — de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
+Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op: de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
 
 #### Namen bij de codes
 
-Een vliegtuig zendt `DLH6CH` en `A20N` uit. Geen van beide is een naam, en geen decoder kan er een van maken, want die namen zitten niet in het radiosignaal — het is een lijst die iemand bijhoudt. Die lijst wordt met de integratie meegeleverd, dus de vliegtuigattributen dragen een naam zonder dat er iets over internet gevraagd wordt:
+Een vliegtuig zendt `DLH6CH` en `A20N` uit. Geen van beide is een naam, en geen decoder kan er een van maken, want die namen zitten niet in het radiosignaal: het is een lijst die iemand bijhoudt. Die lijst wordt met de integratie meegeleverd, dus de vliegtuigattributen dragen een naam zonder dat er iets over internet gevraagd wordt:
 
 | Attribuut | Afgeleid uit | Voorbeeld |
 |---|---|---|
@@ -626,10 +626,10 @@ Vereist Home Assistant 2026.3 of nieuwer.
 1. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen**.
 2. Zoek naar **ADS-B Station**.
 3. Kies waar deze entry voor is:
-   - **Flightradar24-feeder (fr24feed)** — het adres van de machine waarop hij draait, en de poort van de statuspagina, standaard `8754`.
-   - **FlightAware-feeder (PiAware)** — idem, standaard poort `8080`. Staat er een andere webserver op die poort, dan kan `status.json` elders staan; op een station met tar1090 achter nginx is poort 80 het proberen waard.
-   - **Plane Finder-feeder (pfclient)** — idem, standaard poort `30053`.
-   - **Alleen een ADS-B-ontvanger** — voor een station dat nergens aan voedt, of als de entry die de decoder draagt.
+   - **Flightradar24-feeder (fr24feed)**: het adres van de machine waarop hij draait, en de poort van de statuspagina, standaard `8754`.
+   - **FlightAware-feeder (PiAware)**: idem, standaard poort `8080`. Staat er een andere webserver op die poort, dan kan `status.json` elders staan; op een station met tar1090 achter nginx is poort 80 het proberen waard.
+   - **Plane Finder-feeder (pfclient)**: idem, standaard poort `30053`.
+   - **Alleen een ADS-B-ontvanger**: voor een station dat nergens aan voedt, of als de entry die de decoder draagt.
 4. Elk pad biedt daarna de ontvanger aan. Koppel die aan één entry en laat hem bij de andere leeg, anders tellen de vliegtuigcijfers dubbel.
 
 Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware ze aanbieden en op poort 80 waar readsb met tar1090 dat doet:
@@ -644,13 +644,13 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan drie instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead** — tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De derde is [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan drie instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De derde is [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
-Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe — precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
+Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe, precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
 ### Waar een vlucht heen gaat
 
-Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit — `KLM1234` — en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, tar1090 incluis, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
+Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit, `KLM1234`, en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, ook die van tar1090, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
 
 De bron is **routeset**, via `adsb.im`, dezelfde bron die tar1090 zelf gebruikt. Hij vraagt niet om een account of een sleutel, en hij neemt alle callsigns van één meting in één verzoek.
 
@@ -669,7 +669,7 @@ Wordt er een route gevonden, dan verschijnt die bij elk vliegtuig in de attribut
 
 De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook al](#namen-bij-de-codes).
 
-Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
+Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll; de vliegtuigentiteiten zelf hangen er nooit van af.
 
 Een vliegtuig dat geen positie uitzendt krijgt ook geen route, want de bron toetst elke route die hij vindt aan waar het toestel is. In de praktijk kost dat niets: alleen de vliegtuigen die dichtbij genoeg zijn worden opgezocht, en dichtbij genoeg wordt vanaf een positie gemeten.
 
@@ -755,17 +755,17 @@ automation:
           message: "De Flightradar24-feed is al 5 minuten offline."
 ```
 
-De entity-ID's hierboven volgen de apparaatnaam: `ads_b_station` voor een station zonder feeder, je feed-alias voor een station met. Die apparaatnaam wordt niet vertaald, de entiteitsnaam erachter wel — noem je het apparaat in Home Assistant anders, dan veranderen de entity-ID's mee.
+De entity-ID's hierboven volgen de apparaatnaam: `ads_b_station` voor een station zonder feeder, je feed-alias voor een station met. Die apparaatnaam wordt niet vertaald, de entiteitsnaam erachter wel, dus noem je het apparaat in Home Assistant anders, dan veranderen de entity-ID's mee.
 
 ### Over de endpoints
 
 Alle endpoints zijn gewone HTTP-adressen zonder authenticatie op je lokale netwerk:
 
-- `http://<host>:8080/<pad>/aircraft.json` — de vliegtuiglijst van je decoder.
-- `<pad>/stats.json` en `<pad>/receiver.json` — worden automatisch naast `aircraft.json` gevonden.
-- `http://<host>:8754/monitor.json` — de statuspagina van `fr24feed`.
-- `http://<host>:8080/status.json` — de statuspagina van PiAware.
-- `http://<host>:30053/ajax/stats` — de statistieken van `pfclient`.
+- `http://<host>:8080/<pad>/aircraft.json`, de vliegtuiglijst van je decoder.
+- `<pad>/stats.json` en `<pad>/receiver.json`, die automatisch naast `aircraft.json` gevonden worden.
+- `http://<host>:8754/monitor.json`, de statuspagina van `fr24feed`.
+- `http://<host>:8080/status.json`, de statuspagina van PiAware.
+- `http://<host>:30053/ajax/stats`, de statistieken van `pfclient`.
 
 Die laatste drie worden alleen gelezen door de entry die voor die feeder is ingericht.
 
@@ -779,7 +779,7 @@ Veldnamen verschillen per decoder. De fr24feed-fork meldt `altitude` en `speed` 
 
 Blijven entiteiten op `unknown` of `unavailable` staan? Verzamel dan de twee onderstaande zaken en voeg ze toe aan een [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).
 
-**Debug-logging aanzetten.** Ga naar **Instellingen → Apparaten & diensten → ADS-B Station**, klik op de drie puntjes en kies **Debug-logging aanzetten**. Reproduceer het probleem en kies daarna **Debug-logging uitzetten** — Home Assistant downloadt de log dan automatisch.
+**Debug-logging aanzetten.** Ga naar **Instellingen → Apparaten & diensten → ADS-B Station**, klik op de drie puntjes en kies **Debug-logging aanzetten**. Reproduceer het probleem en kies daarna **Debug-logging uitzetten**, en Home Assistant downloadt de log automatisch.
 
 Wil je ook over een herstart heen loggen, zet dan dit in `configuration.yaml`:
 
@@ -796,7 +796,7 @@ In de debug-log zie je de HTTP-status van elke poll en elke waarde die de integr
 
 ### Ontwikkeling
 
-Werken aan de integratie zelf staat in [CONTRIBUTING.md](CONTRIBUTING.md) (Engels): hoe je het opzet, de drie controles die alles zijn wat CI je over de code kan vertellen, hoe de code is ingedeeld en hoe een release eruit gaat. Je hebt Python 3.14 of nieuwer nodig en verder niets — geen eigen Home Assistant-installatie.
+Werken aan de integratie zelf staat in [CONTRIBUTING.md](CONTRIBUTING.md) (Engels): hoe je het opzet, de drie controles die alles zijn wat CI je over de code kan vertellen, hoe de code is ingedeeld en hoe een release eruit gaat. Je hebt Python 3.14 of nieuwer nodig en verder niets: geen eigen Home Assistant-installatie.
 
 ```bash
 pip install -r requirements_test.txt
