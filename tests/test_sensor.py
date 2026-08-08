@@ -584,6 +584,122 @@ async def test_gain_sensor_reads_the_readsb_layout(
     assert _state(hass, "signal_to_noise") == STATE_UNKNOWN
 
 
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        # readsb and dump1090-fa, which prefer the barometric rate
+        ({"baro_rate": -1088, "geom_rate": -1024}, -1088),
+        # A climb the aircraft only reported against GNSS
+        ({"geom_rate": 1216}, 1216),
+        # The dump1090 fork that fr24feed ships
+        ({"vert_rate": 640}, 640),
+        # An aircraft on the ground reports none of the three
+        ({}, None),
+    ],
+)
+async def test_closest_aircraft_vertical_rate(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    fields: dict[str, int],
+    expected: int | None,
+) -> None:
+    """Test the rate of climb, under each of the names a decoder gives it."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {"hex": "484123", "lat": 52.01, "lon": 5.0, "alt_baro": 2000, **fields}
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    assert hass.states.get(entity_id).attributes["vertical_rate"] == expected
+
+
+async def test_closest_aircraft_names_from_the_shipped_tables(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the two names no decoder sends and no request is made for.
+
+    A database that fills in the type code without describing it is what a
+    readsb with the usual aircraft.csv.gz does, and the airline is not in
+    aircraft.json under any decoder.
+    """
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {
+                    "hex": "3c65cd",
+                    "flight": "DLH6CH",
+                    "lat": 52.01,
+                    "lon": 5.0,
+                    "alt_baro": 37375,
+                    "r": "D-AINM",
+                    "t": "A20N",
+                }
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert attributes["airline"] == "Lufthansa"
+    assert attributes["description"] == "Airbus A-320neo"
+
+
+async def test_closest_aircraft_keeps_the_decoders_own_description(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a decoder that describes the type itself is not overruled."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {
+                    "hex": "3c65cd",
+                    "flight": "PHABC",
+                    "lat": 52.01,
+                    "lon": 5.0,
+                    "alt_baro": 2000,
+                    "t": "A20N",
+                    "desc": "AIRBUS A-320neo",
+                }
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert attributes["description"] == "AIRBUS A-320neo"
+    # A registration flown as a callsign names no airline
+    assert "airline" not in attributes
+
+
 async def test_closest_aircraft_database_fields(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,

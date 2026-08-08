@@ -9,6 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import AdsbStationClient
 from .const import CONF_AIRCRAFT_URL, CONF_FEEDER_TYPE, CONF_STATS_URL, FEEDER_FR24
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
+from .reference import async_load_reference
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -28,7 +29,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
         entry.data.get(CONF_STATS_URL),
         feeder_type=entry.data.get(CONF_FEEDER_TYPE),
     )
-    coordinator = AdsbStationDataUpdateCoordinator(hass, entry, client)
+    coordinator = AdsbStationDataUpdateCoordinator(
+        hass, entry, client, await async_load_reference(hass)
+    )
 
     await coordinator.async_config_entry_first_refresh()
 

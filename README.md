@@ -44,7 +44,7 @@ Everything from `aircraft.json` — the part every setup gets:
 | Aircraft with position | Sensor | Of those, the number with a known position |
 | Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, computed between two polls |
-| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
+| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](#where-a-flight-is-going) |
@@ -190,6 +190,21 @@ Then add the option to `/etc/default/readsb`, in the arguments readsb is started
 
 Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own — the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
 
+#### Names for the codes
+
+An aircraft broadcasts `DLH6CH` and `A20N`. Neither is a name, and no decoder can make one of them, because the names are not in the radio signal at all — they are a list somebody keeps. The integration ships that list, so the aircraft attributes carry a name without anything being asked over the internet:
+
+| Attribute | Read from | Example |
+|---|---|---|
+| `airline` | The first three letters of the callsign | `DLH6CH` → `Lufthansa` |
+| `description` | The ICAO type code, where the decoder does not describe it itself | `A20N` → `Airbus A-320neo` |
+
+A callsign that is not a flight number names no airline. Business jets, gliders and most light aircraft fly under their registration, so `PHABC` is left alone rather than read as an airline code and turned into whatever `PHA` happens to be.
+
+A type code covers a family rather than a single aircraft: an A20N is an A320neo but also the corporate version of it, and a BE20 is any of a dozen King Airs and their military cousins. Nothing in the data says which one you are most likely to see, so the name is the one the code itself spells out. That is right for the airliners and can land on an odd variant for general aviation.
+
+Both tables come from the [standing data of Virtual Radar Server](https://github.com/vradarserver/standing-data), which is in the public domain under CC0-1.0. Like the aircraft database above they are a snapshot; `scripts/build_reference.py` regenerates them from the source.
+
 ### Installation
 
 Requires Home Assistant 2026.3 or newer.
@@ -256,6 +271,8 @@ When a route is found it appears on each aircraft in the **Aircraft nearby** and
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
 | `airline` | `KLM Royal Dutch Airlines` |
 
+`airline` is the odd one out in that table: it is also filled in from the [list that ships with the integration](#names-for-the-codes), so it is there whether or not you look routes up. A source that gives the airline in full wins where it does.
+
 Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and a source being unreachable simply means no route that poll — the aircraft entities themselves never depend on it.
 
 Route data from adsbdb.com comes from the databases of David Taylor (Edinburgh) and Jim Mason (Glasgow), and may not be copied, published or incorporated into other databases without the explicit permission of David J Taylor.
@@ -280,7 +297,7 @@ automation:
                           'aircraft')[0].flight or 'an unknown aircraft' }}.
 ```
 
-Notification when something goes over, saying where it is headed. The route is only there with a [source configured](#where-a-flight-is-going), and only for the flights it recognises, so the template falls back rather than reading a missing key:
+Notification when something goes over, saying what it is and where it is headed:
 
 ```yaml
 automation:
@@ -296,12 +313,23 @@ automation:
             {% set plane = state_attr(
                  'binary_sensor.ads_b_station_aircraft_overhead',
                  'aircraft')[0] %}
-            {{ plane.flight or 'An unknown aircraft' }} overhead at
-            {{ plane.altitude }} ft
+            {{ plane.airline | default(plane.flight or 'An unknown aircraft') }}
+            overhead at {{ plane.altitude }} ft
+            {%- if plane.description is defined %},
+            {{ plane.description }}
+            {%- endif %}
+            {%- if plane.vertical_rate %},
+            {{ 'climbing' if plane.vertical_rate > 0 else 'descending' }}
+            {{ plane.vertical_rate | abs }} ft/min
+            {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} to {{ plane.destination_location }}
             {%- endif %}.
 ```
+
+Which reads as *"Lufthansa overhead at 4100 ft, Airbus A-320neo, descending 1088 ft/min, Paris to Amsterdam."*
+
+Every one of those four is a key that can be missing, and each for its own reason, which is why the template asks rather than reads. The airline and the type name are there for the flights the [shipped tables](#names-for-the-codes) recognise, so a business jet under its registration falls back to the callsign. The rate of climb is absent from aircraft on the ground and zero in level flight, where saying nothing is better than saying "climbing 0". The route needs a [source configured](#where-a-flight-is-going) and is only there for the flights it knows.
 
 Keep a daily record of your best range:
 
@@ -420,7 +448,7 @@ Alles uit `aircraft.json` — het deel dat elke opstelling krijgt:
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
 | Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, berekend tussen twee metingen |
-| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
+| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](#waar-een-vlucht-heen-gaat) kunnen dragen |
@@ -566,6 +594,21 @@ Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee re
 
 Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op — de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
 
+#### Namen bij de codes
+
+Een vliegtuig zendt `DLH6CH` en `A20N` uit. Geen van beide is een naam, en geen decoder kan er een van maken, want die namen zitten niet in het radiosignaal — het is een lijst die iemand bijhoudt. Die lijst wordt met de integratie meegeleverd, dus de vliegtuigattributen dragen een naam zonder dat er iets over internet gevraagd wordt:
+
+| Attribuut | Afgeleid uit | Voorbeeld |
+|---|---|---|
+| `airline` | De eerste drie letters van de callsign | `DLH6CH` → `Lufthansa` |
+| `description` | De ICAO-typecode, als de decoder hem zelf niet omschrijft | `A20N` → `Airbus A-320neo` |
+
+Een callsign die geen vluchtnummer is levert geen maatschappij op. Zakenjets, zweefvliegtuigen en de meeste kleine luchtvaart vliegen onder hun registratie, dus `PHABC` blijft met rust gelaten in plaats van gelezen te worden als een maatschappijcode en te veranderen in wat `PHA` toevallig is.
+
+Een typecode staat voor een familie en niet voor één vliegtuig: een A20N is een A320neo maar ook de zakenversie ervan, en een BE20 is elk van een stuk of tien King Airs plus hun militaire neven. Niets in de gegevens zegt welke je het vaakst boven je hoofd krijgt, dus de naam is degene die de code zelf spelt. Dat klopt voor de lijnvliegtuigen en kan bij de kleine luchtvaart op een vreemde variant uitkomen.
+
+Beide tabellen komen uit de [standing data van Virtual Radar Server](https://github.com/vradarserver/standing-data), die publiek domein is onder CC0-1.0. Net als de vliegtuigdatabase hierboven zijn het momentopnames; `scripts/build_reference.py` maakt ze opnieuw aan vanuit de bron.
+
 ### Installatie
 
 Vereist Home Assistant 2026.3 of nieuwer.
@@ -632,6 +675,8 @@ Wordt er een route gevonden, dan verschijnt die bij elk vliegtuig in de attribut
 | `origin_name`, `destination_name` | `Charles de Gaulle International Airport` |
 | `airline` | `KLM Royal Dutch Airlines` |
 
+`airline` is de vreemde eend in die tabel: die wordt ook gevuld uit de [lijst die met de integratie meekomt](#namen-bij-de-codes), dus die staat er of je nu routes opzoekt of niet. Een bron die de maatschappij voluit noemt wint waar hij dat doet.
+
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll — de vliegtuigentiteiten zelf hangen er nooit van af.
 
 De routegegevens van adsbdb.com komen uit de databases van David Taylor (Edinburgh) en Jim Mason (Glasgow), en mogen niet gekopieerd, gepubliceerd of in andere databases opgenomen worden zonder uitdrukkelijke toestemming van David J Taylor.
@@ -656,7 +701,7 @@ automation:
                           'aircraft')[0].flight or 'een onbekend vliegtuig' }}.
 ```
 
-Melding wanneer er iets overkomt, met waar het heen gaat. De route staat er alleen bij met een [bron ingesteld](#waar-een-vlucht-heen-gaat), en alleen voor de vluchten die herkend worden, dus de template valt terug in plaats van een ontbrekende sleutel te lezen:
+Melding wanneer er iets overkomt, met wat het is en waar het heen gaat:
 
 ```yaml
 automation:
@@ -672,12 +717,23 @@ automation:
             {% set plane = state_attr(
                  'binary_sensor.ads_b_station_vliegtuig_overhead',
                  'aircraft')[0] %}
-            {{ plane.flight or 'Een onbekend vliegtuig' }} overhead op
-            {{ plane.altitude }} ft
+            {{ plane.airline | default(plane.flight or 'Een onbekend vliegtuig') }}
+            overhead op {{ plane.altitude }} ft
+            {%- if plane.description is defined %},
+            een {{ plane.description }}
+            {%- endif %}
+            {%- if plane.vertical_rate %},
+            {{ 'stijgend' if plane.vertical_rate > 0 else 'dalend' }} met
+            {{ plane.vertical_rate | abs }} ft/min
+            {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} naar {{ plane.destination_location }}
             {%- endif %}.
 ```
+
+Wat er zo uitkomt: *"Lufthansa overhead op 4100 ft, een Airbus A-320neo, dalend met 1088 ft/min, Parijs naar Amsterdam."*
+
+Alle vier zijn sleutels die kunnen ontbreken, elk om een eigen reden, en daarom vraagt de template ernaar in plaats van ze te lezen. De maatschappij en de typenaam staan er voor de vluchten die de [meegeleverde tabellen](#namen-bij-de-codes) herkennen, dus een zakenjet onder zijn registratie valt terug op de callsign. De stijgsnelheid ontbreekt bij vliegtuigen aan de grond en is nul in horizontale vlucht, waar niets zeggen beter is dan "stijgend met 0". De route heeft een [bron nodig](#waar-een-vlucht-heen-gaat) en staat er alleen bij voor de vluchten die hij kent.
 
 Je beste bereik van de dag bijhouden:
 
