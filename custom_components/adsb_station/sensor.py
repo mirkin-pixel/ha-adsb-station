@@ -46,13 +46,13 @@ from .coordinator import (
     AircraftStats,
     AircraftSummary,
     ReceiverStats,
+    aircraft_attributes,
 )
 from .entity import (
     AdsbStationAircraftEntity,
     AdsbStationEntity,
     AdsbStationReceptionEntity,
 )
-from .route import route_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,46 +99,6 @@ def _as_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
-
-
-def aircraft_attributes(
-    summary: AircraftSummary, *, include_distance: bool = False
-) -> dict[str, Any]:
-    """Describe one aircraft for the attributes of an entity.
-
-    The distance is left out where the entity state already is the distance.
-    """
-    attributes: dict[str, Any] = {
-        "hex": summary.hex,
-        "flight": summary.flight,
-        "altitude": summary.altitude,
-        "speed": summary.speed,
-        "track": summary.track,
-        # Feet per minute, positive climbing. Absent from aircraft on the
-        # ground and from the ones we only ever hear over Mode S.
-        "vertical_rate": summary.vertical_rate,
-        "rssi": summary.rssi,
-        "seen": summary.seen,
-    }
-    if include_distance:
-        attributes["distance"] = (
-            None if summary.distance is None else round(summary.distance / 1000, 1)
-        )
-    # Decoders without an aircraft database send none of this, and empty
-    # attributes are worse than absent ones on a dashboard.
-    if summary.registration is not None:
-        attributes["registration"] = summary.registration
-    if summary.aircraft_type is not None:
-        attributes["aircraft_type"] = summary.aircraft_type
-    if summary.description is not None:
-        attributes["description"] = summary.description
-    if summary.military:
-        attributes["military"] = True
-    if summary.airline is not None:
-        attributes["airline"] = summary.airline
-    # Empty unless a route source is configured and it recognised the flight.
-    attributes.update(route_attributes(summary.route))
-    return attributes
 
 
 def _cpu_temperature(monitor: dict[str, Any]) -> float | None:

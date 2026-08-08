@@ -128,6 +128,21 @@ DEFAULT_PROXIMITY_RADIUS = 10
 MIN_PROXIMITY_RADIUS = 1
 MAX_PROXIMITY_RADIUS = 500
 
+# One aircraft crossing the sky above you, from the moment it comes inside the
+# radius to the moment it leaves. An automation wants to hear about that once,
+# so a passage fires an event of its own rather than leaving a template to work
+# out what changed in a list of attributes.
+EVENT_AIRCRAFT_PASSAGE = f"{DOMAIN}_aircraft_passage"
+
+# How long an aircraft has to stay away before coming back counts as a second
+# passage. Reception drops out, aircraft circle, and an aircraft flickering on
+# the edge of the radius would otherwise ring the doorbell every poll.
+PASSAGE_GAP = timedelta(minutes=10)
+
+# What an altitude in feet is in metres, for measuring the real distance to an
+# aircraft rather than the distance to the ground beneath it.
+FEET_TO_METRES = 0.3048
+
 # Where a flight came from and where it is going. This is the one thing that
 # cannot come off your own network: no ADS-B message carries a route. An
 # aircraft broadcasts its callsign and nothing more, so the only way to know
