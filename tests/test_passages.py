@@ -123,6 +123,7 @@ async def test_a_passing_aircraft_fires_once(
     assert event.data["aircraft_type"] == "B738"
     assert event.data["description"] == "Boeing 737-800"
     assert event.data["airline"] == "KLM"
+    assert event.data["airline_code"] == "KLM"
     assert event.data["entry_id"] == mock_config_entry.entry_id
 
     # Still there on the next poll, and still the same passage

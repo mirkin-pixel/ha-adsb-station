@@ -199,9 +199,12 @@ An aircraft broadcasts `DLH6CH` and `A20N`. Neither is a name, and no decoder ca
 | Attribute | Read from | Example |
 |---|---|---|
 | `airline` | The first three letters of the callsign | `DLH6CH` → `Lufthansa` |
+| `airline_code` | Those same three letters, whether or not the table names them | `DLH6CH` → `DLH` |
 | `description` | The ICAO type code, where the decoder does not describe it itself | `A20N` → `Airbus A-320neo` |
 
 A callsign that is not a flight number names no airline. Business jets, gliders and most light aircraft fly under their registration, so `PHABC` is left alone rather than read as an airline code and turned into whatever `PHA` happens to be.
+
+`airline_code` is there even for an airline the table has never heard of, because the aircraft broadcast it and a dashboard looks a logo up by it. `airline` is only there when the table can put a name to it.
 
 A type code covers a family rather than a single aircraft: an A20N is an A320neo but also the corporate version of it, and a BE20 is any of a dozen King Airs and their military cousins. Nothing in the data says which one you are most likely to see, so the name is the one the code itself spells out. That is right for the airliners and can land on an odd variant for general aviation.
 
@@ -306,6 +309,49 @@ Two things stop it becoming a nuisance.
 
 **An aircraft has to leave before it can arrive again.** Reception drops out, aircraft circle, and one on the edge of the radius flickers in and out. An aircraft that goes and comes back inside ten minutes is the same passage; longer than that and it is a new one. So a helicopter working a field nearby rings once, not once a minute.
 
+#### A notification that reads like a panel
+
+The event carries enough to put the whole panel in a notification, and the companion app takes an image with it. Keep the message a literal block, `|-` rather than `>-`, or the lines fold into one sentence:
+
+```yaml
+automation:
+  - alias: "ADS-B: passage as a panel"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: >-
+            {{ trigger.event.data.airline
+               | default(trigger.event.data.flight) | default('Unknown aircraft') }}
+          message: |-
+            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
+            Alt {{ trigger.event.data.altitude or '?' }}ft, Spd {{ trigger.event.data.speed | round | int if trigger.event.data.speed else '?' }}kn
+            Trk {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Vr {{ trigger.event.data.vertical_rate or 0 }}ft/min
+          data:
+            subtitle: >-
+              {{ trigger.event.data.route
+                 | default(trigger.event.data.slant_distance ~ ' km') }}
+            tag: adsb-passage
+            group: adsb
+            image: >-
+              /local/airline_logos/{{ trigger.event.data.airline_code
+                 | default('unknown') }}.png
+```
+
+Which reads as this, and as the right-hand column for something that broadcasts almost nothing:
+
+```
+Lufthansa                    PHABC
+CDG-AMS                      1.1 km
+Airbus A-320neo
+Alt 4100ft, Spd 250kn        Alt 2000ft, Spd ?kn
+Trk 263deg, Vr -1088ft/min   Trk 90deg, Vr 0ft/min
+```
+
+The logo is yours to supply: the app takes a `/local/` path into your `www` folder, so `www/airline_logos/DLH.png` and one `unknown.png` beside it covers every aircraft. Airline logos are trademarks and are not something this integration can ship for you. Give every notification the same `tag` and each aircraft replaces the one before it rather than filling your screen; leave the `tag` out and keep the `group` to see them all.
+
 #### The panel and the board
 
 Two sensors read those passages, and between them they are a departure board for your own roof.
@@ -327,6 +373,21 @@ content: |
 
   {% if not plane.attributes.overhead %}*Last seen {{ relative_time(plane.last_changed) }} ago*{% endif %}
 ```
+
+Altitudes are in feet and speeds in knots there, because that is what the aircraft broadcast and how aviation reads them. The entities themselves can be switched to metres and kilometres per hour one by one under **Settings → Entity → Unit of measurement**, but attributes are never converted by Home Assistant, so a card that wants metric does the sum itself:
+
+```jinja
+  `Alt {{ (plane.attributes.altitude * 0.3048) | round | int }}m  Spd {{ (plane.attributes.speed * 1.852) | round | int }}km/h`
+  `Trk {{ plane.attributes.track | round | int }}deg  Vr {{ (plane.attributes.vertical_rate * 0.00508) | round(1) }}m/s`
+```
+
+| From | To | Multiply by |
+|---|---|---|
+| ft | m | 0.3048 |
+| kn | km/h | 1.852 |
+| ft/min | m/s | 0.00508 |
+
+`distance` and `slant_distance` are in kilometres already.
 
 **Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came. Both survive a restart of Home Assistant, so the board is a record rather than a session.
 
@@ -718,9 +779,12 @@ Een vliegtuig zendt `DLH6CH` en `A20N` uit. Geen van beide is een naam, en geen 
 | Attribuut | Afgeleid uit | Voorbeeld |
 |---|---|---|
 | `airline` | De eerste drie letters van de callsign | `DLH6CH` → `Lufthansa` |
+| `airline_code` | Diezelfde drie letters, of de tabel er nu een naam bij heeft of niet | `DLH6CH` → `DLH` |
 | `description` | De ICAO-typecode, als de decoder hem zelf niet omschrijft | `A20N` → `Airbus A-320neo` |
 
 Een callsign die geen vluchtnummer is levert geen maatschappij op. Zakenjets, zweefvliegtuigen en de meeste kleine luchtvaart vliegen onder hun registratie, dus `PHABC` blijft met rust gelaten in plaats van gelezen te worden als een maatschappijcode en te veranderen in wat `PHA` toevallig is.
+
+`airline_code` staat er ook bij een maatschappij die de tabel niet kent, want het vliegtuig zendt hem uit en een dashboard zoekt er een logo mee op. `airline` staat er alleen als de tabel er een naam bij heeft.
 
 Een typecode staat voor een familie en niet voor één vliegtuig: een A20N is een A320neo maar ook de zakenversie ervan, en een BE20 is elk van een stuk of tien King Airs plus hun militaire neven. Niets in de gegevens zegt welke je het vaakst boven je hoofd krijgt, dus de naam is degene die de code zelf spelt. Dat klopt voor de lijnvliegtuigen en kan bij de kleine luchtvaart op een vreemde variant uitkomen.
 
@@ -825,6 +889,49 @@ Twee dingen houden het draaglijk.
 
 **Een vliegtuig moet eerst weg zijn voor het opnieuw kan aankomen.** De ontvangst valt weg, toestellen draaien rondjes, en eentje op de rand van de straal knippert in en uit. Een vliegtuig dat weggaat en binnen tien minuten terugkomt is dezelfde passage; duurt het langer, dan is het een nieuwe. Een helikopter die vlakbij een perceel afwerkt belt dus één keer aan, niet elke minuut.
 
+#### Een melding die leest als een paneel
+
+Het event draagt genoeg om het hele paneel in een notificatie te zetten, en de companion-app neemt er een afbeelding bij. Houd het bericht een letterlijk blok, `|-` en niet `>-`, anders vouwen de regels tot één zin:
+
+```yaml
+automation:
+  - alias: "ADS-B: passage als paneel"
+    trigger:
+      - platform: event
+        event_type: adsb_station_aircraft_passage
+    action:
+      - service: notify.mobile_app_jouw_telefoon
+        data:
+          title: >-
+            {{ trigger.event.data.airline
+               | default(trigger.event.data.flight) | default('Onbekend toestel') }}
+          message: |-
+            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
+            Hgt {{ trigger.event.data.altitude or '?' }}ft, Snh {{ trigger.event.data.speed | round | int if trigger.event.data.speed else '?' }}kn
+            Krs {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Stg {{ trigger.event.data.vertical_rate or 0 }}ft/min
+          data:
+            subtitle: >-
+              {{ trigger.event.data.route
+                 | default(trigger.event.data.slant_distance ~ ' km') }}
+            tag: adsb-passage
+            group: adsb
+            image: >-
+              /local/airline_logos/{{ trigger.event.data.airline_code
+                 | default('unknown') }}.png
+```
+
+Dat leest zo, en de rechterkolom is wat je krijgt van iets dat bijna niets uitzendt:
+
+```
+Lufthansa                    PHABC
+CDG-AMS                      1,1 km
+Airbus A-320neo
+Hgt 4100ft, Snh 250kn        Hgt 2000ft, Snh ?kn
+Krs 263deg, Stg -1088ft/min  Krs 90deg, Stg 0ft/min
+```
+
+Het logo lever je zelf: de app accepteert een `/local/`-pad naar je `www`-map, dus `www/airline_logos/DLH.png` met een `unknown.png` ernaast dekt elk vliegtuig. Logo's van maatschappijen zijn merken, en die kan deze integratie niet voor je meeleveren. Geef elke melding dezelfde `tag` en elk toestel vervangt het vorige in plaats van je scherm vol te zetten; laat je de `tag` weg en houd je de `group`, dan zie je ze allemaal staan.
+
 #### Het paneel en het bord
 
 Twee sensoren lezen die passages uit, en samen zijn ze een vertrekbord voor je eigen dak.
@@ -846,6 +953,21 @@ content: |
 
   {% if not plane.attributes.overhead %}*Laatst gezien {{ relative_time(plane.last_changed) }} geleden*{% endif %}
 ```
+
+Hoogtes staan daar in voet en snelheden in knopen, want zo zendt het vliegtuig ze uit en zo leest de luchtvaart ze. De entiteiten zelf kun je stuk voor stuk omzetten naar meters en kilometers per uur via **Instellingen → Entiteit → Maateenheid**, maar attributen rekent Home Assistant nooit om, dus een kaart die metrisch wil doet de som zelf:
+
+```jinja
+  `Hgt {{ (plane.attributes.altitude * 0.3048) | round | int }}m  Snh {{ (plane.attributes.speed * 1.852) | round | int }}km/h`
+  `Krs {{ plane.attributes.track | round | int }}deg  Stg {{ (plane.attributes.vertical_rate * 0.00508) | round(1) }}m/s`
+```
+
+| Van | Naar | Maal |
+|---|---|---|
+| ft | m | 0,3048 |
+| kn | km/h | 1,852 |
+| ft/min | m/s | 0,00508 |
+
+`distance` en `slant_distance` staan al in kilometers.
 
 **Passages vandaag** is de teller, en de laatste twintig staan als attributen op de sensor: hoe laat ze aankwamen, de callsign, de maatschappij, het type, hoe hoog en hoe dichtbij ze kwamen. Allebei overleven ze een herstart van Home Assistant, zodat het bord een verslag is en niet een sessie.
 
