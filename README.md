@@ -1,9 +1,7 @@
 # ADS-B Station for Home Assistant
 
-[![Validate](https://img.shields.io/github/actions/workflow/status/mirkin-pixel/ha-adsb-station/validate.yml?branch=main&style=for-the-badge&label=Validate)](https://github.com/mirkin-pixel/ha-adsb-station/actions/workflows/validate.yml)
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/v/release/mirkin-pixel/ha-adsb-station?style=for-the-badge)](https://github.com/mirkin-pixel/ha-adsb-station/releases)
-[![License](https://img.shields.io/github/license/mirkin-pixel/ha-adsb-station?style=for-the-badge)](LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/mirkin-pixel/ha-adsb-station/total?style=for-the-badge)](https://github.com/mirkin-pixel/ha-adsb-station/releases)
 
 [English](#english) | [Nederlands](#nederlands)
 
