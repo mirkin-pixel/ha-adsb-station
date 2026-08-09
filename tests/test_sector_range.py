@@ -118,7 +118,7 @@ async def test_a_record_survives_a_restart(
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
     """Test that a record set before a restart is still there after it."""
-    entity_id = "sensor.t_ehxx23_maximum_range_north"
+    entity_id = "sensor.t_ehxx23_range_record_north"
     mock_restore_cache_with_extra_data(
         hass,
         [
