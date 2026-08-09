@@ -148,6 +148,13 @@ PASSAGE_BOARD_LENGTH = 20
 # aircraft rather than the distance to the ground beneath it.
 FEET_TO_METRES = 0.3048
 
+# How often to ask for receiver.json before accepting that it will not answer.
+# What it holds cannot change while the decoder runs, so one answer settles it
+# for good; a request that fails is not an answer, and letting a single timeout
+# decide that every range is measured from the wrong place would be both silent
+# and permanent.
+RECEIVER_READ_ATTEMPTS = 5
+
 # Where a flight came from and where it is going. This is the one thing that
 # cannot come off your own network: no ADS-B message carries a route. An
 # aircraft broadcasts its callsign and nothing more, so the only way to know
