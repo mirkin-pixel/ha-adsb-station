@@ -148,6 +148,31 @@ PASSAGE_BOARD_LENGTH = 20
 # aircraft rather than the distance to the ground beneath it.
 FEET_TO_METRES = 0.3048
 
+# How far an aircraft at a given height can possibly be heard from, and the
+# room left over for the antenna being up a hill.
+#
+# ADS-B is line of sight, so the horizon is the limit: about 1.23 nautical
+# miles times the square root of the height in feet, which is this many metres
+# times that square root. An aircraft at 37,000 feet reaches roughly 438 km,
+# and one at 2,000 feet roughly 102 km. The allowance is what a receiver adds
+# by standing high, and 80 km of it covers a site 350 metres above everything
+# around it, which is more than any rooftop.
+#
+# This is not a limit on what the integration reports. It is a limit on what a
+# position has to satisfy to be believed at all: a mis-decoded position lands
+# somewhere impossible, and a sector record only ever grows, so one of those
+# would stand for good.
+RADIO_HORIZON_METRES_PER_ROOT_FOOT = 2278.0
+RADIO_HORIZON_ALLOWANCE = 80_000
+# And a ceiling for aircraft that report no height at all. Nothing on earth
+# has heard an aircraft from this far, so a position beyond it is not one.
+MAX_PLAUSIBLE_RANGE = 700_000
+
+# What every decoder puts in the altitude field of an aircraft that is on the
+# ground. It is a string where a number belongs, which is the only way an
+# aircraft says it is not flying.
+GROUND_ALTITUDE = "ground"
+
 # How often to ask for receiver.json before accepting that it will not answer.
 # What it holds cannot change while the decoder runs, so one answer settles it
 # for good; a request that fails is not an answer, and letting a single timeout
