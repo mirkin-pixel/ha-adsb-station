@@ -29,6 +29,7 @@ from .const import (
     EVENT_AIRCRAFT_PASSAGE,
     FEET_TO_METRES,
     PASSAGE_GAP,
+    RECEIVER_READ_ATTEMPTS,
     SECTORS,
     UNSET_RECEIVER_VERSION,
 )
@@ -432,7 +433,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._aircraft_failed = False
         self._stats_failed = False
         self._antenna: tuple[float, float] | None = None
-        self._antenna_checked = False
+        self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
 
     @property
     def feeder_type(self) -> str | None:
@@ -660,15 +661,39 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         return self._build_receiver_stats(data)
 
     async def _async_read_receiver(self) -> None:
-        """Read receiver.json, once: the antenna position and the decoder."""
-        if self._antenna_checked:
+        """Read receiver.json: the antenna position and the decoder version.
+
+        Once, as long as it answers. Neither of those can change while the
+        decoder runs, so a document that carries no position is a final answer
+        and not worth asking after again.
+
+        A request that fails is not an answer, though, and this one only runs
+        after aircraft.json has just been read, so a receiver that answers on
+        one URL and not on the other is having a moment rather than telling us
+        anything. Give it a few polls before settling for the home location,
+        because settling for it is silent and lasts until the entry is
+        reloaded.
+        """
+        if self._receiver_reads_left <= 0:
             return
-        self._antenna_checked = True
+        self._receiver_reads_left -= 1
         try:
             data = await self.client.async_get_receiver()
         except AdsbStationError as err:
-            _LOGGER.debug("No receiver position available: %s", err)
+            if self._receiver_reads_left > 0:
+                _LOGGER.debug("Could not read receiver.json: %s. Trying again", err)
+            else:
+                _LOGGER.warning(
+                    "Could not read receiver.json in %s attempts: %s. Range is "
+                    "measured from the Home Assistant home location instead of "
+                    "from the antenna, and will be until this entry is reloaded",
+                    RECEIVER_READ_ATTEMPTS,
+                    err,
+                )
             return
+
+        # It answered, so stop asking whatever it had to say.
+        self._receiver_reads_left = 0
 
         # Without a feeder this is the only thing that identifies the decoder
         # on the device page. The fr24feed fork never expands its placeholder.

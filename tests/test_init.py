@@ -23,6 +23,7 @@ from custom_components.adsb_station.const import (
     CONF_LOOK_UP_ROUTES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    RECEIVER_READ_ATTEMPTS,
     ROUTESET_URL,
 )
 
@@ -30,11 +31,15 @@ from .conftest import (
     AIRCRAFT_URL,
     ANTENNA_LATITUDE,
     ANTENNA_LONGITUDE,
+    HOME_LATITUDE,
+    HOME_LONGITUDE,
     MOCK_ALIAS,
     MOCK_HOST,
+    MOCK_RECEIVER,
     MOCK_RECEIVER_READSB,
     MOCK_RECEIVER_VERSION,
     RECEIVER_UNIQUE_ID,
+    RECEIVER_URL,
     STATS_URL,
     set_responses,
     setup_integration,
@@ -249,6 +254,79 @@ async def test_receiver_only_device_has_no_manufacturer(
     assert mock_receiver_entry.runtime_data.origin == (
         ANTENNA_LATITUDE,
         ANTENNA_LONGITUDE,
+    )
+
+
+async def test_antenna_position_is_read_again_after_a_failure(
+    hass: HomeAssistant,
+    mock_receiver_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that one unanswered receiver.json does not settle the origin.
+
+    aircraft.json answering while receiver.json does not is a receiver having
+    a moment, and giving up on the first one would measure every range from
+    the wrong place for as long as the entry stays loaded.
+    """
+    set_responses(aioclient_mock, receiver_kwargs={"status": 500})
+
+    assert await setup_integration(hass, mock_receiver_entry)
+    coordinator = mock_receiver_entry.runtime_data
+    assert coordinator.origin == (HOME_LATITUDE, HOME_LONGITUDE)
+    assert coordinator.origin_source == "home_location"
+
+    set_responses(aioclient_mock, receiver=MOCK_RECEIVER_READSB)
+    await _refresh(hass)
+
+    assert coordinator.origin == (ANTENNA_LATITUDE, ANTENNA_LONGITUDE)
+    assert coordinator.origin_source == "receiver"
+    assert coordinator.receiver_version == MOCK_RECEIVER_VERSION
+
+
+async def test_antenna_position_is_asked_for_only_once_when_it_answers(
+    hass: HomeAssistant,
+    mock_receiver_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a document without a position is taken as a final answer.
+
+    The fr24feed fork serves a receiver.json with no coordinates in it. That
+    will not change while it runs, so asking again every poll would be a
+    request per poll for an answer we already have.
+    """
+    set_responses(aioclient_mock, receiver=MOCK_RECEIVER)
+
+    assert await setup_integration(hass, mock_receiver_entry)
+    await _refresh(hass)
+    await _refresh(hass)
+
+    assert mock_receiver_entry.runtime_data.origin_source == "home_location"
+    assert _receiver_json_requests(aioclient_mock) == 1
+
+
+async def test_antenna_position_stops_being_asked_for_and_says_so(
+    hass: HomeAssistant,
+    mock_receiver_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a receiver.json that never answers is given up on, out loud."""
+    set_responses(aioclient_mock, receiver_kwargs={"status": 404})
+
+    assert await setup_integration(hass, mock_receiver_entry)
+    for _ in range(RECEIVER_READ_ATTEMPTS + 2):
+        await _refresh(hass)
+
+    assert _receiver_json_requests(aioclient_mock) == RECEIVER_READ_ATTEMPTS
+    assert caplog.text.count("Could not read receiver.json in") == 1
+    # And the range figures still work, measured from the home location
+    assert _receiver_state(hass, "sensor", "aircraft_received") == "3"
+
+
+def _receiver_json_requests(aioclient_mock: AiohttpClientMocker) -> int:
+    """Return how often receiver.json was fetched."""
+    return len(
+        [call for call in aioclient_mock.mock_calls if str(call[1]) == RECEIVER_URL]
     )
 
 
