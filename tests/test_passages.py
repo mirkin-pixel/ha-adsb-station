@@ -19,7 +19,11 @@ from custom_components.adsb_station.const import (
     PASSAGE_BOARD_LENGTH,
     PASSAGE_GAP,
 )
-from custom_components.adsb_station.coordinator import AircraftSummary, slant_distance
+from custom_components.adsb_station.coordinator import (
+    AircraftSummary,
+    _summarise,
+    slant_distance,
+)
 
 from .conftest import set_responses, setup_integration
 
@@ -36,6 +40,9 @@ OVERHEAD = {
 # Same place on the ground, but at cruising altitude, which puts it out of
 # reach of a ten kilometre radius once the height is counted.
 HIGH_ABOVE = {**OVERHEAD, "hex": "484199", "flight": "TRA45", "alt_baro": 37000}
+# And the same place, taxiing. A decoder puts a word where the altitude
+# belongs, which is the only way an aircraft says it is not flying.
+ON_GROUND = {**OVERHEAD, "hex": "484188", "flight": "KLM899", "alt_baro": "ground"}
 
 
 async def next_poll(
@@ -152,6 +159,65 @@ async def test_the_height_is_counted(
         "TRA45",
     ]
     assert [event.data["flight"] for event in passages] == ["KLM123"]
+
+
+async def test_aircraft_on_the_ground_do_not_come_past(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    passages: list[Event],
+) -> None:
+    """Test that taxiing traffic is not something that came over.
+
+    An aircraft on the ground reports no altitude, so the distance through the
+    air falls back to the distance across the ground and it would otherwise
+    look exactly like a low pass. Near a field that is most of the traffic.
+    """
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, ON_GROUND))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert [event.data["flight"] for event in passages] == ["KLM123"]
+    assert hass.states.get("sensor.t_ehxx23_overhead_flight").state == "KLM123"
+
+    # It is still an aircraft within the radius, and says why it is not here
+    nearby = hass.states.get("sensor.t_ehxx23_aircraft_nearby")
+    assert nearby.state == "2"
+    grounded = next(
+        aircraft
+        for aircraft in nearby.attributes["aircraft"]
+        if aircraft["flight"] == "KLM899"
+    )
+    assert grounded["on_ground"] is True
+    assert grounded["altitude"] is None
+    # Where an aircraft that simply never reported one says nothing either way
+    flying = next(
+        aircraft
+        for aircraft in nearby.attributes["aircraft"]
+        if aircraft["flight"] == "KLM123"
+    )
+    assert "on_ground" not in flying
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected"),
+    [
+        # readsb and dump1090-fa
+        ({"alt_baro": "ground"}, True),
+        # The fork fr24feed ships, which names the field differently
+        ({"altitude": "ground"}, True),
+        # Some builds shout it
+        ({"alt_baro": "GROUND"}, True),
+        ({"alt_baro": 1200}, False),
+        # Heard over Mode S only: no altitude, which is not the same thing
+        ({}, False),
+    ],
+)
+def test_the_ground_marker_is_read_under_either_name(
+    entry: dict[str, Any], expected: bool
+) -> None:
+    """Test that an aircraft on the ground is recognised as one."""
+    assert _summarise(entry, None).on_ground is expected
 
 
 async def test_a_second_aircraft_is_a_second_passage(

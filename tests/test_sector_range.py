@@ -17,7 +17,7 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import DEFAULT_SCAN_INTERVAL, DOMAIN, SECTORS
-from custom_components.adsb_station.coordinator import sector_of
+from custom_components.adsb_station.coordinator import _is_believable, sector_of
 
 from .conftest import MOCK_ALIAS, set_responses, setup_integration
 
@@ -140,6 +140,72 @@ async def test_a_record_survives_a_restart(
 
     assert float(_state(hass, "max_range_n")) == pytest.approx(250.0)
     assert _attributes(hass, "max_range_n")["flight"] == "OLDREC"
+
+
+@pytest.mark.parametrize(
+    ("metres", "altitude", "expected"),
+    [
+        # An airliner at cruise really is heard from 400 km away
+        (400_000.0, 37_000.0, True),
+        # And not from twice that
+        (800_000.0, 37_000.0, False),
+        # A light aircraft at 2,000 feet reaches roughly 100 km, plus the
+        # room left for an antenna up a hill
+        (150_000.0, 2_000.0, True),
+        (300_000.0, 2_000.0, False),
+        # Below sea level is a real altitude, not a square root of a negative
+        (50_000.0, -25.0, True),
+        # Heard over Mode S only, so only the absolute ceiling applies
+        (400_000.0, None, True),
+        (900_000.0, None, False),
+    ],
+)
+def test_a_position_has_to_be_within_line_of_sight(
+    metres: float, altitude: float | None, expected: bool
+) -> None:
+    """Test the limit a decoded position has to satisfy to be believed."""
+    assert _is_believable(metres, altitude) is expected
+
+
+async def test_an_impossible_position_sets_no_record(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a mis-decoded position cannot become a permanent record.
+
+    Ten degrees of latitude north is over 1,100 km away, which no receiver has
+    ever managed. Believing it would leave the northern sector claiming that
+    for good, because a record only ever grows.
+    """
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {"hex": "aa0001", "flight": "NORTH1", "lat": 53.0, "lon": 5.0},
+                {
+                    "hex": "bb0002",
+                    "flight": "GHOST1",
+                    "lat": 62.0,
+                    "lon": 5.0,
+                    "alt_baro": 37_000,
+                },
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    # The real aircraft holds the sector, and the ghost did not raise it
+    assert float(_state(hass, "max_range_n")) == pytest.approx(111.2, rel=0.01)
+    assert _attributes(hass, "max_range_n")["flight"] == "NORTH1"
+    # Nor the range figures that follow the sky rather than record it
+    assert float(_state(hass, "max_range")) == pytest.approx(111.2, rel=0.01)
+    # Both aircraft were received; only one of them is somewhere we believe
+    assert _state(hass, "aircraft_received") == "2"
+    assert _state(hass, "aircraft_with_position") == "1"
 
 
 async def test_reset_button_clears_every_sector(

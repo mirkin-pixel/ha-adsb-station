@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 import logging
-from math import atan2, cos, degrees, hypot, radians, sin
+from math import atan2, cos, degrees, hypot, radians, sin, sqrt
 from typing import Any, Protocol
 
 from homeassistant.config_entries import ConfigEntry
@@ -28,7 +28,11 @@ from .const import (
     EMERGENCY_SQUAWKS,
     EVENT_AIRCRAFT_PASSAGE,
     FEET_TO_METRES,
+    GROUND_ALTITUDE,
+    MAX_PLAUSIBLE_RANGE,
     PASSAGE_GAP,
+    RADIO_HORIZON_ALLOWANCE,
+    RADIO_HORIZON_METRES_PER_ROOT_FOOT,
     RECEIVER_READ_ATTEMPTS,
     SECTORS,
     UNSET_RECEIVER_VERSION,
@@ -72,6 +76,10 @@ class AircraftSummary:
     vertical_rate: float | None
     rssi: float | None
     seen: float | None
+    # True for an aircraft that says it is on the ground. Its altitude is None
+    # like that of an aircraft that reports none at all, so without this the
+    # two cannot be told apart.
+    on_ground: bool = False
     registration: str | None
     aircraft_type: str | None
     description: str | None
@@ -218,6 +226,9 @@ def _position(entry: dict[str, Any]) -> tuple[float, float] | None:
     return latitude, longitude
 
 
+ALTITUDE_KEYS = ("alt_baro", "altitude")
+
+
 def _altitude(entry: dict[str, Any]) -> float | None:
     """Return the barometric altitude in feet.
 
@@ -225,10 +236,24 @@ def _altitude(entry: dict[str, Any]) -> float | None:
     string 'ground' for aircraft on the ground; dump1090-fa and readsb call it
     'alt_baro'.
     """
-    for key in ("alt_baro", "altitude"):
+    for key in ALTITUDE_KEYS:
         if key in entry:
             return _as_float(entry[key])
     return None
+
+
+def _on_ground(entry: dict[str, Any]) -> bool:
+    """Return True if this aircraft says it is on the ground.
+
+    It says so by putting a word where the altitude belongs, which parses as
+    no altitude at all. That is the same thing an aircraft heard only over
+    Mode S reports, and the two are worth telling apart: one is a height we do
+    not know, the other is a height of zero.
+    """
+    for key in ALTITUDE_KEYS:
+        if key in entry:
+            return str(entry[key]).strip().lower() == GROUND_ALTITUDE
+    return False
 
 
 def _ground_speed(entry: dict[str, Any]) -> float | None:
@@ -270,6 +295,29 @@ def slant_distance(summary: AircraftSummary) -> float | None:
     if summary.altitude is None:
         return summary.distance
     return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
+
+
+def _is_believable(metres: float, altitude: float | None) -> bool:
+    """Return whether an aircraft can really be that far away.
+
+    Positions are decoded from a pair of messages, and a pair that does not
+    belong together decodes to somewhere else entirely. Decoders reject most
+    of those themselves, which is what the rejected positions figure counts,
+    but the ones that survive land far outside what line of sight allows.
+
+    That matters more here than it looks: the sector records only ever grow,
+    so a single bad position becomes a record that stands until someone
+    presses the button, and one close enough to be overhead would ring the
+    doorbell for an aircraft that was never there.
+    """
+    if metres > MAX_PLAUSIBLE_RANGE:
+        return False
+    if altitude is None:
+        return True
+    # Below sea level is a real altitude and a shorter horizon, not a reason
+    # to take the square root of a negative number.
+    horizon = RADIO_HORIZON_METRES_PER_ROOT_FOOT * sqrt(max(altitude, 0.0))
+    return metres <= horizon + RADIO_HORIZON_ALLOWANCE
 
 
 def _is_military(entry: dict[str, Any]) -> bool:
@@ -322,6 +370,7 @@ def _summarise(
         vertical_rate=_vertical_rate(entry),
         rssi=_as_float(entry.get("rssi")),
         seen=_as_float(entry.get("seen")),
+        on_ground=_on_ground(entry),
         # Only a decoder with an aircraft database fills these in.
         registration=_as_text(entry.get("r")),
         aircraft_type=aircraft_type,
@@ -367,6 +416,8 @@ def aircraft_attributes(
         attributes["description"] = summary.description
     if summary.military:
         attributes["military"] = True
+    if summary.on_ground:
+        attributes["on_ground"] = True
     if summary.airline_code is not None:
         attributes["airline_code"] = summary.airline_code
     if summary.airline is not None:
@@ -528,13 +579,20 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         The nearby list is already everything within the radius across the
         ground, and an aircraft can only be within the real distance if it is
         within that, so this is a matter of dropping the ones that are high
-        rather than close.
+        rather than close, and the ones that are not flying at all.
+
+        Aircraft on the ground report no altitude, so the real distance to one
+        falls back to the distance across the ground and every airliner taxiing
+        at a field down the road would come past as a passage. Nobody looks up
+        at those, and near a field there are a great many of them.
         """
         now = dt_util.utcnow()
         radius = self.proximity_radius
         in_view: list[Passage] = []
 
         for summary in stats.nearby:
+            if summary.on_ground:
+                continue
             metres = slant_distance(summary)
             if metres is None or metres > radius:
                 continue
@@ -746,8 +804,26 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
             metres: float | None = None
             if (position := _position(entry)) is not None:
-                with_position += 1
                 metres = distance(origin_latitude, origin_longitude, *position)
+                # A position we do not believe is worse than none: it would set
+                # a record that stands for good, or put an aircraft overhead
+                # that was never there. The aircraft itself is real and still
+                # counts; we simply do not know where it is.
+                if metres is not None and not _is_believable(
+                    metres, altitude := _altitude(entry)
+                ):
+                    _LOGGER.debug(
+                        "Ignoring the position of %s: %.0f km is further than "
+                        "line of sight allows at %s feet",
+                        entry.get("hex"),
+                        metres / 1000,
+                        altitude,
+                    )
+                    metres = None
+                if metres is None:
+                    position = None
+                else:
+                    with_position += 1
 
             summary = _summarise(entry, metres, position, self.reference)
 
