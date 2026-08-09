@@ -57,6 +57,10 @@ Everything from `aircraft.json`, the part every setup gets:
 
 The highest and the fastest also count aircraft that never broadcast a position: altitude and speed reach us from Mode S alone, and leaving those out would understate both. Their `distance` attribute is then empty.
 
+"In the last `aircraft.json`" is what the decoder is holding, which is a little more than what is transmitting this second: it keeps an aircraft for about a minute after its last message. That is deliberate, and it is what makes the count agree with the map your decoder serves. The `seen` attribute on each aircraft says how many seconds ago it was last heard.
+
+A position has to be possible before it is believed. ADS-B is line of sight, so an aircraft at 37,000 feet can be heard from roughly 440 km and one at 2,000 feet from roughly 100 km, and this allows 80 km on top of that for an antenna standing high. A position beyond that was mis-decoded rather than received, and is dropped: it would otherwise put an aircraft overhead that was never there, or leave a [sector record](#where-your-antenna-is-blocked) that stands for good. The aircraft still counts as received, because it is real; it just counts as one whose position is unknown.
+
 Those two and the maximum range keep what they last saw rather than blanking when the sky empties, and they survive a restart. A station that hears a couple of aircraft an hour would otherwise report nothing most of the time. The `seen_at` attribute says how long ago it was, and each still follows the sky: a lower aircraft later replaces the reading. That is what separates them from the [sector records](#where-your-antenna-is-blocked), which only ever grow.
 
 And, when your receiver also serves `stats.json`, the health of your reception:
@@ -145,12 +149,14 @@ With a feeder, the feeder and the receiver are read independently: if the decode
 
 #### Where your antenna is blocked
 
-A single maximum range figure hides the shape of your coverage: 250 km to the south and 40 km to the north is a very different station from 145 km all round. Eight sensors keep the furthest an aircraft has ever been heard in each compass sector, spanning 45 degrees centred on their direction, so **Maximum range north** covers 337.5° to 22.5°.
+A single maximum range figure hides the shape of your coverage: 250 km to the south and 40 km to the north is a very different station from 145 km all round. Eight sensors keep the furthest an aircraft has ever been heard in each compass sector, spanning 45 degrees centred on their direction, so **Range record north** covers 337.5° to 22.5°.
 
 | Entity | Type | Description |
 |---|---|---|
-| Maximum range north … northwest | Sensor (km) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
+| Range record north … northwest | Sensor (km) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
 | Reset range records | Button | Clears all eight |
+
+These are the records; **Maximum range** above is the live figure. It is named for what the hobby calls it and for what your feeder sites report, and it follows the sky: a poll with nothing further away than 40 km puts it at 40 km. These eight only ever go up.
 
 The records only ever grow, and they survive a restart of Home Assistant, because a record that started over every restart would be worth nothing. The sensors also stay readable when nothing is flying, because a record from last month is still a reading.
 
@@ -303,11 +309,13 @@ automation:
 
 The event carries the same keys as the aircraft attributes, so everything in the notification above is there: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, the route if you look them up, and `entry_id` and `station` to tell one station from another. It adds one key of its own, `slant_distance`, which is the subject of the next paragraph.
 
-Two things stop it becoming a nuisance.
+Three things stop it becoming a nuisance.
 
 **The distance counts the height.** Every other distance in this integration is measured across the ground, which is the right answer for how far your antenna reaches and the wrong one for what is above you. An airliner at 37,000 feet passing nine kilometres to the north is inside a ten kilometre radius on the map, and is fourteen kilometres away from you in the sky. It counts as nearby, as it should, and it is not a passage, as it should not be. The `distance` in the event is still the one across the ground; `slant_distance` is the real one.
 
 **An aircraft has to leave before it can arrive again.** Reception drops out, aircraft circle, and one on the edge of the radius flickers in and out. An aircraft that goes and comes back inside ten minutes is the same passage; longer than that and it is a new one. So a helicopter working a field nearby rings once, not once a minute.
+
+**An aircraft has to be flying.** One on the ground reports no altitude, so the distance through the air falls back to the distance across the ground and a taxiing airliner would look exactly like a low pass. If you live near a field that is most of your traffic, so it is left out. It still shows up under **Aircraft nearby**, marked `on_ground`, because it really is an aircraft within your radius.
 
 #### A notification that reads like a panel
 
@@ -656,6 +664,10 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 
 Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzenden: hoogte en snelheid komen al via Mode S binnen, en die weglaten zou beide cijfers te laag maken. Hun attribuut `distance` is dan leeg.
 
+"In de laatste `aircraft.json`" is wat de decoder vasthoudt, en dat is iets meer dan wat er op dit moment uitzendt: hij bewaart een vliegtuig nog ongeveer een minuut na het laatste bericht. Dat is met opzet, en het is wat het aantal laat kloppen met de kaart die je decoder zelf toont. Het attribuut `seen` bij elk vliegtuig zegt hoeveel seconden geleden het voor het laatst gehoord is.
+
+Een positie moet mogelijk zijn voordat hij geloofd wordt. ADS-B is zichtlijn, dus een vliegtuig op 37.000 voet is tot ongeveer 440 km te horen en een op 2.000 voet tot ongeveer 100 km, en daar komt 80 km bij voor een antenne die hoog staat. Een positie daarbuiten is verkeerd gedecodeerd in plaats van ontvangen, en vervalt: hij zou anders een vliegtuig boven je zetten dat er nooit was, of een [sectorrecord](#waar-je-antenne-geblokkeerd-zit) achterlaten dat voorgoed blijft staan. Het vliegtuig telt nog steeds als ontvangen, want het bestaat; alleen als een vliegtuig waarvan de positie onbekend is.
+
 Die twee en het maximale bereik houden vast wat ze het laatst zagen in plaats van leeg te lopen zodra de lucht leeg is, en ze overleven een herstart. Een station dat een paar vliegtuigen per uur hoort zou anders het grootste deel van de tijd niets melden. Het attribuut `seen_at` zegt hoe lang geleden dat was, en elk volgt nog steeds de lucht: een lager toestel later vervangt de waarde. Dat is het verschil met de [sectorrecords](#waar-je-antenne-geblokkeerd-zit), die alleen maar groeien.
 
 En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
@@ -744,12 +756,14 @@ Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als d
 
 #### Waar je antenne geblokkeerd zit
 
-Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting, dus **Maximaal bereik noord** dekt 337,5° tot 22,5°.
+Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting, dus **Bereikrecord noord** dekt 337,5° tot 22,5°.
 
 | Entiteit | Type | Omschrijving |
 |---|---|---|
-| Maximaal bereik noord … noordwest | Sensor (km) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
+| Bereikrecord noord … noordwest | Sensor (km) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
 | Bereikrecords wissen | Knop | Wist alle acht |
+
+Dit zijn de records; **Maximaal bereik** hierboven is het cijfer van nu. Die heet zo omdat de hobby het zo noemt en je feedersites het zo rapporteren, en hij volgt de lucht: een poll waarin niets verder weg is dan 40 km zet hem op 40 km. Deze acht gaan alleen maar omhoog.
 
 De records groeien alleen maar, en ze overleven een herstart van Home Assistant, want een record dat bij elke herstart opnieuw begint is niets waard. De sensoren blijven ook leesbaar als er niets vliegt, want een record van vorige maand is nog steeds een meting.
 
@@ -902,11 +916,13 @@ automation:
 
 Het event draagt dezelfde sleutels als de vliegtuigattributen, dus alles uit de melding hierboven zit erin: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, de route als je die opzoekt, en `entry_id` en `station` om het ene station van het andere te onderscheiden. Er komt één sleutel bij, `slant_distance`, en die is het onderwerp van de volgende alinea.
 
-Twee dingen houden het draaglijk.
+Drie dingen houden het draaglijk.
 
 **De afstand telt de hoogte mee.** Elke andere afstand in deze integratie wordt over de grond gemeten, en dat is het juiste antwoord op hoe ver je antenne reikt en het verkeerde op wat er boven je hangt. Een verkeersvliegtuig op 37.000 voet dat negen kilometer noordelijk passeert zit op de kaart binnen een straal van tien kilometer, en is veertien kilometer bij je vandaan door de lucht. Hij telt als dichtbij, en dat hoort ook, en hij is geen passage, en dat hoort ook. De `distance` in het event is nog steeds die over de grond; `slant_distance` is de echte.
 
 **Een vliegtuig moet eerst weg zijn voor het opnieuw kan aankomen.** De ontvangst valt weg, toestellen draaien rondjes, en eentje op de rand van de straal knippert in en uit. Een vliegtuig dat weggaat en binnen tien minuten terugkomt is dezelfde passage; duurt het langer, dan is het een nieuwe. Een helikopter die vlakbij een perceel afwerkt belt dus één keer aan, niet elke minuut.
+
+**Een vliegtuig moet vliegen.** Eentje op de grond meldt geen hoogte, dus de afstand door de lucht valt terug op die over de grond en een taxiënd verkeersvliegtuig lijkt precies op een lage overkomst. Woon je vlakbij een veld, dan is dat het grootste deel van je verkeer, dus die blijven erbuiten. Ze staan wel gewoon bij **Vliegtuigen dichtbij**, gemarkeerd met `on_ground`, want het is echt een vliegtuig binnen je straal.
 
 #### Een melding die leest als een paneel
 

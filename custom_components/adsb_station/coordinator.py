@@ -142,9 +142,11 @@ class AircraftStats:
     with_position: int
     messages: int | None
     message_rate: float | None
-    max_range: float | None
     updated: datetime | None
     closest: AircraftSummary | None
+    # The furthest aircraft this poll heard, which is the range figure as well:
+    # the distance is on the summary, and keeping it twice would be two things
+    # to hold in step.
     furthest: AircraftSummary | None = None
     highest: AircraftSummary | None = None
     fastest: AircraftSummary | None = None
@@ -774,7 +776,19 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         _LOGGER.debug("Measuring range from the receiver position in receiver.json")
 
     def _build_aircraft_stats(self, data: dict[str, Any]) -> AircraftStats:
-        """Turn a raw aircraft.json document into the figures we expose."""
+        """Turn a raw aircraft.json document into the figures we expose.
+
+        Every aircraft the decoder is holding counts, including the ones it
+        has not heard from for a moment: it keeps an aircraft in the document
+        for about a minute after its last message, and the seen field on each
+        one says how long that is.
+
+        Dropping those was tempting and would have been wrong. It is the same
+        aircraft in the same place it was heard, so the range it set is a range
+        this station really reached; the count would stop agreeing with the map
+        the decoder serves; and a gap in reception is exactly what a passage is
+        built to ride out, so cutting one short here would undo that.
+        """
         aircraft: list[dict[str, Any]] = [
             entry for entry in data["aircraft"] if isinstance(entry, dict)
         ]
@@ -782,13 +796,21 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         radius = self.proximity_radius
 
         with_position = 0
-        max_range: float | None = None
+        # Each superlative is kept next to the figure that won it. A summary
+        # carries an optional distance, altitude and speed, because plenty of
+        # aircraft report none of them, but the one holding a superlative
+        # always has the figure it won on, and comparing plain numbers says so.
         closest: AircraftSummary | None = None
+        closest_metres: float | None = None
         furthest: AircraftSummary | None = None
+        furthest_metres: float | None = None
         highest: AircraftSummary | None = None
+        highest_feet: float | None = None
         fastest: AircraftSummary | None = None
+        fastest_knots: float | None = None
         nearby: list[AircraftSummary] = []
         by_sector: dict[str, AircraftSummary] = {}
+        sector_metres: dict[str, float] = {}
         emergencies: list[EmergencyAircraft] = []
 
         for entry in aircraft:
@@ -830,43 +852,39 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             # Altitude and speed reach us from aircraft without a position too,
             # so these two are not restricted to the ones we can locate.
             if summary.altitude is not None and (
-                highest is None
-                or highest.altitude is None
-                or summary.altitude > highest.altitude
+                highest_feet is None or summary.altitude > highest_feet
             ):
-                highest = summary
+                highest, highest_feet = summary, summary.altitude
             if summary.speed is not None and (
-                fastest is None
-                or fastest.speed is None
-                or summary.speed > fastest.speed
+                fastest_knots is None or summary.speed > fastest_knots
             ):
-                fastest = summary
+                fastest, fastest_knots = summary, summary.speed
 
             if metres is None or position is None:
                 continue
-            if max_range is None or metres > max_range:
-                max_range = metres
-                furthest = summary
-            if closest is None or closest.distance is None or metres < closest.distance:
-                closest = summary
+            if furthest_metres is None or metres > furthest_metres:
+                furthest, furthest_metres = summary, metres
+            if closest_metres is None or metres < closest_metres:
+                closest, closest_metres = summary, metres
             if metres <= radius:
                 nearby.append(summary)
 
             sector = sector_of(_bearing(origin_latitude, origin_longitude, *position))
-            best = by_sector.get(sector)
-            if best is None or best.distance is None or metres > best.distance:
-                by_sector[sector] = summary
+            if sector not in sector_metres or metres > sector_metres[sector]:
+                by_sector[sector], sector_metres[sector] = summary, metres
 
         nearby.sort(key=lambda item: item.distance or 0.0)
         now = _as_float(data.get("now"))
         messages = _as_int(data.get("messages"))
+        # On its own line because it is the one thing here that does not only
+        # read: it hands over the sample this poll leaves for the next one.
+        message_rate = self._take_message_rate(messages, now)
 
         return AircraftStats(
             total=len(aircraft),
             with_position=with_position,
             messages=messages,
-            message_rate=self._message_rate(messages, now),
-            max_range=max_range,
+            message_rate=message_rate,
             updated=None if now is None else dt_util.utc_from_timestamp(now),
             closest=closest,
             furthest=furthest,
@@ -877,8 +895,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             emergencies=tuple(emergencies),
         )
 
-    def _message_rate(self, messages: int | None, now: float | None) -> float | None:
-        """Return the messages per second since the previous poll."""
+    def _take_message_rate(
+        self, messages: int | None, now: float | None
+    ) -> float | None:
+        """Return the messages per second since the previous poll.
+
+        Named for the fact that it consumes something: a rate needs two
+        samples, so this replaces the one it was holding with the one it was
+        given. Asking twice for the same poll answers the first time only.
+        """
         if messages is None or now is None:
             return None
 
