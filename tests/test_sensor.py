@@ -1067,3 +1067,36 @@ async def test_a_higher_aircraft_replaces_the_reading(
 
     assert float(_state(hass, "highest_aircraft")) == pytest.approx(900)
     assert _attributes(hass, "highest_aircraft")["flight"] == "LOW1"
+
+
+
+@pytest.mark.parametrize(
+    ("key", "attribute"),
+    [("aircraft_nearby", "aircraft"), ("passages_today", "passages")],
+)
+async def test_the_long_lists_are_kept_out_of_the_database(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    key: str,
+    attribute: str,
+) -> None:
+    """Test that the lists are readable but not recorded.
+
+    Both of these carry a list of aircraft beside a state that is only a
+    number, and both are rewritten far more often than the number changes, so
+    recording them writes the whole list again for every arrival. Telling the
+    recorder to leave the attribute alone keeps the history and the statistics
+    of the number itself, which is what excluding the entity outright costs.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_{key}"
+    )
+    state = hass.states.get(entity_id)
+
+    # Still there for a template, a card or an automation to read
+    assert attribute in state.attributes
+    # Beside the ones every sensor leaves out of the database already
+    assert attribute in state.state_info["unrecorded_attributes"]
