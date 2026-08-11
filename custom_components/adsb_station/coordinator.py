@@ -98,6 +98,10 @@ class AircraftSummary:
     interesting: bool = False
     pia: bool = False
     ladd: bool = False
+    # The country that was handed the range this aircraft's address falls in,
+    # as an ISO two-letter code. Where it is registered, not where it is: a
+    # KLM aircraft over Spain is still NL.
+    country: str | None = None
     # The emitter category the aircraft broadcasts, A0 through D7. It is the
     # only thing that tells a helicopter from an airliner without a database,
     # and it arrives over the air rather than out of a file.
@@ -368,9 +372,17 @@ def _db_flag(entry: dict[str, Any], flag: int) -> bool:
     return flags is not None and bool(flags & flag)
 
 
-def _is_military(entry: dict[str, Any]) -> bool:
-    """Return True if readsb flags this aircraft as military."""
-    return _db_flag(entry, DB_FLAG_MILITARY)
+def _military_flag(entry: dict[str, Any]) -> bool | None:
+    """Return what dbFlags says about this aircraft, or None if it says nothing.
+
+    Three answers rather than two, because "the database says this is not
+    military" and "there is no database" are different things and only one of
+    them can be corrected. dbFlags knows the individual tail and is believed
+    either way it points; the address block behind it knows only what range a
+    country set aside, and gets its say when nobody else has one.
+    """
+    flags = _as_int(entry.get("dbFlags"))
+    return None if flags is None else bool(flags & DB_FLAG_MILITARY)
 
 
 def _bearing(
@@ -402,8 +414,10 @@ def _summarise(
     """Turn one aircraft.json entry into the shape we expose."""
     flight = _as_text(entry.get("flight"))
     aircraft_type = _as_text(entry.get("t"))
+    hex_code = str(entry.get("hex", ""))
+    military = _military_flag(entry)
     return AircraftSummary(
-        hex=str(entry.get("hex", "")),
+        hex=hex_code,
         flight=flight,
         distance=metres,
         position=position,
@@ -420,10 +434,14 @@ def _summarise(
         # A database that fills in the type code without describing it is the
         # common case, so the table stands in where the decoder says nothing.
         description=_as_text(entry.get("desc")) or reference.model_of(aircraft_type),
-        military=_is_military(entry),
+        # The decoder's own answer where there is one, and the address block
+        # only where there is not.
+        military=reference.is_military(hex_code) if military is None else military,
         interesting=_db_flag(entry, DB_FLAG_INTERESTING),
         pia=_db_flag(entry, DB_FLAG_PIA),
         ladd=_db_flag(entry, DB_FLAG_LADD),
+        # Out of the address itself, so this is there whatever the decoder is.
+        country=reference.country_of(hex_code),
         category=_as_code(entry.get("category")),
         heard_as=_as_text(entry.get("type")),
         airline=reference.airline_of(flight),
@@ -462,6 +480,8 @@ def aircraft_attributes(
         attributes["aircraft_type"] = summary.aircraft_type
     if summary.description is not None:
         attributes["description"] = summary.description
+    if summary.country is not None:
+        attributes["country"] = summary.country
     if summary.category is not None:
         attributes["category"] = summary.category
     if summary.heard_as is not None:
