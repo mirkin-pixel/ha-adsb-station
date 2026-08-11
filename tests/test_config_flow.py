@@ -19,6 +19,7 @@ from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
+    CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
@@ -538,7 +539,9 @@ async def test_options_flow(
     assert mock_config_entry.options == {
         CONF_SCAN_INTERVAL: 45,
         CONF_PROXIMITY_RADIUS: 25,
-        # Nothing asked for a route, so nothing looks one up.
+        # Nothing asked for a route, so nothing looks one up, and nothing
+        # asked for a map, so no aircraft is drawn on one.
+        CONF_MAP_AIRCRAFT: False,
         CONF_LOOK_UP_ROUTES: False,
     }
     # The coordinator works in metres

@@ -29,10 +29,12 @@ from .const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
+    CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
     DEFAULT_LOOK_UP_ROUTES,
+    DEFAULT_MAP_AIRCRAFT,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STATION_NAME,
@@ -105,6 +107,9 @@ OPTIONS_SCHEMA = vol.Schema(
                 mode=selector.NumberSelectorMode.BOX,
             )
         ),
+        vol.Required(
+            CONF_MAP_AIRCRAFT, default=DEFAULT_MAP_AIRCRAFT
+        ): selector.BooleanSelector(),
         vol.Required(
             CONF_LOOK_UP_ROUTES, default=DEFAULT_LOOK_UP_ROUTES
         ): selector.BooleanSelector(),
@@ -425,6 +430,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
                 data={
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
+                    CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                     CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
                 }
             )
