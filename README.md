@@ -589,26 +589,51 @@ Answers use the names from the [shipped tables](#names-for-the-codes), so it say
 
 English and Dutch are spoken; a question in any other language is answered in English.
 
-#### Getting the sentences in place
+There are two ways to wire this up, and they end at the same five answers.
 
-Home Assistant reads custom sentences from your **configuration directory alone**, so an integration cannot bring its own. They ship inside it and have to be copied once.
+#### An automation, with no files at all
 
-By hand, which is the whole of it:
+Home Assistant lets an automation own its sentences. Write them where you can see them, ask this integration for the answer, and say it back:
+
+```yaml
+automation:
+  triggers:
+    - trigger: conversation
+      command:
+        - "what is flying over"
+        - "what is above me"
+  actions:
+    - action: adsb_station.speak
+      data:
+        question: overhead
+      response_variable: spoken
+    - set_conversation_response: "{{ spoken.speech }}"
+```
+
+Nothing is written to your configuration directory, nothing needs a restart, and you can edit the sentences in the interface. `question` is one of `overhead`, `count`, `closest`, `traffic` or `route`; the traffic one also takes `kind`, which is `military`, `helicopter` or `drone`.
+
+The wording is still ours. `adsb_station.speak` hands back a finished sentence — the callsign spelled out or the airline named, the height rounded, the units and the decimal point right for the language — so the automation is three lines and not a template full of `round()`.
+
+#### The sentence files, so Assist knows the questions itself
+
+The other way needs no automations: Assist recognises all five out of the box, in both languages, including phrasings you did not think to write down.
+
+The catch is where those sentences have to live. Home Assistant reads them from your **configuration directory alone**, so an integration cannot bring its own; they ship inside it and have to be copied once.
 
 ```
 custom_components/adsb_station/sentences/en/adsb_station.yaml  →  custom_sentences/en/adsb_station.yaml
 custom_components/adsb_station/sentences/nl/adsb_station.yaml  →  custom_sentences/nl/adsb_station.yaml
 ```
 
-Or let the integration do the copying, if you would rather not go looking for the files:
+Or let the integration copy them, if you would rather not go looking:
 
 ```yaml
 - action: adsb_station.install_sentences
 ```
 
-Be clear about what that does: **it writes two files into your configuration directory**, overwrites them if they are already there, and touches nothing else. It is the same copy you would make yourself.
+Be plain about what that does: **it writes two files into your configuration directory** and overwrites them if they are already there. It is the same copy you would make by hand, and nothing else is touched.
 
-Either way, Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
+Either way Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
 
 If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](#asking-a-question) are there when it has to be exact.
 
@@ -1330,24 +1355,49 @@ De antwoorden gebruiken de namen uit de [meegeleverde tabellen](#namen-bij-de-co
 
 Engels en Nederlands worden gesproken; een vraag in een andere taal wordt in het Engels beantwoord.
 
-#### De zinnen op hun plek krijgen
+Er zijn twee manieren om dit aan te sluiten, en ze komen bij dezelfde vijf antwoorden uit.
 
-Home Assistant leest eigen zinnen **alleen uit je configuratiemap**, dus een integratie kan de zijne niet zelf meeleveren. Ze zitten erin en moeten één keer gekopieerd worden.
+#### Een automatisering, zonder enig bestand
 
-Met de hand, en dat is alles:
+Home Assistant laat een automatisering zijn eigen zinnen bezitten. Schrijf ze waar je ze kunt zien, vraag deze integratie om het antwoord, en zeg het terug:
+
+```yaml
+automation:
+  triggers:
+    - trigger: conversation
+      command:
+        - "wat vliegt er over"
+        - "wat hangt er boven me"
+  actions:
+    - action: adsb_station.speak
+      data:
+        question: overhead
+      response_variable: spoken
+    - set_conversation_response: "{{ spoken.speech }}"
+```
+
+Er wordt niets in je configuratiemap geschreven, er hoeft niets herstart, en je kunt de zinnen in de interface aanpassen. `question` is `overhead`, `count`, `closest`, `traffic` of `route`; die laatste-op-een-na neemt ook `kind`, en dat is `military`, `helicopter` of `drone`.
+
+De formulering blijft van ons. `adsb_station.speak` geeft een afgemaakte zin terug — callsign gespeld of maatschappij genoemd, hoogte afgerond, eenheden en decimaalteken passend bij de taal — zodat de automatisering drie regels is en geen template vol `round()`.
+
+#### De zinsbestanden, zodat Assist de vragen zelf kent
+
+De andere weg heeft geen automatiseringen nodig: Assist herkent alle vijf uit zichzelf, in beide talen, ook formuleringen die je zelf niet had bedacht.
+
+De adder zit in waar die zinnen moeten staan. Home Assistant leest ze **alleen uit je configuratiemap**, dus een integratie kan de zijne niet meeleveren; ze zitten erin en moeten één keer gekopieerd worden.
 
 ```
 custom_components/adsb_station/sentences/en/adsb_station.yaml  →  custom_sentences/en/adsb_station.yaml
 custom_components/adsb_station/sentences/nl/adsb_station.yaml  →  custom_sentences/nl/adsb_station.yaml
 ```
 
-Of laat de integratie het kopiëren, als je liever niet naar die bestanden op zoek gaat:
+Of laat de integratie ze kopiëren, als je er liever niet naar op zoek gaat:
 
 ```yaml
 - action: adsb_station.install_sentences
 ```
 
-Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiemap**, overschrijft ze als ze er al staan, en raakt verder niets aan. Het is dezelfde kopie die je zelf zou maken.
+Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiemap** en overschrijft ze als ze er al staan. Het is dezelfde kopie die je met de hand zou maken, en verder wordt er niets aangeraakt.
 
 Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conversation.reload` of herstart. Probeer het vervolgens onder **Instellingen → Spraakassistenten**, en vraag het ook eens met een lege lucht — dat is het antwoord dat het vaakst voorkomt.
 

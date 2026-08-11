@@ -12,6 +12,7 @@ from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+import voluptuous as vol
 import yaml
 
 from custom_components.adsb_station.const import (
@@ -31,6 +32,7 @@ from custom_components.adsb_station.services import (
     SENTENCES_DIRECTORY,
     SENTENCES_FILE,
     SERVICE_INSTALL_SENTENCES,
+    SERVICE_SPEAK,
 )
 from custom_components.adsb_station.speech import PHRASES
 
@@ -421,4 +423,59 @@ async def test_sentences_that_cannot_be_written(
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(
             DOMAIN, SERVICE_INSTALL_SENTENCES, {}, blocking=True, return_response=True
+        )
+
+
+async def test_speak_without_any_sentence_file(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the answers being reachable through an action instead."""
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    spoken = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SPEAK,
+        {"question": "overhead"},
+        blocking=True,
+        return_response=True,
+    )
+    # The same sentence the voice question gives, word for word
+    assert spoken == {"speech": "Lufthansa 99 is overhead, 3,700 metres up."}
+
+
+async def test_speak_takes_a_kind_and_a_language(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the traffic question and an answer in the other language."""
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    spoken = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SPEAK,
+        {"question": "traffic", "kind": "helicopter", "language": "nl"},
+        blocking=True,
+        return_response=True,
+    )
+    assert spoken == {"speech": "P H T R A, 22,3 kilometer naar het noorden."}
+
+
+async def test_speak_refuses_a_question_it_does_not_have(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a made-up question fails rather than answering something."""
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SPEAK,
+            {"question": "how is the weather"},
+            blocking=True,
+            return_response=True,
         )

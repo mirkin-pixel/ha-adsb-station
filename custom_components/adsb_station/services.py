@@ -37,10 +37,13 @@ from .coordinator import (
     aircraft_attributes,
     sector_from,
 )
+from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
+from .speech import language_of
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
 SERVICE_LIST_AIRCRAFT: Final = "list_aircraft"
 SERVICE_INSTALL_SENTENCES: Final = "install_sentences"
+SERVICE_SPEAK: Final = "speak"
 
 # Where the sentences ship, and where Home Assistant reads them from. It
 # reads custom sentences out of the configuration directory and nowhere else,
@@ -57,6 +60,9 @@ ATTR_MIN_ALTITUDE: Final = "min_altitude"
 ATTR_MAX_ALTITUDE: Final = "max_altitude"
 ATTR_MILITARY: Final = "military"
 ATTR_CATEGORY: Final = "category"
+ATTR_QUESTION: Final = "question"
+ATTR_KIND: Final = "kind"
+ATTR_LANGUAGE: Final = "language"
 
 # Shared by both services, so which station is being asked reads the same way
 # in either one.
@@ -78,6 +84,16 @@ LIST_SCHEMA: Final = vol.Schema(
         vol.Optional(ATTR_MAX_ALTITUDE): vol.Coerce(float),
         vol.Optional(ATTR_MILITARY): cv.boolean,
         vol.Optional(ATTR_CATEGORY): cv.string,
+    }
+)
+
+
+SPEAK_SCHEMA: Final = vol.Schema(
+    {
+        **_STATION_FIELD,
+        vol.Required(ATTR_QUESTION): vol.In(sorted(QUESTIONS)),
+        vol.Optional(ATTR_KIND): vol.In(sorted(TRAFFIC_KINDS)),
+        vol.Optional(ATTR_LANGUAGE): cv.string,
     }
 )
 
@@ -264,6 +280,30 @@ async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
     return {"languages": installed, "installed_in": str(target)}
 
 
+async def _async_speak(call: ServiceCall) -> ServiceResponse:
+    """Return one of the spoken answers, ready to be said back.
+
+    The same five answers the voice questions give, reachable without any
+    sentence file: an automation with a sentence trigger writes its own
+    wording, calls this, and hands the result to `set_conversation_response`.
+    That keeps the awkward part of speaking — a callsign spelled out, an
+    airline named, a height rounded and written the way the language writes
+    numbers — in here rather than in everyone's template.
+    """
+    coordinator, aircraft = _station(call.hass, call)
+    language = language_of(call.data.get(ATTR_LANGUAGE) or call.hass.config.language)
+    return {
+        "speech": answer_question(
+            call.data[ATTR_QUESTION],
+            coordinator,
+            aircraft,
+            language,
+            call.hass.config.units,
+            call.data.get(ATTR_KIND),
+        )
+    }
+
+
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
@@ -273,6 +313,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
         _async_install_sentences,
         schema=vol.Schema({}),
         supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SPEAK,
+        _async_speak,
+        schema=SPEAK_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
         DOMAIN,

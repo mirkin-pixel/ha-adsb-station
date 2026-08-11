@@ -292,14 +292,35 @@ def _place(airport: Any) -> str | None:
     return airport.location or airport.name or airport.code
 
 
+# The five questions, under the short names a service takes. Home Assistant
+# reads sentences out of the configuration directory alone, so the intents
+# above are only reachable once two files have been copied there. These same
+# answers are reachable without copying anything, through a sentence trigger
+# in an automation, and that is what the names are for.
+QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
+    "overhead": OverheadIntent(),
+    "count": CountIntent(),
+    "closest": ClosestIntent(),
+    "traffic": TrafficIntent(),
+    "route": RouteIntent(),
+}
+
+
+def answer_question(
+    question: str,
+    coordinator: AdsbStationDataUpdateCoordinator,
+    aircraft: AircraftStats,
+    language: str,
+    units: UnitSystem,
+    kind: str | None = None,
+) -> str:
+    """Return the spoken answer to one question, without an intent around it."""
+    slots = {} if kind is None else {"kind": {"value": kind}}
+    return QUESTIONS[question].answer(coordinator, aircraft, language, units, slots)
+
+
 @callback
 def async_setup_intents(hass: HomeAssistant) -> None:
     """Register what can be asked out loud, once for the integration."""
-    for handler in (
-        OverheadIntent(),
-        CountIntent(),
-        ClosestIntent(),
-        TrafficIntent(),
-        RouteIntent(),
-    ):
+    for handler in QUESTIONS.values():
         intent.async_register(hass, handler)

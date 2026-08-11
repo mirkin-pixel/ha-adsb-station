@@ -430,6 +430,28 @@
     "install_sentences": {
       "name": "Spraakzinnen installeren",
       "description": "Kopieert de gesproken zinnen die deze integratie meelevert naar je configuratiemap, waar Assist ze uit leest. Draai daarna conversation.reload, of herstart."
+    },
+    "speak": {
+      "name": "Een antwoord uitspreken",
+      "description": "Geeft één van de vijf gesproken antwoorden als tekst terug, klaar voor een zin-trigger om terug te zeggen. Heeft geen zinsbestanden nodig.",
+      "fields": {
+        "question": {
+          "name": "Vraag",
+          "description": "Welke van de vijf beantwoord wordt: wat er overvliegt, hoeveel er zijn, welk toestel het dichtstbij is, of een soort verkeer in bereik is, of waar het toestel boven je heen gaat."
+        },
+        "kind": {
+          "name": "Soort",
+          "description": "Alleen voor de verkeersvraag: militair, helikopter of drone."
+        },
+        "language": {
+          "name": "Taal",
+          "description": "In welke taal geantwoord wordt. Standaard de taal van je Home Assistant; Engels en Nederlands worden gesproken, al het andere wordt in het Engels beantwoord."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
+        }
+      }
     }
   },
   "exceptions": {
