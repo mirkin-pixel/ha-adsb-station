@@ -765,6 +765,69 @@ async def test_closest_aircraft_military_flag(
     assert hass.states.get(entity_id).attributes["military"] is True
 
 
+async def test_closest_aircraft_other_db_flags(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the bits of dbFlags beside the military one."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            # 12 is a PIA address and LADD together, and neither is military
+            "aircraft": [{"hex": "a1b2c3", "lat": 52.01, "lon": 5.0, "dbFlags": 12}],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert attributes["pia"] is True
+    assert attributes["ladd"] is True
+    assert "military" not in attributes
+    assert "interesting" not in attributes
+
+
+async def test_closest_aircraft_category_and_reception(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the emitter category and the way the aircraft was heard."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {
+                    "hex": "484123",
+                    "lat": 52.01,
+                    "lon": 5.0,
+                    # A7 is a helicopter, in lower case to prove it is read
+                    # as the code it is rather than as the text it arrived in
+                    "category": "a7",
+                    "type": "mlat",
+                }
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert attributes["category"] == "A7"
+    assert attributes["heard_as"] == "mlat"
+
+
 async def test_closest_aircraft_without_a_database(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
@@ -777,7 +840,19 @@ async def test_closest_aircraft_without_a_database(
         "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
     )
     attributes = hass.states.get(entity_id).attributes
-    for key in ("registration", "aircraft_type", "description", "military"):
+    # The last two are not database fields, but the dump1090 fork this fixture
+    # comes from sends them just as little as it sends the rest.
+    for key in (
+        "registration",
+        "aircraft_type",
+        "description",
+        "military",
+        "interesting",
+        "pia",
+        "ladd",
+        "category",
+        "heard_as",
+    ):
         assert key not in attributes
 
 
