@@ -49,6 +49,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
 | Overhead flight | Sensor | The one aircraft above you, nearest first and measured through the air. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](#when-something-comes-over) |
 | Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
+| Heard today | Sensor | How many different aircraft the station heard today, at any distance |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver |
 | Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
@@ -273,7 +274,7 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Four settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The other two are [aircraft on the map](#aircraft-on-the-map) and [where a flight is going](#where-a-flight-is-going), and both are off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Five settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Beside it is the [overhead ceiling](#what-counts-as-overhead), which is empty. The last two are [aircraft on the map](#aircraft-on-the-map) and [where a flight is going](#where-a-flight-is-going), and both are off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
@@ -301,6 +302,22 @@ The airline is not among them, and does not need to be: it is [there either way]
 Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and the source being unreachable simply means no route that poll; the aircraft entities themselves never depend on it.
 
 An aircraft that broadcasts no position gets no route either, because the source judges every route it finds against where the aircraft is. In practice nothing is lost: only the aircraft near enough to be looked up are asked about, and being near enough is measured from a position.
+
+### What counts as overhead
+
+A radius is a circle drawn on the ground. An airliner at 36,000 feet passing over your street is inside a ten kilometre circle, and it is nothing anybody would look up at — the height is already counted for the distance, but a wide radius lets it in anyway.
+
+**Overhead ceiling** under **Configure** is the answer, in feet, and it is empty until you set it. Ten thousand feet is a reasonable place to start: below it is traffic on approach, helicopters, and anything with a reason to be low.
+
+What it changes is deliberately narrow:
+
+| | With a ceiling set |
+|---|---|
+| **Aircraft nearby**, **Aircraft overhead**, passages, the passage event, the map | Only aircraft under it |
+| **Aircraft received**, the range records, **Maximum range**, the highest and the fastest | Unchanged — those are about what your station heard |
+| **Emergency squawk** | Unchanged, at any height. An aircraft squawking 7700 is worth hearing about from 37,000 feet |
+
+An aircraft that says it is **on the ground** stays nearby whatever the ceiling is. It reports no altitude precisely because it is on the ground, so comparing the figure would throw out the traffic a ceiling was never aimed at. An aircraft that reports no altitude for any other reason — heard over bare Mode S, say — cannot be judged and drops out, the same way a height filter on the [services](#asking-a-question) leaves out what it cannot measure.
 
 ### Aircraft on the map
 
@@ -462,7 +479,9 @@ Altitudes are in feet and speeds in knots there, because that is what the aircra
 
 `distance` and `slant_distance` are in kilometres already.
 
-**Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came. Both survive a restart of Home Assistant, so the board is a record rather than a session.
+**Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came, how long they were in view (`duration`, in seconds) and the strongest they were ever heard (`peak_rssi`). Those last two are what a passage knows and a single poll cannot; both keep growing while the aircraft is still there and stand still once it has gone. Everything survives a restart of Home Assistant, so the board is a record rather than a session.
+
+**Heard today** counts something else, and the two are worth having side by side. Passages are what came over your house; **Heard today** is every different aircraft your antenna reached all day, however far away and however high. It is the figure that says what your station is doing rather than what your sky is doing, and it is the one to watch after moving an aerial.
 
 Each entry holds the aircraft at its closest approach rather than at its arrival, because an aircraft is first seen at the edge of the radius and is worth looking up at when it is overhead. It appears on the board as soon as it arrives and is rewritten while it is still in view, so the board is current and ends up correct.
 
@@ -815,6 +834,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
 | Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde door de lucht gemeten. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](#als-er-iets-overkomt) |
 | Passages vandaag | Sensor | Hoeveel vliegtuigen er vandaag overkwamen, met de laatste twintig als attributen, meest recente eerst |
+| Vandaag gehoord | Sensor | Hoeveel verschillende toestellen het station vandaag hoorde, op elke afstand |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
 | Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
@@ -1039,7 +1059,7 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan vier instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De andere twee zijn [vliegtuigen op de kaart](#vliegtuigen-op-de-kaart) en [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staan allebei uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan vijf instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Daarnaast staat de [hoogtegrens](#wat-overhead-precies-betekent), en die is leeg. De laatste twee zijn [vliegtuigen op de kaart](#vliegtuigen-op-de-kaart) en [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staan allebei uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe, precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
@@ -1067,6 +1087,22 @@ De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll; de vliegtuigentiteiten zelf hangen er nooit van af.
 
 Een vliegtuig dat geen positie uitzendt krijgt ook geen route, want de bron toetst elke route die hij vindt aan waar het toestel is. In de praktijk kost dat niets: alleen de vliegtuigen die dichtbij genoeg zijn worden opgezocht, en dichtbij genoeg wordt vanaf een positie gemeten.
+
+### Wat overhead precies betekent
+
+Een straal is een cirkel op de grond. Een lijnvliegtuig op 36.000 voet dat over je straat gaat zit binnen een cirkel van tien kilometer, en niemand kijkt daarnaar op — de hoogte telt al mee voor de afstand, maar een ruime straal laat hem er toch in.
+
+**Hoogtegrens overhead** onder **Configureren** is het antwoord, in voet, en hij is leeg tot je hem invult. Tienduizend voet is een verstandig beginpunt: daaronder zit verkeer in de nadering, helikopters, en alles met een reden om laag te zitten.
+
+Wat hij verandert is bewust smal:
+
+| | Met een grens |
+|---|---|
+| **Vliegtuigen dichtbij**, **Vliegtuig overhead**, passages, het passage-event, de kaart | Alleen toestellen eronder |
+| **Vliegtuigen ontvangen**, de bereikrecords, **Maximaal bereik**, de hoogste en de snelste | Onveranderd — die gaan over wat je station hoorde |
+| **Noodsquawk** | Onveranderd, op elke hoogte. Een toestel dat 7700 squawkt wil je ook vanaf 37.000 voet horen |
+
+Een toestel dat zegt **op de grond** te staan blijft dichtbij, wat de grens ook is. Het meldt juist geen hoogte omdát het op de grond staat, dus het getal vergelijken zou het verkeer weggooien waar een grens nooit op gemikt was. Een toestel dat om een andere reden geen hoogte meldt — alleen over kale Mode S gehoord bijvoorbeeld — valt niet te beoordelen en valt af, net zoals een hoogtefilter op de [acties](#iets-vragen) weglaat wat het niet kan meten.
 
 ### Vliegtuigen op de kaart
 
@@ -1228,7 +1264,9 @@ Hoogtes staan daar in voet en snelheden in knopen, want zo zendt het vliegtuig z
 
 `distance` en `slant_distance` staan al in kilometers.
 
-**Passages vandaag** is de teller, en de laatste twintig staan als attributen op de sensor: hoe laat ze aankwamen, de callsign, de maatschappij, het type, hoe hoog en hoe dichtbij ze kwamen. Allebei overleven ze een herstart van Home Assistant, zodat het bord een verslag is en niet een sessie.
+**Passages vandaag** is de teller, en de laatste twintig staan als attributen op de sensor: hoe laat ze aankwamen, de callsign, de maatschappij, het type, hoe hoog en hoe dichtbij ze kwamen, hoe lang ze in beeld waren (`duration`, in seconden) en hoe sterk ze op hun best gehoord werden (`peak_rssi`). Die laatste twee weet een passage en één poll niet; ze lopen op zolang het toestel er nog is en staan stil zodra het weg is. Alles overleeft een herstart van Home Assistant, zodat het bord een verslag is en niet een sessie.
+
+**Vandaag gehoord** telt iets anders, en die twee zijn het naast elkaar te hebben waard. Passages zijn wat er over je huis kwam; **Vandaag gehoord** is elk verschillend toestel dat je antenne die dag bereikte, hoe ver weg en hoe hoog ook. Het is het getal dat zegt wat je station doet in plaats van wat je lucht doet, en het is degene om naar te kijken nadat je een antenne verplaatst hebt.
 
 Elke regel houdt het toestel op zijn dichtste punt vast en niet bij aankomst, want je ziet een vliegtuig het eerst aan de rand van de straal en het best als het recht boven je staat. Hij verschijnt op het bord zodra het toestel aankomt en wordt bijgewerkt zolang het in beeld is, dus het bord loopt bij en klopt uiteindelijk.
 

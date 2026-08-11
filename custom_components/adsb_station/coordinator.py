@@ -20,6 +20,7 @@ from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
     CONF_LOOK_UP_ROUTES,
+    CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
     DB_FLAG_INTERESTING,
     DB_FLAG_LADD,
@@ -149,6 +150,10 @@ class Passage:
     # showing what is above you right now wants to read.
     current: AircraftSummary
     current_distance: float
+    # The strongest signal heard from it over the whole passage. Not the same
+    # as the signal at the closest approach: an aircraft banking away can put
+    # its antenna in a better place than one directly overhead.
+    peak_rssi: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -364,6 +369,24 @@ def _is_believable(metres: float, altitude: float | None) -> bool:
     # to take the square root of a negative number.
     horizon = RADIO_HORIZON_METRES_PER_ROOT_FOOT * sqrt(max(altitude, 0.0))
     return metres <= horizon + RADIO_HORIZON_ALLOWANCE
+
+
+def _under(summary: AircraftSummary, ceiling: float | None) -> bool:
+    """Return whether an aircraft is low enough to count as nearby.
+
+    An aircraft on the ground is under every ceiling there is. It reports no
+    altitude, precisely because it is on the ground, so comparing the figure
+    would throw out the taxiing traffic that a ceiling was never aimed at.
+
+    Anything else without an altitude cannot be judged and does not count,
+    the same way a height filter on the services leaves out what it cannot
+    measure.
+    """
+    if ceiling is None:
+        return True
+    if summary.on_ground:
+        return True
+    return summary.altitude is not None and summary.altitude <= ceiling
 
 
 def _db_flag(entry: dict[str, Any], flag: int) -> bool:
@@ -619,6 +642,16 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         return float(kilometres) * 1000
 
     @property
+    def proximity_ceiling(self) -> float | None:
+        """Return how high an aircraft may be and still count as nearby.
+
+        None where nothing was set, which is what every station did before
+        this existed and what it keeps doing: the radius alone decides.
+        """
+        feet = self.config_entry.options.get(CONF_PROXIMITY_MAX_ALTITUDE)
+        return None if feet in (None, "") else float(feet)
+
+    @property
     def origin_source(self) -> str:
         """Return where the point ranges are measured from came from.
 
@@ -719,6 +752,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     closest_distance=metres,
                     current=summary,
                     current_distance=metres,
+                    peak_rssi=summary.rssi,
                 )
                 self.passages[summary.hex] = passage
                 in_view.append(passage)
@@ -732,6 +766,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if metres < passage.closest_distance:
                 passage.closest = summary
                 passage.closest_distance = metres
+            if summary.rssi is not None and (
+                passage.peak_rssi is None or summary.rssi > passage.peak_rssi
+            ):
+                passage.peak_rssi = summary.rssi
 
         # Of the aircraft this poll actually saw, the nearest is the one to
         # look up at. A passage that was not seen is not overhead, however
@@ -904,6 +942,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         ]
         origin_latitude, origin_longitude = self.origin
         radius = self.proximity_radius
+        ceiling = self.proximity_ceiling
 
         with_position = 0
         # Each superlative is kept next to the figure that won it. A summary
@@ -978,7 +1017,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 furthest, furthest_metres = summary, metres
             if closest_metres is None or metres < closest_metres:
                 closest, closest_metres = summary, metres
-            if metres <= radius:
+            # The ceiling belongs to the nearby family and to nothing else.
+            # Everything above this line is about what the station received,
+            # which an aircraft at cruising height counted towards whether or
+            # not you would ever look up at it: the count, the range records,
+            # the furthest and the highest, and an emergency squawk, which is
+            # worth hearing about at any altitude at all. Somebody tidying up
+            # later will be tempted to hoist this; that is what it would cost.
+            if metres <= radius and _under(summary, ceiling):
                 nearby.append(summary)
 
             sector = sector_of(_bearing(origin_latitude, origin_longitude, *position))

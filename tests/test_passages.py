@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
+    CONF_PROXIMITY_MAX_ALTITUDE,
     DEFAULT_SCAN_INTERVAL,
     EVENT_AIRCRAFT_PASSAGE,
     PASSAGE_BOARD_LENGTH,
@@ -444,3 +445,103 @@ async def test_the_board_is_capped(
     state = hass.states.get("sensor.t_ehxx23_passages_today")
     assert state.state == str(PASSAGE_BOARD_LENGTH + 5)
     assert len(state.attributes["passages"]) == PASSAGE_BOARD_LENGTH
+
+
+async def test_the_ceiling_keeps_high_traffic_out_of_the_nearby_family(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    passages: list[Event],
+) -> None:
+    """Test what a ceiling does, and everything it deliberately leaves alone."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_PROXIMITY_MAX_ALTITUDE: 10000}
+    )
+    # One at 2,000 feet, one at 37,000, and one taxiing at the same spot
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE, ON_GROUND))
+
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # The high one is out of the nearby list, and the taxiing one is not: it
+    # says it is on the ground, which is under every ceiling there is
+    nearby = hass.states.get("sensor.t_ehxx23_aircraft_nearby")
+    assert [aircraft["flight"] for aircraft in nearby.attributes["aircraft"]] == [
+        "KLM123",
+        "KLM899",
+    ]
+    assert [event.data["flight"] for event in passages] == ["KLM123"]
+
+    # But the station still heard all three, and the range record still counts
+    # the one at cruising height
+    assert hass.states.get("sensor.t_ehxx23_aircraft_received").state == "3"
+    assert float(hass.states.get("sensor.t_ehxx23_maximum_range").state) > 1.0
+    assert hass.states.get("sensor.t_ehxx23_heard_today").state == "3"
+
+
+async def test_without_a_ceiling_nothing_changes(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an unset ceiling leaves the nearby list as it always was."""
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    nearby = hass.states.get("sensor.t_ehxx23_aircraft_nearby")
+    assert [aircraft["flight"] for aircraft in nearby.attributes["aircraft"]] == [
+        "KLM123",
+        "TRA45",
+    ]
+
+
+async def test_a_passage_keeps_its_duration_and_its_best_signal(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the two figures a passage knows that one poll cannot."""
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "rssi": -21.0}))
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    board = hass.states.get("sensor.t_ehxx23_passages_today")
+    assert board.attributes["passages"][0]["duration"] == 0
+    assert board.attributes["passages"][0]["peak_rssi"] == -21.0
+
+    # Heard better on the next poll, then worse again on the one after
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "rssi": -14.5}))
+    await next_poll(hass, freezer)
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "rssi": -30.0}))
+    await next_poll(hass, freezer)
+
+    entry = hass.states.get("sensor.t_ehxx23_passages_today").attributes["passages"][0]
+    # The strongest of the three, not the last and not the closest
+    assert entry["peak_rssi"] == -14.5
+    assert entry["duration"] == pytest.approx(2 * (DEFAULT_SCAN_INTERVAL + 1), abs=2)
+
+
+async def test_heard_today_counts_each_aircraft_once(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the day counter over several polls and across midnight."""
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE))
+
+    assert await setup_integration(hass, mock_config_entry)
+    assert hass.states.get("sensor.t_ehxx23_heard_today").state == "2"
+
+    # The same two again, plus one that had not been heard yet
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE, ON_GROUND))
+    await next_poll(hass, freezer)
+    assert hass.states.get("sensor.t_ehxx23_heard_today").state == "3"
+
+    # The same aircraft the next day is a new aircraft to count
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    await next_poll(hass, freezer, after=timedelta(days=1))
+    assert hass.states.get("sensor.t_ehxx23_heard_today").state == "1"

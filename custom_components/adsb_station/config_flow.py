@@ -30,6 +30,7 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
+    CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
@@ -43,6 +44,7 @@ from .const import (
     FEEDER_PIAWARE,
     FEEDER_PLANEFINDER,
     FEEDERS,
+    MAX_PROXIMITY_ALTITUDE,
     MAX_PROXIMITY_RADIUS,
     MAX_SCAN_INTERVAL,
     MIN_PROXIMITY_RADIUS,
@@ -104,6 +106,15 @@ OPTIONS_SCHEMA = vol.Schema(
                 max=MAX_PROXIMITY_RADIUS,
                 step=1,
                 unit_of_measurement="km",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Optional(CONF_PROXIMITY_MAX_ALTITUDE): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=MAX_PROXIMITY_ALTITUDE,
+                step=500,
+                unit_of_measurement="ft",
                 mode=selector.NumberSelectorMode.BOX,
             )
         ),
@@ -426,14 +437,18 @@ class AdsbStationOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Let the user change how often the station is polled."""
         if user_input is not None:
-            return self.async_create_entry(
-                data={
-                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                    CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
-                    CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
-                    CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
-                }
-            )
+            options: dict[str, Any] = {
+                CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
+                CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
+                CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
+            }
+            # Left empty means no ceiling at all, so the option is absent
+            # rather than nought: nought would be a ceiling on the ground.
+            ceiling = user_input.get(CONF_PROXIMITY_MAX_ALTITUDE)
+            if ceiling not in (None, ""):
+                options[CONF_PROXIMITY_MAX_ALTITUDE] = int(ceiling)
+            return self.async_create_entry(data=options)
 
         return self.async_show_form(
             step_id="init",
