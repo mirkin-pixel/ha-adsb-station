@@ -34,6 +34,7 @@ from .const import (
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
     CONF_STATS_URL,
+    CONF_WATCHLIST,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_MAP_AIRCRAFT,
     DEFAULT_PROXIMITY_RADIUS,
@@ -51,6 +52,7 @@ from .const import (
     MIN_SCAN_INTERVAL,
 )
 from .coordinator import AdsbStationConfigEntry
+from .reference import async_load_reference, kind_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,6 +126,9 @@ OPTIONS_SCHEMA = vol.Schema(
         vol.Required(
             CONF_LOOK_UP_ROUTES, default=DEFAULT_LOOK_UP_ROUTES
         ): selector.BooleanSelector(),
+        vol.Optional(CONF_WATCHLIST): selector.TextSelector(
+            selector.TextSelectorConfig(multiline=True)
+        ),
     }
 )
 
@@ -448,6 +453,29 @@ class AdsbStationOptionsFlow(OptionsFlow):
             ceiling = user_input.get(CONF_PROXIMITY_MAX_ALTITUDE)
             if ceiling not in (None, ""):
                 options[CONF_PROXIMITY_MAX_ALTITUDE] = int(ceiling)
+
+            watchlist = str(user_input.get(CONF_WATCHLIST) or "")
+            models = (await async_load_reference(self.hass)).models
+            # A line nobody can read is refused rather than saved and
+            # silently never matched. The message names the line, because a
+            # list of twenty is no place to go looking for the typo.
+            unreadable = [
+                line.strip()
+                for line in watchlist.splitlines()
+                if line.strip() and kind_of(line, models) is None
+            ]
+            if unreadable:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self.add_suggested_values_to_schema(
+                        OPTIONS_SCHEMA, user_input
+                    ),
+                    errors={CONF_WATCHLIST: "unreadable_watchlist"},
+                    description_placeholders={"lines": ", ".join(unreadable)},
+                )
+            if watchlist.strip():
+                options[CONF_WATCHLIST] = watchlist.strip()
+
             return self.async_create_entry(data=options)
 
         return self.async_show_form(

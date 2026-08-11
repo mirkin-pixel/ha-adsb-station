@@ -24,6 +24,13 @@ from typing import Any, Final
 
 from homeassistant.core import HomeAssistant
 
+from .const import (
+    WATCHLIST_HEX,
+    WATCHLIST_NAME,
+    WATCHLIST_SQUAWK,
+    WATCHLIST_TYPE,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 _DIRECTORY: Final = Path(__file__).parent
@@ -33,6 +40,15 @@ CODE_BLOCKS_FILE: Final = "code_blocks.json"
 
 # The length of an ICAO airline designator, which is what a callsign opens with.
 _DESIGNATOR_LENGTH: Final = 3
+
+# The length of the address every aircraft transmits, written in hexadecimal,
+# of the squawk it is assigned, and what a name can be between. Five is a
+# Dutch PH-BXA without its dash; ten leaves room for the longest scheme in
+# use and for a callsign with a long flight number behind it.
+_ADDRESS_LENGTH: Final = 6
+_HEX_CHARACTERS: Final = frozenset("0123456789ABCDEF")
+_SQUAWK_LENGTH: Final = 4
+_NAME_LENGTH: Final = (3, 10)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -119,6 +135,51 @@ def designator_of(callsign: str | None) -> str | None:
     if not (designator.isascii() and designator.isalpha() and rest[0].isdigit()):
         return None
     return designator
+
+
+def normalise(text: str | None) -> str:
+    """Return an identifier as it is compared: capitals, no dashes, no space.
+
+    A registration is written `PH-BXA` in one place and `PHBXA` in another,
+    and an aircraft broadcasts whichever its database was given. Comparing
+    them any other way makes a watchlist entry that silently never matches.
+    """
+    if text is None:
+        return ""
+    return "".join(character for character in text.upper() if character.isalnum())
+
+
+def kind_of(entry: str, models: dict[str, str]) -> str | None:
+    """Return what a line on a watchlist is, or None if it is nothing.
+
+    The shape says which it is, the same way a callsign's shape says whether
+    it opens with an airline designator. Nothing here is guessed: a line that
+    fits none of the four is refused rather than read as the likeliest one,
+    because a watchlist that quietly never matches is worse than one that
+    would not save.
+    """
+    text = normalise(entry)
+    if not text:
+        return None
+    if len(text) == _SQUAWK_LENGTH and text.isdigit():
+        return WATCHLIST_SQUAWK
+    if len(text) == _ADDRESS_LENGTH and all(
+        character in _HEX_CHARACTERS for character in text
+    ):
+        return WATCHLIST_HEX
+    if text in models:
+        return WATCHLIST_TYPE
+    # Everything else that carries a letter is a name the aircraft flies
+    # under. Which of the two it is cannot be told apart and does not need
+    # to be: PH-BXA is a registration, KLM123 a callsign, and N123AB could
+    # be read as either, so it is compared against both and the match says
+    # which one it hit.
+    if (
+        _NAME_LENGTH[0] <= len(text) <= _NAME_LENGTH[1]
+        and any(character.isalpha() for character in text)
+    ):
+        return WATCHLIST_NAME
+    return None
 
 
 EMPTY: Final = ReferenceTables()
