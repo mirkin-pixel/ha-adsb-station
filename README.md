@@ -273,7 +273,7 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Three settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The third is [where a flight is going](#where-a-flight-is-going), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Four settings live under **Configure** on the integration page. The update interval is 15 seconds by default; everything runs on your own network, so a short interval is fine. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. The other two are [aircraft on the map](#aircraft-on-the-map) and [where a flight is going](#where-a-flight-is-going), and both are off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
@@ -301,6 +301,34 @@ The airline is not among them, and does not need to be: it is [there either way]
 Attributes that are not known are left out rather than left empty, so a template can ask whether the key is there at all. Private, military and a good deal of cargo traffic resolves to nothing, and the source being unreachable simply means no route that poll; the aircraft entities themselves never depend on it.
 
 An aircraft that broadcasts no position gets no route either, because the source judges every route it finds against where the aircraft is. In practice nothing is lost: only the aircraft near enough to be looked up are asked about, and being near enough is measured from a position.
+
+### Aircraft on the map
+
+Switch **Aircraft on the map** on under **Configure** and every aircraft inside the nearby radius gets an entity of its own, drawn where it is, for as long as it is there. Nothing extra is read to do it: the positions are in every poll already, next to the distances the proximity sensors are built on.
+
+A map card shows them all:
+
+```yaml
+type: map
+geo_location_sources:
+  - adsb_station
+hours_to_show: 0
+```
+
+`hours_to_show: 0` is worth having. Anything higher draws a trail from the recorder, and these entities are not kept there.
+
+That is the trade this option makes, and it is worth understanding before you turn it on. **These aircraft are deliberately not registered.** They exist while they are overhead and are gone the moment they fly on, so a week of traffic leaves nothing behind — no thousands of entities in your registry, no `unavailable` aircraft coming back after every restart, nothing to clean up. In exchange they cannot be renamed, hidden or given an area from the interface, they are not listed under the station's device, and their attributes are kept out of the recorder. Their entity IDs are reused, too: `geo_location.klm123` next week is a different flight under the same name. For history there is the passage board and the [passage event](#when-something-comes-over), which are built to be kept.
+
+Each aircraft is named after its callsign, or its hex code when it has not sent one yet, and that name is fixed the moment it appears. A callsign often arrives a few polls late, and renaming then would move the entity ID out from under your dashboard halfway through a passage.
+
+How many there are is whatever your radius holds — usually nought to a handful at the default ten kilometres. If you set a wide radius and would rather your database not see them at all, exclude them wholesale:
+
+```yaml
+recorder:
+  exclude:
+    entity_globs:
+      - geo_location.*
+```
 
 ### When something comes over
 
@@ -900,7 +928,7 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan drie instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De derde is [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan vier instellingen onder **Configureren** op de integratiepagina. De ververstijd is standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. De andere twee zijn [vliegtuigen op de kaart](#vliegtuigen-op-de-kaart) en [waar een vlucht heen gaat](#waar-een-vlucht-heen-gaat), en die staan allebei uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe, precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
@@ -928,6 +956,34 @@ De maatschappij staat er niet bij, en dat hoeft ook niet: die is er [hoe dan ook
 Attributen die niet bekend zijn worden weggelaten in plaats van leeg gelaten, zodat een template kan vragen of de sleutel er überhaupt is. Privé, militair en een flink deel van het vrachtverkeer levert niets op, en een bron die onbereikbaar is betekent simpelweg geen route die poll; de vliegtuigentiteiten zelf hangen er nooit van af.
 
 Een vliegtuig dat geen positie uitzendt krijgt ook geen route, want de bron toetst elke route die hij vindt aan waar het toestel is. In de praktijk kost dat niets: alleen de vliegtuigen die dichtbij genoeg zijn worden opgezocht, en dichtbij genoeg wordt vanaf een positie gemeten.
+
+### Vliegtuigen op de kaart
+
+Zet **Vliegtuigen op de kaart** aan onder **Configureren** en elk toestel binnen de nabijheidsstraal krijgt een eigen entiteit, getekend waar het is, zolang het er is. Er wordt niets extra's voor gelezen: de posities zitten al in elke poll, naast de afstanden waar de nabijheidssensoren op gebouwd zijn.
+
+Eén kaartkaart laat ze allemaal zien:
+
+```yaml
+type: map
+geo_location_sources:
+  - adsb_station
+hours_to_show: 0
+```
+
+Die `hours_to_show: 0` is het overwegen waard. Alles daarboven tekent een spoor uit de recorder, en deze entiteiten worden daar niet in bewaard.
+
+Dat is precies de afweging die deze optie maakt, en die is het waard om te kennen voor je hem aanzet. **Deze vliegtuigen worden bewust niet geregistreerd.** Ze bestaan zolang ze boven je zijn en zijn weg zodra ze zijn doorgevlogen, dus een week verkeer laat niets achter — geen duizenden entiteiten in je registratie, geen `unavailable` toestellen die na elke herstart terugkomen, niets om op te ruimen. Daar staat tegenover dat je ze niet kunt hernoemen, verbergen of aan een gebied koppelen vanuit de interface, dat ze niet onder het apparaat van je station staan, en dat hun attributen buiten de recorder blijven. Hun entity-id's worden ook hergebruikt: `geo_location.klm123` is volgende week een andere vlucht onder dezelfde naam. Voor de geschiedenis is er het passagebord en het [passage-event](#als-er-iets-overkomt), en die zijn er wél op gebouwd.
+
+Elk toestel heet naar zijn callsign, of naar zijn hexcode als hij er nog geen heeft gestuurd, en die naam ligt vast op het moment dat hij verschijnt. Een callsign komt vaak een paar polls later binnen, en hernoemen zou dan het entity-id middenin een passage onder je dashboard vandaan trekken.
+
+Hoeveel het er zijn is wat je straal toelaat — bij de standaard tien kilometer meestal nul tot een handvol. Kies je een ruime straal en wil je ze liever helemaal niet in je database, sluit ze dan in één keer uit:
+
+```yaml
+recorder:
+  exclude:
+    entity_globs:
+      - geo_location.*
+```
 
 ### Als er iets overkomt
 

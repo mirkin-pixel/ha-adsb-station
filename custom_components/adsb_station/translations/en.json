@@ -99,11 +99,13 @@
         "data": {
           "scan_interval": "Update interval",
           "proximity_radius": "Nearby radius",
+          "map_aircraft": "Aircraft on the map",
           "look_up_routes": "Look up flight routes"
         },
         "data_description": {
           "scan_interval": "How often the station is read, in seconds. Everything runs on your own network, so a short interval is fine.",
           "proximity_radius": "How close an aircraft has to be to count as nearby, in kilometres. Ten is roughly what you can see and hear.",
+          "map_aircraft": "Puts every aircraft inside the nearby radius on the map as its own entity, for as long as it is there. Nothing is registered and nothing is kept, so they leave no trace once they have flown on; that also means they cannot be renamed or hidden individually, and they are not listed under this station's device.",
           "look_up_routes": "No aircraft broadcasts where it is flying from or to, so this is the one figure that has to be asked of a service on the internet. It uses routeset, the same source tar1090 does. Only the aircraft inside the nearby radius are looked up, and answers are kept for the day."
         }
       }

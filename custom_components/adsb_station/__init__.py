@@ -23,6 +23,7 @@ LEGACY_ROUTE_SOURCE = "route_source"
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.GEO_LOCATION,
     Platform.SENSOR,
 ]
 

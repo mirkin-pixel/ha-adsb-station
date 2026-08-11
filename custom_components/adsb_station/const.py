@@ -137,6 +137,13 @@ DEFAULT_PROXIMITY_RADIUS = 10
 MIN_PROXIMITY_RADIUS = 1
 MAX_PROXIMITY_RADIUS = 500
 
+# Every aircraft inside that radius as its own entity on the map, for as long
+# as it is there. Off unless it is asked for: it is another way of looking at
+# data the sensors already carry rather than data of its own, and a map layer
+# nobody opened is entities nobody reads.
+CONF_MAP_AIRCRAFT = "map_aircraft"
+DEFAULT_MAP_AIRCRAFT = False
+
 # One aircraft crossing the sky above you, from the moment it comes inside the
 # radius to the moment it leaves. An automation wants to hear about that once,
 # so a passage fires an event of its own rather than leaving a template to work
