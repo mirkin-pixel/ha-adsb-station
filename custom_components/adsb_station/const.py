@@ -137,6 +137,17 @@ DEFAULT_PROXIMITY_RADIUS = 10
 MIN_PROXIMITY_RADIUS = 1
 MAX_PROXIMITY_RADIUS = 500
 
+# A ceiling on what counts as overhead, in feet. Empty by default, which is
+# what every station had before there was one: the radius alone decides.
+#
+# It exists because a radius is a circle drawn on the ground, and an airliner
+# at eleven kilometres is inside it while being nothing anyone would look up
+# at. Where it applies is the whole of the point: what is nearby, what is
+# overhead and what counts as a passage, and nothing else. The station's own
+# figures are about reception rather than about your sky.
+CONF_PROXIMITY_MAX_ALTITUDE = "proximity_max_altitude"
+MAX_PROXIMITY_ALTITUDE = 60000
+
 # Every aircraft inside that radius as its own entity on the map, for as long
 # as it is there. Off unless it is asked for: it is another way of looking at
 # data the sensors already carry rather than data of its own, and a map layer
