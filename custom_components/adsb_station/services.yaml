@@ -50,3 +50,5 @@ list_aircraft:
       selector:
         config_entry:
           integration: adsb_station
+
+install_sentences:

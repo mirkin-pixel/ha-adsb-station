@@ -16,6 +16,7 @@ from .const import (
     FEEDER_FR24,
 )
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
+from .intent import async_setup_intents
 from .reference import async_load_reference
 from .services import async_setup_services
 
@@ -33,12 +34,13 @@ PLATFORMS: list[Platform] = [
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register what belongs to the integration rather than to one station.
 
-    The services answer about a station, but they are the integration's and
-    are registered once. Doing it per entry would register them again for the
-    second feeder in front of the same decoder, and unregister them for both
-    when either one is removed.
+    The services and the spoken questions answer about a station, but they
+    are the integration's and are registered once. Doing it per entry would
+    register them again for the second feeder in front of the same decoder,
+    and unregister them for both when either one is removed.
     """
     async_setup_services(hass)
+    async_setup_intents(hass)
     return True
 
 

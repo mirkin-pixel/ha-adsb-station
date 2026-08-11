@@ -573,6 +573,45 @@ Try them under **Developer tools → Actions**, with **Return response data** ti
 
 If you run several entries — a feeder or two beside the entry that carries your decoder — you can leave the station out. Only the entries that actually have a receiver are considered, so the field is needed only when two of yours are reading antennas.
 
+### Asking out loud
+
+"What is flying over?" is a better question to ask a room than to look up on a dashboard — you ask it while looking out of the window. Assist can answer five of them, from your own receiver, without a single request leaving your network.
+
+| Ask | And it says |
+|---|---|
+| *What is flying over?* | Which aircraft is overhead, and how high |
+| *How many aircraft can you hear?* | How many are nearby, and how many in all |
+| *What is the nearest aircraft?* | How far away it is, and in which direction |
+| *Are there any helicopters nearby?* | Military traffic, helicopters or drones in range |
+| *Where is it going?* | Where the aircraft overhead came from and is heading |
+
+Answers use the names from the [shipped tables](#names-for-the-codes), so it says "KLM 123" and not "kilo lima mike one two three", and they follow the unit system of your Home Assistant rather than the language: metres and kilometres, or feet and miles.
+
+English and Dutch are spoken; a question in any other language is answered in English.
+
+#### Getting the sentences in place
+
+Home Assistant reads custom sentences from your **configuration directory alone**, so an integration cannot bring its own. They ship inside it and have to be copied once.
+
+By hand, which is the whole of it:
+
+```
+custom_components/adsb_station/sentences/en/adsb_station.yaml  →  custom_sentences/en/adsb_station.yaml
+custom_components/adsb_station/sentences/nl/adsb_station.yaml  →  custom_sentences/nl/adsb_station.yaml
+```
+
+Or let the integration do the copying, if you would rather not go looking for the files:
+
+```yaml
+- action: adsb_station.install_sentences
+```
+
+Be clear about what that does: **it writes two files into your configuration directory**, overwrites them if they are already there, and touches nothing else. It is the same copy you would make yourself.
+
+Either way, Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
+
+If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](#asking-a-question) are there when it has to be exact.
+
 ### Example automations
 
 Notification when an aircraft in range declares an emergency:
@@ -1274,6 +1313,45 @@ Allebei reiken ze tot **alles wat de decoder vasthoudt**, dus de hele lucht die 
 Probeer ze onder **Ontwikkelhulpmiddelen → Acties**, met **Antwoordgegevens teruggeven** aangevinkt.
 
 Draai je meerdere entries — een feeder of twee naast de entry die je decoder draagt — dan kun je het station weglaten. Alleen de entries die echt een ontvanger hebben tellen mee, dus het veld is pas nodig als er twee van jou een antenne lezen.
+
+### Hardop vragen
+
+"Wat vliegt daar over?" is een vraag die je eerder aan de kamer stelt dan opzoekt op een dashboard — je stelt hem terwijl je naar buiten kijkt. Assist beantwoordt er vijf, uit je eigen ontvanger, zonder dat er één verzoek je netwerk verlaat.
+
+| Vraag | En hij zegt |
+|---|---|
+| *Wat vliegt er over?* | Welk toestel boven je hangt, en hoe hoog |
+| *Hoeveel vliegtuigen hoor je?* | Hoeveel er dichtbij zijn, en hoeveel in totaal |
+| *Wat is het dichtstbijzijnde vliegtuig?* | Hoe ver weg het is, en in welke richting |
+| *Zijn er helikopters in de buurt?* | Militair verkeer, helikopters of drones in bereik |
+| *Waar gaat hij heen?* | Waar het toestel boven je vandaan komt en heen gaat |
+
+De antwoorden gebruiken de namen uit de [meegeleverde tabellen](#namen-bij-de-codes), dus hij zegt "KLM 123" en niet "kilo lima mike één twee drie", en ze volgen het eenhedenstelsel van je Home Assistant en niet de taal: meters en kilometers, of voet en mijl.
+
+Engels en Nederlands worden gesproken; een vraag in een andere taal wordt in het Engels beantwoord.
+
+#### De zinnen op hun plek krijgen
+
+Home Assistant leest eigen zinnen **alleen uit je configuratiemap**, dus een integratie kan de zijne niet zelf meeleveren. Ze zitten erin en moeten één keer gekopieerd worden.
+
+Met de hand, en dat is alles:
+
+```
+custom_components/adsb_station/sentences/en/adsb_station.yaml  →  custom_sentences/en/adsb_station.yaml
+custom_components/adsb_station/sentences/nl/adsb_station.yaml  →  custom_sentences/nl/adsb_station.yaml
+```
+
+Of laat de integratie het kopiëren, als je liever niet naar die bestanden op zoek gaat:
+
+```yaml
+- action: adsb_station.install_sentences
+```
+
+Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiemap**, overschrijft ze als ze er al staan, en raakt verder niets aan. Het is dezelfde kopie die je zelf zou maken.
+
+Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conversation.reload` of herstart. Probeer het vervolgens onder **Instellingen → Spraakassistenten**, en vraag het ook eens met een lege lucht — dat is het antwoord dat het vaakst voorkomt.
+
+Lezen twee van je entries een antenne, dan antwoordt de eerste op naam. Assist is voor een snelle vraag; de [acties](#iets-vragen) zijn er als het precies moet.
 
 ### Voorbeeldautomatiseringen
 

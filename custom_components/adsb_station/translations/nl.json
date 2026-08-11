@@ -426,6 +426,10 @@
           "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
         }
       }
+    },
+    "install_sentences": {
+      "name": "Spraakzinnen installeren",
+      "description": "Kopieert de gesproken zinnen die deze integratie meelevert naar je configuratiemap, waar Assist ze uit leest. Draai daarna conversation.reload, of herstart."
     }
   },
   "exceptions": {
@@ -440,6 +444,9 @@
     },
     "station_without_aircraft": {
       "message": "{station} heeft geen eigen ontvanger en hoort dus geen vliegtuigen. Vraag het aan de entry die je decoder draagt."
+    },
+    "sentences_not_written": {
+      "message": "De zinnen konden niet naar je configuratiemap geschreven worden: {error}"
     }
   }
 }

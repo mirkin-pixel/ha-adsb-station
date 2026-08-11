@@ -426,6 +426,10 @@
           "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
         }
       }
+    },
+    "install_sentences": {
+      "name": "Install voice sentences",
+      "description": "Copies the spoken sentences this integration ships into your configuration directory, where Assist reads them from. Run conversation.reload afterwards, or restart."
     }
   },
   "exceptions": {
@@ -440,6 +444,9 @@
     },
     "station_without_aircraft": {
       "message": "{station} has no receiver of its own, so it hears no aircraft. Ask the entry that carries your decoder."
+    },
+    "sentences_not_written": {
+      "message": "The sentences could not be written to your configuration directory: {error}"
     }
   }
 }

@@ -13,6 +13,7 @@ automation hammer a decoder that is already being read on a schedule.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
@@ -25,6 +26,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
+from homeassistant.util.json import JsonArrayType
 import voluptuous as vol
 
 from .const import DOMAIN
@@ -38,6 +40,15 @@ from .coordinator import (
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
 SERVICE_LIST_AIRCRAFT: Final = "list_aircraft"
+SERVICE_INSTALL_SENTENCES: Final = "install_sentences"
+
+# Where the sentences ship, and where Home Assistant reads them from. It
+# reads custom sentences out of the configuration directory and nowhere else,
+# so an integration cannot simply bring its own; copying them there is the
+# whole of what the service does.
+SENTENCES_DIRECTORY: Final = "sentences"
+CONFIG_SENTENCES_DIRECTORY: Final = "custom_sentences"
+SENTENCES_FILE: Final = f"{DOMAIN}.yaml"
 
 ATTR_AIRCRAFT: Final = "aircraft"
 ATTR_CONFIG_ENTRY: Final = "config_entry"
@@ -210,9 +221,59 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     return {"aircraft": [_describe(coordinator, summary) for summary in matching]}
 
 
+def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
+    """Copy the shipped sentences into the configuration. Blocking."""
+    installed: JsonArrayType = []
+    for language in sorted(item.name for item in source.iterdir() if item.is_dir()):
+        origin = source / language / SENTENCES_FILE
+        if not origin.is_file():
+            continue
+        destination = target / language
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / SENTENCES_FILE).write_text(origin.read_text("utf-8"), "utf-8")
+        installed.append(language)
+    return installed
+
+
+async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
+    """Copy the sentences Assist needs into the configuration directory.
+
+    Home Assistant reads custom sentences from `custom_sentences` under your
+    configuration and from nowhere else, so this writes into your
+    configuration rather than into its own directory. That is worth being
+    plain about: it is a file this integration puts in your folder, it
+    overwrites the same file on every call, and copying the two files by hand
+    does exactly the same thing.
+
+    Nothing is loaded by writing them. Assist reads its sentences at start,
+    so `conversation.reload` or a restart is what makes them work.
+    """
+    hass = call.hass
+    source = Path(__file__).parent / SENTENCES_DIRECTORY
+    target = Path(hass.config.path(CONFIG_SENTENCES_DIRECTORY))
+
+    try:
+        installed = await hass.async_add_executor_job(_copy_sentences, source, target)
+    except OSError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="sentences_not_written",
+            translation_placeholders={"error": str(err)},
+        ) from err
+
+    return {"languages": installed, "installed_in": str(target)}
+
+
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_INSTALL_SENTENCES,
+        _async_install_sentences,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_LOOK_UP_AIRCRAFT,
