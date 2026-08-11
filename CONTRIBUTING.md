@@ -2,7 +2,9 @@
 
 This file is for people working on the integration. If you are looking for how
 to install or configure it, that is the [README](README.md), which is the page
-HACS shows and is kept in English and Dutch.
+HACS shows, and [`docs/`](docs), which holds a page per subject in English and
+Dutch. Both languages are kept side by side: a change to one belongs in the
+other, and the README stays short enough to stand on its own.
 
 Contributions are welcome. An issue first is appreciated for anything larger
 than a fix, so nobody writes the same thing twice.
