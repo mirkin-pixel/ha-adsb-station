@@ -193,6 +193,26 @@ PASSAGE_BOARD_LENGTH = 20
 # What an altitude in feet is in metres, for measuring the real distance to an
 # aircraft rather than the distance to the ground beneath it.
 FEET_TO_METRES = 0.3048
+# And what an aircraft's ground speed is in metres per second, since every
+# decoder reports it in knots.
+KNOTS_TO_METRES_PER_SECOND = 0.514444
+# How long a degree of latitude is. Good to a fraction of a percent, which is
+# far better than a prediction built on a straight line deserves.
+DEGREE_METRES = 111_320.0
+
+# Everything about seeing an aircraft coming rather than reporting that it is
+# here. All of it rests on one assumption — that the aircraft carries on in a
+# straight line at the same speed — so the limits below are not tuning, they
+# are what keeps a guess from being announced as a fact.
+EVENT_AIRCRAFT_APPROACHING = f"{DOMAIN}_aircraft_approaching"
+# How far ahead a prediction is worth making. Beyond a few minutes an
+# aircraft has had time to turn, descend or be told to hold, and a straight
+# line says nothing about any of that.
+APPROACH_HORIZON = timedelta(minutes=5)
+# How many polls in a row have to agree before anything is announced. One
+# mis-decoded heading is enough to point an aircraft at your house for a
+# single poll; two in a row is not.
+APPROACH_POLLS = 2
 
 # How far an aircraft at a given height can possibly be heard from, and the
 # room left over for the antenna being up a hill.
