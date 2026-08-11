@@ -50,6 +50,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Overhead flight | Sensor | The one aircraft above you, nearest first and measured through the air. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](#when-something-comes-over) |
 | Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
+| Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](#a-list-worth-watching) is in the air. Only there when you have set one |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver |
 | Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
@@ -545,6 +546,49 @@ automation:
 
 The same `tag` on the next aircraft replaces the one before it without a banner or a sound, and the second automation takes it off your screen when there is nothing left up there. iOS limits how often an activity may start and how often it may be redrawn, which is why this hangs off the passage event and off a state going to off rather than off the poll: one message per aircraft instead of one every fifteen seconds.
 
+### A list worth watching
+
+Some aircraft are worth knowing about whenever they turn up, wherever they are: the air ambulance, a tail you know, an aircraft type you have never seen. **Watchlist** under **Configure** is a list of them, one to a line.
+
+```
+484123
+PH-BXA
+KLM123
+EC35
+7700
+```
+
+There is no radius. A passage says something came over your house; a watchlist asks whether the aircraft is in the air at all, so it is matched against everything your decoder is holding — the whole sky your antenna reaches.
+
+A line can be four things, and its shape says which:
+
+| Written like | Read as |
+|---|---|
+| `484123` | The hex code an aircraft transmits |
+| `PH-BXA`, `PHBXA`, `KLM123` | A name it flies under: the registration or the callsign, compared against both |
+| `EC35` | An aircraft type from the [shipped table](#names-for-the-codes) |
+| `7700` | A squawk code |
+
+Capitals, dashes and spaces make no difference. A line that fits none of the four is refused when you save, and the error names it — a watchlist that quietly never matches would be worse than one that will not save.
+
+When something matches, **Watchlist in range** goes on and an event fires:
+
+```yaml
+automation:
+  triggers:
+    - trigger: event
+      event_type: adsb_station_watchlist_match
+  actions:
+    - action: notify.persistent_notification
+      data:
+        message: >
+          {{ trigger.event.data.watching }} is up:
+          {{ trigger.event.data.flight or trigger.event.data.hex }},
+          {{ trigger.event.data.distance }} km out.
+```
+
+The event carries the line that matched, `matched_on` to say which part of the aircraft it hit, and everything else the aircraft attributes carry. One aircraft is one message, however many lines name it, and it is not repeated while the aircraft stays in the air — the same ten minute gap a passage uses. Ten minutes after it drops out, coming back is worth being told about again.
+
 ### Asking a question
 
 The entities answer the questions you knew to ask when you built the dashboard. Two services answer the rest, out of the same poll, without going back to the decoder.
@@ -835,6 +879,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde door de lucht gemeten. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](#als-er-iets-overkomt) |
 | Passages vandaag | Sensor | Hoeveel vliegtuigen er vandaag overkwamen, met de laatste twintig als attributen, meest recente eerst |
 | Vandaag gehoord | Sensor | Hoeveel verschillende toestellen het station vandaag hoorde, op elke afstand |
+| Watchlist in bereik | Binary sensor | Aan zolang er een toestel van je [watchlist](#een-lijst-om-in-de-gaten-te-houden) in de lucht is. Staat er alleen als je er een hebt ingesteld |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
 | Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
@@ -1329,6 +1374,49 @@ automation:
 ```
 
 Dezelfde `tag` bij het volgende toestel vervangt het vorige zonder banner en zonder geluid, en de tweede automatisering haalt hem van je scherm als er niets meer boven je hangt. iOS beperkt hoe vaak een activity mag starten en hoe vaak hij opnieuw getekend mag worden, en daarom hangt dit aan het passage-event en aan een state die naar off gaat en niet aan de meting: één bericht per vliegtuig in plaats van één per vijftien seconden.
+
+### Een lijst om in de gaten te houden
+
+Sommige toestellen wil je weten zodra ze opduiken, waar ze ook zijn: de traumaheli, een staart die je kent, een type dat je nog nooit gezien hebt. **Watchlist** onder **Configureren** is die lijst, één per regel.
+
+```
+484123
+PH-BXA
+KLM123
+EC35
+7700
+```
+
+Er is geen straal. Een passage zegt dat er iets over je huis kwam; een watchlist vraagt of het toestel überhaupt in de lucht is, en wordt dus vergeleken met alles wat je decoder vasthoudt — de hele lucht die je antenne haalt.
+
+Een regel kan vier dingen zijn, en zijn vorm zegt welke:
+
+| Geschreven als | Gelezen als |
+|---|---|
+| `484123` | De hexcode die een toestel uitzendt |
+| `PH-BXA`, `PHBXA`, `KLM123` | Een naam waaronder het vliegt: de registratie of de callsign, tegen allebei vergeleken |
+| `EC35` | Een vliegtuigtype uit de [meegeleverde tabel](#namen-bij-de-codes) |
+| `7700` | Een squawkcode |
+
+Hoofdletters, streepjes en spaties maken niets uit. Een regel die in geen van de vier past wordt geweigerd bij het opslaan, en de melding noemt hem — een watchlist die stilzwijgend nooit matcht is erger dan een die niet wil opslaan.
+
+Matcht er iets, dan gaat **Watchlist in bereik** aan en vuurt er een event:
+
+```yaml
+automation:
+  triggers:
+    - trigger: event
+      event_type: adsb_station_watchlist_match
+  actions:
+    - action: notify.persistent_notification
+      data:
+        message: >
+          {{ trigger.event.data.watching }} is in de lucht:
+          {{ trigger.event.data.flight or trigger.event.data.hex }},
+          {{ trigger.event.data.distance }} km ver.
+```
+
+Het event draagt de regel die matchte, `matched_on` om te zeggen welk deel van het toestel hij raakte, en verder alles wat de vliegtuigattributen dragen. Eén toestel is één bericht, hoeveel regels het ook noemen, en het wordt niet herhaald zolang het toestel in de lucht blijft — dezelfde tien minuten die een passage gebruikt. Tien minuten nadat het wegvalt is terugkomen weer iets om te horen.
 
 ### Iets vragen
 

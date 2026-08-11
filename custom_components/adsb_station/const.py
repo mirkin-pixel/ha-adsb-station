@@ -166,6 +166,25 @@ EVENT_AIRCRAFT_PASSAGE = f"{DOMAIN}_aircraft_passage"
 # the edge of the radius would otherwise ring the doorbell every poll.
 PASSAGE_GAP = timedelta(minutes=10)
 
+# A standing list of aircraft worth knowing about, one to a line. Unlike a
+# passage this has no radius: the question is whether the aircraft is up
+# there at all, however far away, so it is matched against everything the
+# decoder is holding.
+CONF_WATCHLIST = "watchlist"
+EVENT_WATCHLIST_MATCH = f"{DOMAIN}_watchlist_match"
+
+# What a line on that list can be, and how each is recognised. A hex code is
+# six hexadecimal characters, a squawk is four digits, a type code is one the
+# shipped table knows, and anything else carrying a letter is a name the
+# aircraft flies under — a registration or a callsign, compared against both
+# because PH-BXA is one, KLM123 the other, and N123AB could be either.
+# Nothing is guessed from a line that fits none of them: the option refuses
+# it and says which forms it knows.
+WATCHLIST_HEX = "hex"
+WATCHLIST_SQUAWK = "squawk"
+WATCHLIST_TYPE = "aircraft_type"
+WATCHLIST_NAME = "name"
+
 # How many passages the board keeps. Long enough to be a record of the
 # afternoon, short enough that writing the whole list to the database on every
 # arrival stays cheap.

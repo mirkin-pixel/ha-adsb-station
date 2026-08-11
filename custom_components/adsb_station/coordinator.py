@@ -22,6 +22,7 @@ from .const import (
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
+    CONF_WATCHLIST,
     DB_FLAG_INTERESTING,
     DB_FLAG_LADD,
     DB_FLAG_MILITARY,
@@ -32,6 +33,7 @@ from .const import (
     DOMAIN,
     EMERGENCY_SQUAWKS,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
     GROUND_ALTITUDE,
     MAX_PLAUSIBLE_RANGE,
@@ -41,8 +43,17 @@ from .const import (
     RECEIVER_READ_ATTEMPTS,
     SECTORS,
     UNSET_RECEIVER_VERSION,
+    WATCHLIST_HEX,
+    WATCHLIST_SQUAWK,
+    WATCHLIST_TYPE,
 )
-from .reference import EMPTY as EMPTY_REFERENCE, ReferenceTables, designator_of
+from .reference import (
+    EMPTY as EMPTY_REFERENCE,
+    ReferenceTables,
+    designator_of,
+    kind_of,
+    normalise,
+)
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 
 _LOGGER = logging.getLogger(__name__)
@@ -157,6 +168,29 @@ class Passage:
 
 
 @dataclass(frozen=True, kw_only=True)
+class WatchlistEntry:
+    """One line of the watchlist, and what it turned out to be."""
+
+    # As it was written down, which is what an automation reads back.
+    line: str
+    kind: str
+    # And as it is compared: capitals, no dashes.
+    value: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class WatchlistMatch:
+    """One aircraft on the watchlist, in range of the antenna."""
+
+    entry: WatchlistEntry
+    # Which field of the aircraft it matched on, since a name is compared
+    # against the registration and the callsign both.
+    matched_on: str
+    summary: AircraftSummary
+    squawk: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
 class EmergencyAircraft:
     """An aircraft squawking one of the emergency codes."""
 
@@ -193,6 +227,9 @@ class AircraftStats:
     # all-time record lives on the entities, which survive a restart.
     by_sector: dict[str, AircraftSummary] = field(default_factory=dict)
     emergencies: tuple[EmergencyAircraft, ...] = ()
+    # Whatever the watchlist recognised this poll, in the order the list was
+    # written. Empty when nothing is being watched for.
+    watched: tuple[WatchlistMatch, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -540,6 +577,45 @@ def aircraft_attributes(
     return attributes
 
 
+def watchlist_of(entry: ConfigEntry, models: dict[str, str]) -> list[WatchlistEntry]:
+    """Read the watchlist off an entry, dropping what it cannot read.
+
+    The option flow refuses a line it does not recognise, so a bad line here
+    is one that was saved before the shipped type table knew a code, or one
+    that arrived in a restored backup. Skipping it quietly is right: it costs
+    that line and not the rest of the list.
+    """
+    text = entry.options.get(CONF_WATCHLIST) or ""
+    watched = []
+    for line in str(text).splitlines():
+        if (kind := kind_of(line, models)) is not None:
+            watched.append(
+                WatchlistEntry(line=line.strip(), kind=kind, value=normalise(line))
+            )
+    return watched
+
+
+def _matches(
+    watched: WatchlistEntry, summary: AircraftSummary, squawk: str
+) -> str | None:
+    """Return which field of an aircraft a watchlist line matched on."""
+    if watched.kind == WATCHLIST_HEX:
+        return "hex" if normalise(summary.hex) == watched.value else None
+    if watched.kind == WATCHLIST_SQUAWK:
+        return "squawk" if normalise(squawk) == watched.value else None
+    if watched.kind == WATCHLIST_TYPE:
+        return (
+            "aircraft_type"
+            if normalise(summary.aircraft_type) == watched.value
+            else None
+        )
+    # A name is compared against both, because which of the two it is cannot
+    # be told from the line and does not have to be.
+    if normalise(summary.registration) == watched.value:
+        return "registration"
+    return "flight" if normalise(summary.flight) == watched.value else None
+
+
 def receivers(
     hass: HomeAssistant,
 ) -> list[tuple[AdsbStationDataUpdateCoordinator, AircraftStats]]:
@@ -620,6 +696,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._stats_failed = False
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
+        self.watchlist = watchlist_of(config_entry, reference.models)
+        # When each watched aircraft was last announced, so that one aircraft
+        # crossing the sky is one message rather than one every fifteen
+        # seconds. The same gap a passage uses, for the same reason.
+        self._announced: dict[str, datetime] = {}
 
     @property
     def feeder_type(self) -> str | None:
@@ -716,6 +797,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # After the routes, so an automation is told where the aircraft it is
         # being woken for is going.
         self._track_passages(stats)
+        self._announce_watched(stats)
         return stats
 
     def _track_passages(self, stats: AircraftStats) -> None:
@@ -788,6 +870,43 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - passage.last_seen > PASSAGE_GAP
         ]:
             del self.passages[hex_code]
+
+    def _announce_watched(self, stats: AircraftStats) -> None:
+        """Fire an event for each watched aircraft that has turned up.
+
+        Unlike a passage this has no radius. The question a watchlist asks is
+        whether the aircraft is up there at all, so an answer forty kilometres
+        away is the answer; where a passage says something came over your
+        house, this says something you were waiting for is in the air.
+        """
+        now = dt_util.utcnow()
+        for match in stats.watched:
+            announced = self._announced.get(match.summary.hex)
+            if announced is not None and now - announced <= PASSAGE_GAP:
+                continue
+            self._announced[match.summary.hex] = now
+            self.hass.bus.async_fire(
+                EVENT_WATCHLIST_MATCH,
+                {
+                    "entry_id": self.config_entry.entry_id,
+                    "station": self.config_entry.title,
+                    # The line as it was written down, and what about the
+                    # aircraft it turned out to name.
+                    "watching": match.entry.line,
+                    "matched_on": match.matched_on,
+                    "squawk": match.squawk,
+                    **aircraft_attributes(match.summary, include_distance=True),
+                },
+            )
+
+        # An aircraft that has been gone longer than the gap is gone, and
+        # coming back is worth being told about again.
+        for hex_code in [
+            hex_code
+            for hex_code, announced in self._announced.items()
+            if now - announced > PASSAGE_GAP
+        ]:
+            del self._announced[hex_code]
 
     def _announce(self, passage: Passage, metres: float) -> None:
         """Fire the event for a passage that has just begun.
@@ -959,6 +1078,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         fastest_knots: float | None = None
         nearby: list[AircraftSummary] = []
         heard: list[AircraftSummary] = []
+        watched: list[WatchlistMatch] = []
         by_sector: dict[str, AircraftSummary] = {}
         sector_metres: dict[str, float] = {}
         emergencies: list[EmergencyAircraft] = []
@@ -999,6 +1119,22 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
             summary = _summarise(entry, metres, position, self.reference)
             heard.append(summary)
+
+            # The first line that matches wins and the rest are not tried: a
+            # hex code and a type code can both name the same aircraft, and
+            # one aircraft is one thing to be told about.
+            squawk = _as_text(entry.get("squawk")) or ""
+            for line in self.watchlist:
+                if (field := _matches(line, summary, squawk)) is not None:
+                    watched.append(
+                        WatchlistMatch(
+                            entry=line,
+                            matched_on=field,
+                            summary=summary,
+                            squawk=squawk or None,
+                        )
+                    )
+                    break
 
             # Altitude and speed reach us from aircraft without a position too,
             # so these two are not restricted to the ones we can locate.
@@ -1052,6 +1188,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             heard=tuple(heard),
             by_sector=by_sector,
             emergencies=tuple(emergencies),
+            watched=tuple(watched),
         )
 
     def _take_message_rate(
