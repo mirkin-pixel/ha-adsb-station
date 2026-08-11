@@ -19,6 +19,8 @@ from homeassistant.util.location import distance
 from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
+    APPROACH_HORIZON,
+    APPROACH_POLLS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
@@ -30,12 +32,15 @@ from .const import (
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
+    DEGREE_METRES,
     DOMAIN,
     EMERGENCY_SQUAWKS,
+    EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_PASSAGE,
     EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
     GROUND_ALTITUDE,
+    KNOTS_TO_METRES_PER_SECOND,
     MAX_PLAUSIBLE_RANGE,
     PASSAGE_GAP,
     RADIO_HORIZON_ALLOWANCE,
@@ -135,6 +140,13 @@ class AircraftSummary:
     # Filled in after the poll, and only for the aircraft near enough to
     # matter, when a route source is configured.
     route: FlightRoute | None = None
+    # Where this aircraft is heading, if it holds its heading and its speed.
+    # False for anything already going away, anything that reports too little
+    # to say, and anything further ahead than a straight line is worth
+    # believing. The distance is across the ground, in metres.
+    approaching: bool = False
+    closest_passing_distance: float | None = None
+    seconds_to_closest: float | None = None
 
 
 @dataclass(kw_only=True)
@@ -385,6 +397,57 @@ def slant_distance(summary: AircraftSummary) -> float | None:
     return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
 
 
+def approach_of(
+    origin: tuple[float, float], summary: AircraftSummary
+) -> tuple[float, float] | None:
+    """Return how close an aircraft will pass, and how long until it does.
+
+    Everything else this integration reports is in the past tense: the
+    aircraft is already here. Position, track and speed are all in the poll,
+    and between them they say where an aircraft will be, which is what makes
+    an announcement useful rather than late.
+
+    **It is a straight line at a constant speed, and nothing more.** An
+    aircraft that turns, descends into an approach or is told to hold makes
+    this wrong, and the answer is worth exactly as much as that assumption is.
+    So it is only worked out for an aircraft that reports all three, is not
+    on the ground, and is actually closing: the moment the distance stops
+    shrinking there is no approach left to predict.
+
+    The distance is across the ground. Height is deliberately left out of it,
+    because an aircraft at eleven kilometres passing straight overhead has a
+    closest approach of nothing at all across the ground and that is the
+    honest answer to "will it come over my house"; whether it is worth
+    looking up at is what the [overhead ceiling](const.py) decides.
+    """
+    if summary.position is None or summary.track is None or summary.speed is None:
+        return None
+    if summary.on_ground or summary.speed <= 0:
+        return None
+
+    origin_latitude, origin_longitude = origin
+    latitude, longitude = summary.position
+    # Flat enough over the tens of kilometres a receiver reaches, and a
+    # rounder earth would not rescue a straight-line guess.
+    north = (latitude - origin_latitude) * DEGREE_METRES
+    east = (
+        (longitude - origin_longitude) * DEGREE_METRES * cos(radians(origin_latitude))
+    )
+
+    speed = summary.speed * KNOTS_TO_METRES_PER_SECOND
+    east_per_second = speed * sin(radians(summary.track))
+    north_per_second = speed * cos(radians(summary.track))
+
+    # Where the distance stops shrinking: the point on the aircraft's line
+    # nearest the antenna. A positive figure here means it is already past it.
+    closing = east * east_per_second + north * north_per_second
+    if closing >= 0:
+        return None
+    seconds = -closing / (speed * speed)
+    metres = hypot(east + east_per_second * seconds, north + north_per_second * seconds)
+    return metres, seconds
+
+
 def _is_believable(metres: float, altitude: float | None) -> bool:
     """Return whether an aircraft can really be that far away.
 
@@ -568,6 +631,18 @@ def aircraft_attributes(
         attributes["ladd"] = True
     if summary.on_ground:
         attributes["on_ground"] = True
+    if summary.approaching:
+        attributes["approaching"] = True
+        attributes["closest_passing_distance"] = (
+            None
+            if summary.closest_passing_distance is None
+            else round(summary.closest_passing_distance / 1000, 1)
+        )
+        attributes["seconds_to_closest"] = (
+            None
+            if summary.seconds_to_closest is None
+            else round(summary.seconds_to_closest)
+        )
     if summary.airline_code is not None:
         attributes["airline_code"] = summary.airline_code
     if summary.airline is not None:
@@ -701,6 +776,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # crossing the sky is one message rather than one every fifteen
         # seconds. The same gap a passage uses, for the same reason.
         self._announced: dict[str, datetime] = {}
+        # How many polls in a row each aircraft has been coming this way, and
+        # when it was last warned about.
+        self._approaching: dict[str, int] = {}
+        self._warned: dict[str, datetime] = {}
 
     @property
     def feeder_type(self) -> str | None:
@@ -798,6 +877,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # being woken for is going.
         self._track_passages(stats)
         self._announce_watched(stats)
+        self._announce_approaching(stats)
         return stats
 
     def _track_passages(self, stats: AircraftStats) -> None:
@@ -870,6 +950,70 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - passage.last_seen > PASSAGE_GAP
         ]:
             del self.passages[hex_code]
+
+    def _announce_approaching(self, stats: AircraftStats) -> None:
+        """Fire an event for an aircraft that is about to come over.
+
+        Everything else here reports the present tense. This is the one thing
+        that says something before it happens, and it is built out of an
+        assumption rather than a measurement, so it is held to three rules:
+
+        It has to be coming somewhere worth mentioning, which is inside the
+        same radius and under the same ceiling a passage uses; there is no
+        point announcing an aircraft that will pass forty kilometres away.
+
+        It has to say so twice. A single mis-decoded heading points an
+        aircraft straight at your house for one poll, and by the next it is
+        pointing where it was really going.
+
+        And it is said once. Repeating it every fifteen seconds for the four
+        minutes it takes to arrive would be worse than not saying it at all,
+        so the same gap that separates two passages separates two warnings.
+        """
+        now = dt_util.utcnow()
+        radius = self.proximity_radius
+        ceiling = self.proximity_ceiling
+        coming: set[str] = set()
+
+        for summary in stats.heard:
+            if not summary.approaching or summary.closest_passing_distance is None:
+                continue
+            if summary.closest_passing_distance > radius or not _under(
+                summary, ceiling
+            ):
+                continue
+
+            coming.add(summary.hex)
+            if self._approaching.get(summary.hex, 0) + 1 < APPROACH_POLLS:
+                self._approaching[summary.hex] = (
+                    self._approaching.get(summary.hex, 0) + 1
+                )
+                continue
+            self._approaching[summary.hex] = APPROACH_POLLS
+
+            warned = self._warned.get(summary.hex)
+            if warned is not None and now - warned <= PASSAGE_GAP:
+                continue
+            self._warned[summary.hex] = now
+            self.hass.bus.async_fire(
+                EVENT_AIRCRAFT_APPROACHING,
+                {
+                    "entry_id": self.config_entry.entry_id,
+                    "station": self.config_entry.title,
+                    **aircraft_attributes(summary, include_distance=True),
+                },
+            )
+
+        # An aircraft that has stopped coming this way starts over, so that
+        # turning back towards you counts as two polls again.
+        for hex_code in set(self._approaching) - coming:
+            del self._approaching[hex_code]
+        for hex_code in [
+            hex_code
+            for hex_code, warned in self._warned.items()
+            if now - warned > PASSAGE_GAP
+        ]:
+            del self._warned[hex_code]
 
     def _announce_watched(self, stats: AircraftStats) -> None:
         """Fire an event for each watched aircraft that has turned up.
@@ -1118,6 +1262,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     with_position += 1
 
             summary = _summarise(entry, metres, position, self.reference)
+            if (approach := approach_of(self.origin, summary)) is not None:
+                passing, seconds = approach
+                if seconds <= APPROACH_HORIZON.total_seconds():
+                    summary = replace(
+                        summary,
+                        approaching=True,
+                        closest_passing_distance=passing,
+                        seconds_to_closest=seconds,
+                    )
             heard.append(summary)
 
             # The first line that matches wins and the rest are not tried: a

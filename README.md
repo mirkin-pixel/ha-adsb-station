@@ -546,6 +546,47 @@ automation:
 
 The same `tag` on the next aircraft replaces the one before it without a banner or a sound, and the second automation takes it off your screen when there is nothing left up there. iOS limits how often an activity may start and how often it may be redrawn, which is why this hangs off the passage event and off a state going to off rather than off the poll: one message per aircraft instead of one every fifteen seconds.
 
+### Before it gets here
+
+Everything else this integration reports is in the past tense: the aircraft is already overhead. Position, track and speed are all in the poll, and between them they say where an aircraft will be — which is what makes an announcement useful rather than late.
+
+Three figures ride along with every aircraft that is coming your way:
+
+| Attribute | |
+|---|---|
+| `approaching` | Only there when it is |
+| `closest_passing_distance` | How close it will come, in kilometres **across the ground** |
+| `seconds_to_closest` | How long until it does |
+
+```yaml
+automation:
+  triggers:
+    - trigger: event
+      event_type: adsb_station_aircraft_approaching
+  actions:
+    - action: notify.mobile_app_phone
+      data:
+        message: >
+          {{ trigger.event.data.airline or trigger.event.data.flight }} passes
+          {{ trigger.event.data.closest_passing_distance }} km out in
+          {{ (trigger.event.data.seconds_to_closest / 60) | round }} minutes.
+```
+
+#### What it is worth
+
+**It is a straight line at a constant speed, and nothing more.** An aircraft that turns, starts an approach or is told to hold makes the prediction wrong the moment it does. That is not a limitation to be tuned away; it is what a prediction from three numbers can be.
+
+So it is held to four rules, and they are the reason the event is worth having:
+
+- **All three or nothing.** No position, no track or no speed means no prediction. An aircraft heard over bare Mode S is never announced.
+- **Not on the ground.** Something taxiing is not coming over.
+- **Five minutes ahead at most.** Beyond that an aircraft has had time to do something else entirely.
+- **Two polls in a row.** One mis-decoded heading points an aircraft straight at your house for fifteen seconds; the event waits for the next poll to agree. An aircraft that turns towards you starts that count over rather than firing at once.
+
+The event fires only for aircraft predicted to pass inside your nearby radius and under your [overhead ceiling](#what-counts-as-overhead) — there is nothing to say about one that will pass forty kilometres away. It is said once, not every fifteen seconds until it arrives, using the same ten minute gap that separates two passages.
+
+The distance is measured across the ground. An airliner at eleven kilometres passing straight overhead has a closest approach of nearly nothing on the map, which is the honest answer to "will it come over my house"; whether it is worth looking up at is what the ceiling decides.
+
 ### A list worth watching
 
 Some aircraft are worth knowing about whenever they turn up, wherever they are: the air ambulance, a tail you know, an aircraft type you have never seen. **Watchlist** under **Configure** is a list of them, one to a line.
@@ -1374,6 +1415,47 @@ automation:
 ```
 
 Dezelfde `tag` bij het volgende toestel vervangt het vorige zonder banner en zonder geluid, en de tweede automatisering haalt hem van je scherm als er niets meer boven je hangt. iOS beperkt hoe vaak een activity mag starten en hoe vaak hij opnieuw getekend mag worden, en daarom hangt dit aan het passage-event en aan een state die naar off gaat en niet aan de meting: één bericht per vliegtuig in plaats van één per vijftien seconden.
+
+### Voordat het er is
+
+Al het andere dat deze integratie meldt staat in de verleden tijd: het toestel hangt er al. Positie, koers en snelheid zitten allemaal in de poll, en samen zeggen ze waar een toestel zál zijn — en dat is wat een aankondiging bruikbaar maakt in plaats van te laat.
+
+Drie waarden reizen mee met elk toestel dat jouw kant op komt:
+
+| Attribuut | |
+|---|---|
+| `approaching` | Staat er alleen als het zo is |
+| `closest_passing_distance` | Hoe dichtbij hij komt, in kilometers **over de grond** |
+| `seconds_to_closest` | Hoe lang dat nog duurt |
+
+```yaml
+automation:
+  triggers:
+    - trigger: event
+      event_type: adsb_station_aircraft_approaching
+  actions:
+    - action: notify.mobile_app_telefoon
+      data:
+        message: >
+          {{ trigger.event.data.airline or trigger.event.data.flight }} komt over
+          {{ (trigger.event.data.seconds_to_closest / 60) | round }} minuten op
+          {{ trigger.event.data.closest_passing_distance }} km langs.
+```
+
+#### Wat het waard is
+
+**Het is een rechte lijn op constante snelheid, en verder niets.** Een toestel dat draait, aan een nadering begint of een holding krijgt, maakt de voorspelling op dat moment ongeldig. Dat is geen tekortkoming die je wegregelt; dat is wat een voorspelling uit drie getallen kán zijn.
+
+Daarom gelden er vier regels, en juist die maken het event de moeite waard:
+
+- **Alle drie of niets.** Geen positie, geen koers of geen snelheid betekent geen voorspelling. Een toestel dat alleen over kale Mode S gehoord is wordt nooit aangekondigd.
+- **Niet op de grond.** Iets dat taxiet komt niet over.
+- **Hoogstens vijf minuten vooruit.** Daarbuiten heeft een toestel tijd gehad om iets heel anders te doen.
+- **Twee polls op rij.** Eén verkeerd gedecodeerde koers richt een toestel vijftien seconden lang recht op je huis; het event wacht tot de volgende poll het beaamt. Een toestel dat jouw kant op draait begint die telling opnieuw in plaats van meteen af te gaan.
+
+Het event vuurt alleen voor toestellen die binnen je nabijheidsstraal en onder je [hoogtegrens](#wat-overhead-precies-betekent) langs zullen komen — over iets dat op veertig kilometer passeert valt niets te melden. En het wordt één keer gezegd, niet elke vijftien seconden tot het er is, met dezelfde tien minuten die twee passages scheiden.
+
+De afstand wordt over de grond gemeten. Een lijnvliegtuig op elf kilometer hoogte dat recht overkomt heeft op de kaart een langsafstand van vrijwel niets, en dat is het eerlijke antwoord op "komt hij over mijn huis"; of je er ook naar opkijkt bepaalt de hoogtegrens.
 
 ### Een lijst om in de gaten te houden
 
