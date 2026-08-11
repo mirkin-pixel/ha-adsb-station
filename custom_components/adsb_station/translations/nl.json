@@ -381,5 +381,65 @@
         "name": "Bereikrecords wissen"
       }
     }
+  },
+  "services": {
+    "look_up_aircraft": {
+      "name": "Vliegtuig opzoeken",
+      "description": "Antwoordt met alles wat dit station van één toestel weet, op hexcode of callsign, uit de laatste poll.",
+      "fields": {
+        "aircraft": {
+          "name": "Vliegtuig",
+          "description": "De hexcode of de callsign, hoofdletters maken niet uit. Een toestel dat dit station niet hoort levert geen antwoord op, en dat is geen fout."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
+        }
+      }
+    },
+    "list_aircraft": {
+      "name": "Vliegtuigen opsommen",
+      "description": "Antwoordt met elk toestel dat dit station hoort en dat voldoet, dichtstbij eerst. Zonder filter is dat alles wat de decoder vasthoudt, en dat reikt veel verder dan de nabijheidsstraal.",
+      "fields": {
+        "max_distance": {
+          "name": "Binnen",
+          "description": "Hoe ver je kijkt, in kilometers. Toestellen die nooit een positie stuurden vallen af, want hoe ver weg die zijn valt niet te zeggen."
+        },
+        "min_altitude": {
+          "name": "Hoger dan",
+          "description": "In voet. Toestellen die geen hoogte melden vallen af."
+        },
+        "max_altitude": {
+          "name": "Lager dan",
+          "description": "In voet. Toestellen die geen hoogte melden vallen af."
+        },
+        "military": {
+          "name": "Militair",
+          "description": "Aan voor alleen militair verkeer, uit voor alles behalve dat."
+        },
+        "category": {
+          "name": "Categorie",
+          "description": "De emittercategorie die een toestel uitzendt, A0 tot en met D7. A7 is een helikopter en B6 een drone."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "no_receiver": {
+      "message": "Nog geen enkel ADS-B-station heeft zijn ontvanger gelezen, dus er valt niets te antwoorden."
+    },
+    "several_receivers": {
+      "message": "Meer dan één station draagt een ontvanger ({stations}), dus deze aanroep moet zeggen welke hij bedoelt."
+    },
+    "station_not_loaded": {
+      "message": "Dat station is niet ingericht, dus daar valt niets aan te vragen."
+    },
+    "station_without_aircraft": {
+      "message": "{station} heeft geen eigen ontvanger en hoort dus geen vliegtuigen. Vraag het aan de entry die je decoder draagt."
+    }
   }
 }

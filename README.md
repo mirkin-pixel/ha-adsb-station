@@ -526,6 +526,53 @@ automation:
 
 The same `tag` on the next aircraft replaces the one before it without a banner or a sound, and the second automation takes it off your screen when there is nothing left up there. iOS limits how often an activity may start and how often it may be redrawn, which is why this hangs off the passage event and off a state going to off rather than off the poll: one message per aircraft instead of one every fifteen seconds.
 
+### Asking a question
+
+The entities answer the questions you knew to ask when you built the dashboard. Two services answer the rest, out of the same poll, without going back to the decoder.
+
+**`adsb_station.look_up_aircraft`** takes a hex code or a callsign, in either case, and answers with everything the station knows about that one aircraft:
+
+```yaml
+- action: adsb_station.look_up_aircraft
+  data:
+    aircraft: KLM123
+  response_variable: found
+- condition: template
+  value_template: "{{ found.aircraft is not none }}"
+- action: notify.persistent_notification
+  data:
+    message: >
+      {{ found.aircraft.flight }} is {{ found.aircraft.distance }} km to the
+      {{ found.aircraft.sector }}, at {{ found.aircraft.altitude }} feet.
+```
+
+`aircraft` is `null` when the station is not hearing it, which is an answer and not a failure — that is the ordinary reply to "is it up there".
+
+**`adsb_station.list_aircraft`** answers with everything that matches, nearest first:
+
+```yaml
+- action: adsb_station.list_aircraft
+  data:
+    max_distance: 25
+    max_altitude: 10000
+  response_variable: low
+```
+
+| Filter | |
+|---|---|
+| `max_distance` | In kilometres |
+| `min_altitude`, `max_altitude` | In feet |
+| `military` | On for military traffic only, off for everything but |
+| `category` | The emitter category, `A7` for a helicopter and `B6` for a drone |
+
+A filter leaves out what it cannot judge: an aircraft heard over Mode S alone has no position and no altitude, so it drops out of a distance or a height filter rather than being counted as nought.
+
+Both reach **everything the decoder is holding**, which is the whole sky your antenna covers and not just the nearby radius. Without a single filter, `list_aircraft` answers with all of it. Both add one thing the attributes do not carry: `sector`, the compass direction to look in.
+
+Try them under **Developer tools → Actions**, with **Return response data** ticked.
+
+If you run several entries — a feeder or two beside the entry that carries your decoder — you can leave the station out. Only the entries that actually have a receiver are considered, so the field is needed only when two of yours are reading antennas.
+
 ### Example automations
 
 Notification when an aircraft in range declares an emergency:
@@ -1180,6 +1227,53 @@ automation:
 ```
 
 Dezelfde `tag` bij het volgende toestel vervangt het vorige zonder banner en zonder geluid, en de tweede automatisering haalt hem van je scherm als er niets meer boven je hangt. iOS beperkt hoe vaak een activity mag starten en hoe vaak hij opnieuw getekend mag worden, en daarom hangt dit aan het passage-event en aan een state die naar off gaat en niet aan de meting: één bericht per vliegtuig in plaats van één per vijftien seconden.
+
+### Iets vragen
+
+De entiteiten beantwoorden de vragen die je wist te stellen toen je je dashboard bouwde. Twee acties beantwoorden de rest, uit diezelfde poll, zonder opnieuw bij de decoder langs te gaan.
+
+**`adsb_station.look_up_aircraft`** neemt een hexcode of een callsign, hoofdletters maken niet uit, en antwoordt met alles wat het station van dat ene toestel weet:
+
+```yaml
+- action: adsb_station.look_up_aircraft
+  data:
+    aircraft: KLM123
+  response_variable: found
+- condition: template
+  value_template: "{{ found.aircraft is not none }}"
+- action: notify.persistent_notification
+  data:
+    message: >
+      {{ found.aircraft.flight }} zit {{ found.aircraft.distance }} km naar het
+      {{ found.aircraft.sector }}, op {{ found.aircraft.altitude }} voet.
+```
+
+`aircraft` is `null` als het station hem niet hoort, en dat is een antwoord en geen fout — het is het gewone antwoord op "hangt hij er?".
+
+**`adsb_station.list_aircraft`** antwoordt met alles wat voldoet, dichtstbij eerst:
+
+```yaml
+- action: adsb_station.list_aircraft
+  data:
+    max_distance: 25
+    max_altitude: 10000
+  response_variable: low
+```
+
+| Filter | |
+|---|---|
+| `max_distance` | In kilometers |
+| `min_altitude`, `max_altitude` | In voet |
+| `military` | Aan voor alleen militair verkeer, uit voor alles behalve dat |
+| `category` | De emittercategorie, `A7` voor een helikopter en `B6` voor een drone |
+
+Een filter laat weg wat het niet kan beoordelen: een toestel dat alleen over Mode S gehoord is heeft geen positie en geen hoogte, en valt dus uit een afstands- of hoogtefilter in plaats van als nul geteld te worden.
+
+Allebei reiken ze tot **alles wat de decoder vasthoudt**, dus de hele lucht die je antenne dekt en niet alleen de nabijheidsstraal. Zonder één filter antwoordt `list_aircraft` met de complete lijst. Allebei voegen ze één ding toe dat de attributen niet dragen: `sector`, de windrichting waarin je moet kijken.
+
+Probeer ze onder **Ontwikkelhulpmiddelen → Acties**, met **Antwoordgegevens teruggeven** aangevinkt.
+
+Draai je meerdere entries — een feeder of twee naast de entry die je decoder draagt — dan kun je het station weglaten. Alleen de entries die echt een ontvanger hebben tellen mee, dus het veld is pas nodig als er twee van jou een antenne lezen.
 
 ### Voorbeeldautomatiseringen
 

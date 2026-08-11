@@ -381,5 +381,65 @@
         "name": "Reset range records"
       }
     }
+  },
+  "services": {
+    "look_up_aircraft": {
+      "name": "Look up aircraft",
+      "description": "Answers with everything this station knows about one aircraft, by hex code or callsign, out of its last poll.",
+      "fields": {
+        "aircraft": {
+          "name": "Aircraft",
+          "description": "The hex code or the callsign, in either case. An aircraft this station is not hearing answers with nothing, which is not an error."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
+        }
+      }
+    },
+    "list_aircraft": {
+      "name": "List aircraft",
+      "description": "Answers with every aircraft this station is hearing that matches, nearest first. Without a single filter that is everything the decoder is holding, which reaches far beyond the nearby radius.",
+      "fields": {
+        "max_distance": {
+          "name": "Within",
+          "description": "How far out to look, in kilometres. Aircraft that never sent a position are left out, because there is no telling how far away they are."
+        },
+        "min_altitude": {
+          "name": "Higher than",
+          "description": "In feet. Aircraft that report no altitude are left out."
+        },
+        "max_altitude": {
+          "name": "Lower than",
+          "description": "In feet. Aircraft that report no altitude are left out."
+        },
+        "military": {
+          "name": "Military",
+          "description": "On for military traffic only, off for everything but."
+        },
+        "category": {
+          "name": "Category",
+          "description": "The emitter category an aircraft broadcasts, A0 to D7. A7 is a helicopter and B6 a drone."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "no_receiver": {
+      "message": "No ADS-B station has read its receiver yet, so there is nothing to answer with."
+    },
+    "several_receivers": {
+      "message": "More than one station carries a receiver ({stations}), so this call has to say which one to ask."
+    },
+    "station_not_loaded": {
+      "message": "That station is not set up, so it cannot be asked anything."
+    },
+    "station_without_aircraft": {
+      "message": "{station} has no receiver of its own, so it hears no aircraft. Ask the entry that carries your decoder."
+    }
   }
 }

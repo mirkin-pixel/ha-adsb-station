@@ -179,6 +179,11 @@ class AircraftStats:
     fastest: AircraftSummary | None = None
     # Everything inside the configured radius, nearest first.
     nearby: tuple[AircraftSummary, ...] = ()
+    # And everything the decoder was holding, near or not, in the order it
+    # served them. No entity shows this: it is what a question about one
+    # particular aircraft has to be answered out of, because an aircraft
+    # forty kilometres out is in none of the lists above.
+    heard: tuple[AircraftSummary, ...] = ()
     # The furthest aircraft seen in each compass sector this poll. The
     # all-time record lives on the entities, which survive a restart.
     by_sector: dict[str, AircraftSummary] = field(default_factory=dict)
@@ -403,6 +408,13 @@ def sector_of(bearing: float) -> str:
     north covers the 45 degrees around 0 and not the 45 degrees after it.
     """
     return SECTORS[int(((bearing + 22.5) % 360) // 45)]
+
+
+def sector_from(
+    origin: tuple[float, float], position: tuple[float, float] | None
+) -> str | None:
+    """Return which way an aircraft lies, seen from the antenna."""
+    return None if position is None else sector_of(_bearing(*origin, *position))
 
 
 def _summarise(
@@ -885,6 +897,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         fastest: AircraftSummary | None = None
         fastest_knots: float | None = None
         nearby: list[AircraftSummary] = []
+        heard: list[AircraftSummary] = []
         by_sector: dict[str, AircraftSummary] = {}
         sector_metres: dict[str, float] = {}
         emergencies: list[EmergencyAircraft] = []
@@ -924,6 +937,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     with_position += 1
 
             summary = _summarise(entry, metres, position, self.reference)
+            heard.append(summary)
 
             # Altitude and speed reach us from aircraft without a position too,
             # so these two are not restricted to the ones we can locate.
@@ -967,6 +981,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             highest=highest,
             fastest=fastest,
             nearby=tuple(nearby),
+            heard=tuple(heard),
             by_sector=by_sector,
             emergencies=tuple(emergencies),
         )
