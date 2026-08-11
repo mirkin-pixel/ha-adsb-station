@@ -101,6 +101,15 @@ AIRCRAFT_TYPE_GROUPS: dict[str, tuple[str, ...]] = {
     "mode_s": ("mode_s",),
 }
 
+# The bits of readsb's dbFlags, which an aircraft database fills in and a
+# decoder without one leaves out altogether. Military is the one that has an
+# entity of its own; the other three say something about the aircraft that
+# only a dashboard can decide what to do with.
+DB_FLAG_MILITARY = 1
+DB_FLAG_INTERESTING = 2
+DB_FLAG_PIA = 4
+DB_FLAG_LADD = 8
+
 # Files that sit next to aircraft.json in the same data directory.
 STATS_FILENAME = "stats.json"
 RECEIVER_FILENAME = "receiver.json"

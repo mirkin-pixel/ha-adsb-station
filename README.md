@@ -170,8 +170,9 @@ Every decoder gives you the entities above that it has data for; what it reports
 | Signal, noise, signal-to-noise | Yes | Yes | Yes |
 | Gain | No | Yes | Yes |
 | Antenna position in `receiver.json` | No | Yes | Yes |
+| Emitter category, and how the aircraft was heard | No | Yes | Yes |
 | Registration, type, description | No | No | Yes, with an aircraft database |
-| Military marker | No | No | Yes, with an aircraft database |
+| Military, interesting, PIA and LADD markers | No | No | Yes, with an aircraft database |
 
 Two of those are worth spelling out. Without a gain figure you are tuning your dongle blind, and without an antenna position in `receiver.json` the range is measured from the home location of your Home Assistant installation instead of from your antenna, which is fine if they are the same place and wrong if your receiver sits elsewhere.
 
@@ -195,6 +196,20 @@ Then add the option to `/etc/default/readsb`, in the arguments readsb is started
 ```
 
 Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own: the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
+
+#### What else the decoder says
+
+Five more attributes ride along with an aircraft, and like the ones above they are only there when the decoder sends them:
+
+| Attribute | What it says |
+|---|---|
+| `category` | The emitter category the aircraft broadcasts, `A0` to `D7`. `A7` is a helicopter and `B6` a drone, and this is the only place either of them says so |
+| `heard_as` | How the decoder came to know about it: `adsb_icao` heard straight off the aircraft, `mlat` worked out from the timing at several receivers, `mode_s` a bare reply with no position in it at all |
+| `interesting` | The aircraft database marks this one as worth a look |
+| `pia` | A Privacy ICAO Address: a temporary hex code an operator flies under to stay off the lists |
+| `ladd` | The American request to limit where the aircraft is displayed |
+
+`category` comes over the air, so it is there without an aircraft database; the last three are the remaining bits of the same `dbFlags` the military marker is bit 0 of. All three are passed on rather than acted on. An aircraft your receiver heard is one it heard, and whether a dashboard leaves a PIA or LADD flight out is yours to decide, not this integration's.
 
 #### Names for the codes
 
@@ -777,8 +792,9 @@ Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij 
 | Signaal, ruis, signaal-ruisverhouding | Ja | Ja | Ja |
 | Gain | Nee | Ja | Ja |
 | Antennepositie in `receiver.json` | Nee | Ja | Ja |
+| Emittercategorie, en hoe het toestel gehoord is | Nee | Ja | Ja |
 | Registratie, type, omschrijving | Nee | Nee | Ja, met vliegtuigdatabase |
-| Militair-markering | Nee | Nee | Ja, met vliegtuigdatabase |
+| Markeringen militair, interesting, PIA en LADD | Nee | Nee | Ja, met vliegtuigdatabase |
 
 Twee daarvan zijn het benoemen waard. Zonder gain-waarde stem je je dongle blind af, en zonder antennepositie in `receiver.json` wordt het bereik gemeten vanaf de thuislocatie van je Home Assistant-installatie in plaats van vanaf je antenne, wat prima is als dat dezelfde plek is en fout als je ontvanger elders staat.
 
@@ -802,6 +818,20 @@ Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee re
 ```
 
 Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op: de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
+
+#### Wat de decoder verder meldt
+
+Er reizen nog vijf attributen met een vliegtuig mee, en net als hierboven staan ze er alleen als de decoder ze stuurt:
+
+| Attribuut | Wat het zegt |
+|---|---|
+| `category` | De emittercategorie die het vliegtuig uitzendt, `A0` tot en met `D7`. `A7` is een helikopter en `B6` een drone, en dit is de enige plek waar dat ergens staat |
+| `heard_as` | Hoe de decoder van het toestel af weet: `adsb_icao` rechtstreeks van het vliegtuig gehoord, `mlat` uitgerekend uit de aankomsttijden bij meerdere ontvangers, `mode_s` een kaal antwoord zonder positie erin |
+| `interesting` | De vliegtuigdatabase heeft dit toestel gemarkeerd als de moeite waard |
+| `pia` | Een Privacy ICAO Address: een tijdelijke hexcode waaronder een operator vliegt om buiten de lijsten te blijven |
+| `ladd` | Het Amerikaanse verzoek om te beperken waar het toestel getoond wordt |
+
+`category` komt door de lucht en staat er dus ook zonder vliegtuigdatabase; de laatste drie zijn de overige bits van diezelfde `dbFlags` waarvan de militaire markering bit 0 is. Alle drie worden doorgegeven en niet toegepast. Een toestel dat je ontvanger gehoord heeft, is er een die hij gehoord heeft, en of een dashboard een PIA- of LADD-vlucht weglaat is aan jou en niet aan deze integratie.
 
 #### Namen bij de codes
 

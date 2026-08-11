@@ -21,6 +21,10 @@ from .const import (
     AIRCRAFT_TYPE_GROUPS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_RADIUS,
+    DB_FLAG_INTERESTING,
+    DB_FLAG_LADD,
+    DB_FLAG_MILITARY,
+    DB_FLAG_PIA,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
@@ -84,6 +88,25 @@ class AircraftSummary:
     aircraft_type: str | None
     description: str | None
     military: bool
+    # The rest of what dbFlags says, out of the same aircraft database.
+    # Interesting is whatever the keeper of that database thought worth
+    # marking, a PIA address is a temporary hex code an operator flies under
+    # to stay off the lists, and LADD is an American request not to be shown
+    # at all. All three are passed on rather than acted on: an aircraft this
+    # receiver heard is one it heard, and what to show is the dashboard's to
+    # decide.
+    interesting: bool = False
+    pia: bool = False
+    ladd: bool = False
+    # The emitter category the aircraft broadcasts, A0 through D7. It is the
+    # only thing that tells a helicopter from an airliner without a database,
+    # and it arrives over the air rather than out of a file.
+    category: str | None = None
+    # Which kind of message this aircraft is known through: heard directly
+    # over ADS-B, computed from timing by mlat, or bare Mode S. The station
+    # counts these already; per aircraft it is what explains why one of them
+    # has no position while the rest do.
+    heard_as: str | None = None
     # Read off the callsign against a table we ship, so this is filled in
     # whether or not a route source is configured.
     airline: str | None = None
@@ -219,6 +242,18 @@ def _as_text(value: Any) -> str | None:
     return text or None
 
 
+def _as_code(value: Any) -> str | None:
+    """Return a code as it is written down, which is in capitals.
+
+    Nothing else compares a broadcast code against a written one, so the
+    aircraft is taken at its word everywhere else. A category is compared, by
+    an automation looking for helicopters, and a decoder that sent `a7` would
+    otherwise never match.
+    """
+    text = _as_text(value)
+    return None if text is None else text.upper()
+
+
 def _position(entry: dict[str, Any]) -> tuple[float, float] | None:
     """Return the position of an aircraft, if it reported one."""
     latitude = _as_float(entry.get("lat"))
@@ -322,14 +357,20 @@ def _is_believable(metres: float, altitude: float | None) -> bool:
     return metres <= horizon + RADIO_HORIZON_ALLOWANCE
 
 
-def _is_military(entry: dict[str, Any]) -> bool:
-    """Return True if readsb flags this aircraft as military.
+def _db_flag(entry: dict[str, Any], flag: int) -> bool:
+    """Return whether one of readsb's dbFlags bits is set.
 
-    dbFlags is a bitfield; bit 0 is the military flag. Decoders without an
-    aircraft database omit the field entirely.
+    dbFlags is a bitfield an aircraft database fills in. Decoders without one
+    omit the field entirely, which is why an unset bit and an unknown one look
+    the same here: both are False, and neither is worth an attribute.
     """
     flags = _as_int(entry.get("dbFlags"))
-    return flags is not None and bool(flags & 1)
+    return flags is not None and bool(flags & flag)
+
+
+def _is_military(entry: dict[str, Any]) -> bool:
+    """Return True if readsb flags this aircraft as military."""
+    return _db_flag(entry, DB_FLAG_MILITARY)
 
 
 def _bearing(
@@ -380,6 +421,11 @@ def _summarise(
         # common case, so the table stands in where the decoder says nothing.
         description=_as_text(entry.get("desc")) or reference.model_of(aircraft_type),
         military=_is_military(entry),
+        interesting=_db_flag(entry, DB_FLAG_INTERESTING),
+        pia=_db_flag(entry, DB_FLAG_PIA),
+        ladd=_db_flag(entry, DB_FLAG_LADD),
+        category=_as_code(entry.get("category")),
+        heard_as=_as_text(entry.get("type")),
         airline=reference.airline_of(flight),
         airline_code=designator_of(flight),
     )
@@ -416,8 +462,18 @@ def aircraft_attributes(
         attributes["aircraft_type"] = summary.aircraft_type
     if summary.description is not None:
         attributes["description"] = summary.description
+    if summary.category is not None:
+        attributes["category"] = summary.category
+    if summary.heard_as is not None:
+        attributes["heard_as"] = summary.heard_as
     if summary.military:
         attributes["military"] = True
+    if summary.interesting:
+        attributes["interesting"] = True
+    if summary.pia:
+        attributes["pia"] = True
+    if summary.ladd:
+        attributes["ladd"] = True
     if summary.on_ground:
         attributes["on_ground"] = True
     if summary.airline_code is not None:
