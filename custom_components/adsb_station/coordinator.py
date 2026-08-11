@@ -517,6 +517,28 @@ def aircraft_attributes(
     return attributes
 
 
+def receivers(
+    hass: HomeAssistant,
+) -> list[tuple[AdsbStationDataUpdateCoordinator, AircraftStats]]:
+    """Return every station that is reading a receiver, by title.
+
+    A station commonly runs several feeders in front of one decoder, and each
+    of those is an entry of its own with no aircraft to its name: the receiver
+    belongs to one of them, or the count would be the same aircraft over
+    again. So anything asked about aircraft asks these and not every entry.
+
+    Sorted by title, so two antennas answer in an order that does not depend
+    on which entry happened to load first.
+    """
+    found = []
+    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
+        coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+        if (aircraft := coordinator.data.aircraft) is not None:
+            found.append((entry.title, coordinator, aircraft))
+    found.sort(key=lambda station: station[0])
+    return [(coordinator, aircraft) for _, coordinator, aircraft in found]
+
+
 def _emergency_reason(entry: dict[str, Any]) -> str | None:
     """Return why an aircraft counts as an emergency, or None."""
     # dump1090-fa states it outright; every decoder gives us the squawk.

@@ -50,3 +50,35 @@ list_aircraft:
       selector:
         config_entry:
           integration: adsb_station
+
+install_sentences:
+
+speak:
+  fields:
+    question:
+      required: true
+      example: overhead
+      selector:
+        select:
+          options:
+            - overhead
+            - count
+            - closest
+            - traffic
+            - route
+    kind:
+      example: helicopter
+      selector:
+        select:
+          options:
+            - military
+            - helicopter
+            - drone
+    language:
+      example: nl
+      selector:
+        text:
+    config_entry:
+      selector:
+        config_entry:
+          integration: adsb_station

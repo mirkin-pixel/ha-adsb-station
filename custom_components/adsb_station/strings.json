@@ -426,6 +426,32 @@
           "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
         }
       }
+    },
+    "install_sentences": {
+      "name": "Install voice sentences",
+      "description": "Copies the spoken sentences this integration ships into your configuration directory, where Assist reads them from. Run conversation.reload afterwards, or restart."
+    },
+    "speak": {
+      "name": "Speak an answer",
+      "description": "Returns one of the five spoken answers as text, ready for a sentence trigger to say back. Needs no sentence files.",
+      "fields": {
+        "question": {
+          "name": "Question",
+          "description": "Which of the five to answer: what is overhead, how many are up there, which is closest, whether a kind of traffic is in range, or where the aircraft overhead is going."
+        },
+        "kind": {
+          "name": "Kind",
+          "description": "For the traffic question only: military, helicopter or drone."
+        },
+        "language": {
+          "name": "Language",
+          "description": "Which language to answer in. Defaults to the language of your Home Assistant; English and Dutch are spoken, anything else is answered in English."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
+        }
+      }
     }
   },
   "exceptions": {
@@ -440,6 +466,9 @@
     },
     "station_without_aircraft": {
       "message": "{station} has no receiver of its own, so it hears no aircraft. Ask the entry that carries your decoder."
+    },
+    "sentences_not_written": {
+      "message": "The sentences could not be written to your configuration directory: {error}"
     }
   }
 }

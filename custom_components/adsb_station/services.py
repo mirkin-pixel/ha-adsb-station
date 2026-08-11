@@ -13,6 +13,7 @@ automation hammer a decoder that is already being read on a schedule.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
@@ -25,6 +26,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
+from homeassistant.util.json import JsonArrayType
 import voluptuous as vol
 
 from .const import DOMAIN
@@ -35,9 +37,21 @@ from .coordinator import (
     aircraft_attributes,
     sector_from,
 )
+from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
+from .speech import language_of
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
 SERVICE_LIST_AIRCRAFT: Final = "list_aircraft"
+SERVICE_INSTALL_SENTENCES: Final = "install_sentences"
+SERVICE_SPEAK: Final = "speak"
+
+# Where the sentences ship, and where Home Assistant reads them from. It
+# reads custom sentences out of the configuration directory and nowhere else,
+# so an integration cannot simply bring its own; copying them there is the
+# whole of what the service does.
+SENTENCES_DIRECTORY: Final = "sentences"
+CONFIG_SENTENCES_DIRECTORY: Final = "custom_sentences"
+SENTENCES_FILE: Final = f"{DOMAIN}.yaml"
 
 ATTR_AIRCRAFT: Final = "aircraft"
 ATTR_CONFIG_ENTRY: Final = "config_entry"
@@ -46,6 +60,9 @@ ATTR_MIN_ALTITUDE: Final = "min_altitude"
 ATTR_MAX_ALTITUDE: Final = "max_altitude"
 ATTR_MILITARY: Final = "military"
 ATTR_CATEGORY: Final = "category"
+ATTR_QUESTION: Final = "question"
+ATTR_KIND: Final = "kind"
+ATTR_LANGUAGE: Final = "language"
 
 # Shared by both services, so which station is being asked reads the same way
 # in either one.
@@ -67,6 +84,16 @@ LIST_SCHEMA: Final = vol.Schema(
         vol.Optional(ATTR_MAX_ALTITUDE): vol.Coerce(float),
         vol.Optional(ATTR_MILITARY): cv.boolean,
         vol.Optional(ATTR_CATEGORY): cv.string,
+    }
+)
+
+
+SPEAK_SCHEMA: Final = vol.Schema(
+    {
+        **_STATION_FIELD,
+        vol.Required(ATTR_QUESTION): vol.In(sorted(QUESTIONS)),
+        vol.Optional(ATTR_KIND): vol.In(sorted(TRAFFIC_KINDS)),
+        vol.Optional(ATTR_LANGUAGE): cv.string,
     }
 )
 
@@ -210,9 +237,90 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     return {"aircraft": [_describe(coordinator, summary) for summary in matching]}
 
 
+def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
+    """Copy the shipped sentences into the configuration. Blocking."""
+    installed: JsonArrayType = []
+    for language in sorted(item.name for item in source.iterdir() if item.is_dir()):
+        origin = source / language / SENTENCES_FILE
+        if not origin.is_file():
+            continue
+        destination = target / language
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / SENTENCES_FILE).write_text(origin.read_text("utf-8"), "utf-8")
+        installed.append(language)
+    return installed
+
+
+async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
+    """Copy the sentences Assist needs into the configuration directory.
+
+    Home Assistant reads custom sentences from `custom_sentences` under your
+    configuration and from nowhere else, so this writes into your
+    configuration rather than into its own directory. That is worth being
+    plain about: it is a file this integration puts in your folder, it
+    overwrites the same file on every call, and copying the two files by hand
+    does exactly the same thing.
+
+    Nothing is loaded by writing them. Assist reads its sentences at start,
+    so `conversation.reload` or a restart is what makes them work.
+    """
+    hass = call.hass
+    source = Path(__file__).parent / SENTENCES_DIRECTORY
+    target = Path(hass.config.path(CONFIG_SENTENCES_DIRECTORY))
+
+    try:
+        installed = await hass.async_add_executor_job(_copy_sentences, source, target)
+    except OSError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="sentences_not_written",
+            translation_placeholders={"error": str(err)},
+        ) from err
+
+    return {"languages": installed, "installed_in": str(target)}
+
+
+async def _async_speak(call: ServiceCall) -> ServiceResponse:
+    """Return one of the spoken answers, ready to be said back.
+
+    The same five answers the voice questions give, reachable without any
+    sentence file: an automation with a sentence trigger writes its own
+    wording, calls this, and hands the result to `set_conversation_response`.
+    That keeps the awkward part of speaking — a callsign spelled out, an
+    airline named, a height rounded and written the way the language writes
+    numbers — in here rather than in everyone's template.
+    """
+    coordinator, aircraft = _station(call.hass, call)
+    language = language_of(call.data.get(ATTR_LANGUAGE) or call.hass.config.language)
+    return {
+        "speech": answer_question(
+            call.data[ATTR_QUESTION],
+            coordinator,
+            aircraft,
+            language,
+            call.hass.config.units,
+            call.data.get(ATTR_KIND),
+        )
+    }
+
+
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_INSTALL_SENTENCES,
+        _async_install_sentences,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SPEAK,
+        _async_speak,
+        schema=SPEAK_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_LOOK_UP_AIRCRAFT,
