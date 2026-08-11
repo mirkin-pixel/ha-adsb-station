@@ -793,6 +793,62 @@ async def test_closest_aircraft_other_db_flags(
     assert "interesting" not in attributes
 
 
+async def test_closest_aircraft_military_from_the_address(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the military marker on a decoder that sends no dbFlags at all."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            # Inside the range the Netherlands keeps for its own aircraft
+            "aircraft": [{"hex": "480123", "lat": 52.01, "lon": 5.0}],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert attributes["military"] is True
+    assert attributes["country"] == "NL"
+
+
+async def test_closest_aircraft_db_flags_beat_the_address(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a decoder with a database has the last word on military."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            # The same military range, but a database that knows this tail and
+            # says it is civil. The address block is a hint about a country's
+            # ranges; dbFlags knows the aircraft.
+            "aircraft": [
+                {"hex": "480123", "lat": 52.01, "lon": 5.0, "dbFlags": 0, "r": "PH-BXA"}
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
+    )
+    attributes = hass.states.get(entity_id).attributes
+    assert "military" not in attributes
+    assert attributes["country"] == "NL"
+
+
 async def test_closest_aircraft_category_and_reception(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
@@ -854,6 +910,9 @@ async def test_closest_aircraft_without_a_database(
         "heard_as",
     ):
         assert key not in attributes
+    # The country is the exception: it is read out of the address itself, so
+    # it is there whatever the decoder can do.
+    assert attributes["country"] == "AW"
 
 
 async def test_nearby_highest_and_fastest(

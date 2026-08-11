@@ -75,10 +75,11 @@ Two things are worth knowing before changing much:
 
 ## The reference tables
 
-`airlines.json` and `aircraft_models.json` are generated, not edited. They turn
-the codes an aircraft broadcasts into names, and they are committed rather than
-fetched at runtime, because asking a service for something that never changes
-would be a request per aircraft for data that fits in a file.
+`airlines.json`, `aircraft_models.json` and `code_blocks.json` are generated,
+not edited. They turn the codes an aircraft broadcasts into names, and they are
+committed rather than fetched at runtime, because asking a service for
+something that never changes would be a request per aircraft for data that fits
+in a file.
 
 ```bash
 python scripts/build_reference.py
@@ -86,9 +87,10 @@ python scripts/build_reference.py
 
 That reads the [standing data of Virtual Radar
 Server](https://github.com/vradarserver/standing-data), which is CC0-1.0, and
-rewrites both files sorted so a regeneration makes a readable diff. Refreshing
-them is a commit of its own; the script's docstring explains how it picks one
-row out of the several that share a type code.
+rewrites all three files sorted so a regeneration makes a readable diff.
+Refreshing them is a commit of its own; the script's docstring explains how it
+picks one row out of the several that share a type code, and why the address
+blocks are flattened before they are written rather than searched as they come.
 
 ## Translations
 
