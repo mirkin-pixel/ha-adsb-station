@@ -67,8 +67,8 @@ async def test_piaware(
     )
     assert _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_cpu_load") == "17"
 
-    device = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, PIAWARE_UNIQUE_ID)}
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, PIAWARE_UNIQUE_ID), mock_piaware_entry.entry_id
     )
     assert device is not None
     assert device.manufacturer == "FlightAware"
@@ -134,8 +134,8 @@ async def test_planefinder(
     # Nothing multilaterated is nothing sent
     assert _state(hass, PLANEFINDER_UNIQUE_ID, "binary_sensor", "pf_mlat") == "off"
 
-    device = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, PLANEFINDER_UNIQUE_ID)}
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, PLANEFINDER_UNIQUE_ID), mock_planefinder_entry.entry_id
     )
     assert device is not None
     assert device.manufacturer == "Plane Finder"

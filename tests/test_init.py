@@ -239,8 +239,8 @@ async def test_receiver_only_device_has_no_manufacturer(
 
     assert await setup_integration(hass, mock_receiver_entry)
 
-    device = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, RECEIVER_UNIQUE_ID)}
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, RECEIVER_UNIQUE_ID), mock_receiver_entry.entry_id
     )
     assert device is not None
     assert device.manufacturer is None
