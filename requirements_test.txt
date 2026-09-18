@@ -1,7 +1,7 @@
-pytest-homeassistant-custom-component==0.13.364
-ruff==0.16.6
+pytest-homeassistant-custom-component==0.13.365
+ruff==0.16.7
 mypy==2.3.1
 # Parses the sentence files we ship, which nothing else does: they reach
 # Home Assistant as text and a mistake in one is only found by trying it.
 # Pinned to what the conversation integration requires.
-hassil==3.12.0
+hassil==3.12.1
