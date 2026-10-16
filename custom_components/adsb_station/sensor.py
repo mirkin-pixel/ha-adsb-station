@@ -489,6 +489,10 @@ AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
         translation_key="receiver_updated",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # A new moment on every poll by definition, so a row in the recorder
+        # every fifteen seconds for something the receiver binary sensor and
+        # the availability of everything else already say.
+        entity_registry_enabled_default=False,
         value_fn=lambda stats: stats.updated,
     ),
 )

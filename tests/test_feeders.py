@@ -251,7 +251,7 @@ async def test_migration_leaves_a_known_feeder_alone(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 4
+    assert entry.version == 5
     assert entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE
 
 
@@ -347,6 +347,6 @@ async def test_migration_removes_the_piaware_uptime(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 4
+    assert entry.version == 5
     assert registry.async_get(uptime.entity_id) is None
     assert _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_started") is not None

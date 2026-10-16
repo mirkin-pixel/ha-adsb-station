@@ -7,7 +7,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vliegtuigen ontvangen | Sensor | Vliegtuigen in de laatste `aircraft.json` |
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
 | Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
-| Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, berekend tussen twee metingen |
+| Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, gemiddeld over de ververstijd voor statistieken |
 | Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
@@ -18,8 +18,8 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vandaag gehoord | Sensor | Hoeveel verschillende toestellen het station vandaag hoorde, op elke afstand |
 | Watchlist in bereik | Binary sensor | Aan zolang er een toestel van je [watchlist](watchlist.md) in de lucht is. Staat er alleen als je er een hebt ingesteld |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
-| Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger |
-| Ontvanger bijgewerkt | Sensor (diagnostisch) | Het tijdstempel in `aircraft.json` |
+| Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger, bijgewerkt op de ververstijd voor statistieken |
+| Ontvanger bijgewerkt | Sensor (diagnostisch, standaard uit) | Het tijdstempel in `aircraft.json`. Elke meting nieuw, dus uit tenzij je hem aanzet |
 
 Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzenden: hoogte en snelheid komen al via Mode S binnen, en die weglaten zou beide cijfers te laag maken. Hun attribuut `distance` is dan leeg.
 

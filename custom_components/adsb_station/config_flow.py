@@ -157,7 +157,7 @@ OPTIONS_SCHEMA = vol.Schema(
 class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
-    VERSION = 4
+    VERSION = 5
 
     def __init__(self) -> None:
         """Initialize the flow."""

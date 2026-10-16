@@ -842,11 +842,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         feeder the receiver is all there is, and failing to read it is fatal.
         """
         if self.data is not None and not self._statistics_due():
+            aircraft = await self._async_get_aircraft(
+                required=not self.client.has_feeder
+            )
             return replace(
-                self.data,
-                aircraft=await self._async_get_aircraft(
-                    required=not self.client.has_feeder
-                ),
+                self.data, aircraft=self._count_messages(aircraft, sample=False)
             )
 
         feeder: dict[str, Any] | None = None
@@ -856,15 +856,39 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             except AdsbStationError as err:
                 raise UpdateFailed(err) from err
 
+        aircraft = await self._async_get_aircraft(required=not self.client.has_feeder)
         data = AdsbStationData(
             feeder=feeder,
-            aircraft=await self._async_get_aircraft(
-                required=not self.client.has_feeder
-            ),
+            aircraft=self._count_messages(aircraft, sample=True),
             stats=await self._async_get_stats(),
         )
         self._statistics_read_at = dt_util.utcnow()
         return data
+
+    def _count_messages(
+        self, aircraft: AircraftStats | None, *, sample: bool
+    ) -> AircraftStats | None:
+        """Give this poll's aircraft the message figures they should show.
+
+        The counter and the rate describe the station rather than the sky, so
+        they move at the statistics interval like the rest of those, and the
+        figures of the last such poll stand in between. The rate is then over
+        the whole interval, which is a steadier figure than one over fifteen
+        seconds as well as a quarter of the rows in the recorder.
+        """
+        if aircraft is None:
+            return None
+        previous = self.data.aircraft if self.data is not None else None
+        if not sample and previous is not None:
+            return replace(
+                aircraft,
+                messages=previous.messages,
+                message_rate=previous.message_rate,
+            )
+        now = None if aircraft.updated is None else aircraft.updated.timestamp()
+        return replace(
+            aircraft, message_rate=self._take_message_rate(aircraft.messages, now)
+        )
 
     def _statistics_due(self) -> bool:
         """Return whether the feeder and stats.json should be read this poll.
@@ -1359,16 +1383,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         nearby.sort(key=lambda item: item.distance or 0.0)
         now = _as_float(data.get("now"))
-        messages = _as_int(data.get("messages"))
-        # On its own line because it is the one thing here that does not only
-        # read: it hands over the sample this poll leaves for the next one.
-        message_rate = self._take_message_rate(messages, now)
 
         return AircraftStats(
             total=len(aircraft),
             with_position=with_position,
-            messages=messages,
-            message_rate=message_rate,
+            messages=_as_int(data.get("messages")),
+            # Filled in by _count_messages, which decides whether this poll
+            # takes a new sample or keeps showing the last one.
+            message_rate=None,
             updated=None if now is None else dt_util.utc_from_timestamp(now),
             closest=closest,
             furthest=furthest,
