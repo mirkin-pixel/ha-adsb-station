@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
 from homeassistant.util.unit_system import UnitSystem
 
@@ -319,8 +319,12 @@ def answer_question(
     return QUESTIONS[question].answer(coordinator, aircraft, language, units, slots)
 
 
-@callback
-def async_setup_intents(hass: HomeAssistant) -> None:
-    """Register what can be asked out loud, once for the integration."""
+async def async_setup_intents(hass: HomeAssistant) -> None:
+    """Register what can be asked out loud, once for the integration.
+
+    Home Assistant's intent component finds this module by its name and awaits
+    this once both it and this integration are loaded. Calling it from
+    `async_setup` as well would register every question twice.
+    """
     for handler in QUESTIONS.values():
         intent.async_register(hass, handler)
