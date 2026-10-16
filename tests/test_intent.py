@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import intent
+from homeassistant.setup import async_setup_component
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -26,6 +27,7 @@ from custom_components.adsb_station.intent import (
     INTENT_OVERHEAD,
     INTENT_ROUTE,
     INTENT_TRAFFIC,
+    QUESTIONS,
     TRAFFIC_KINDS,
 )
 from custom_components.adsb_station.services import (
@@ -71,6 +73,12 @@ MOCK_SKY: dict[str, Any] = {
 }
 
 EMPTY_SKY: dict[str, Any] = {"now": 1636387404.0, "messages": 10, "aircraft": []}
+
+
+@pytest.fixture(autouse=True)
+async def intent_component(hass: HomeAssistant) -> None:
+    """Load the component that registers the questions, as Assist does."""
+    assert await async_setup_component(hass, "intent", {})
 
 
 async def _ask(
@@ -479,3 +487,24 @@ async def test_speak_refuses_a_question_it_does_not_have(
             blocking=True,
             return_response=True,
         )
+
+
+async def test_the_intent_component_registers_every_question_once(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that the questions are registered without an error or a second time.
+
+    Home Assistant awaits `async_setup_intents`; a plain function made it log
+    "object can't be awaited" on every start.
+    """
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    registered = intent.async_get(hass)
+    assert {handler.intent_type for handler in registered} >= {
+        handler.intent_type for handler in QUESTIONS.values()
+    }
+    assert not [record for record in caplog.records if record.levelname == "ERROR"]
+    assert "overwritten" not in caplog.text
