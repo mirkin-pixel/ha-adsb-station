@@ -7,7 +7,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Aircraft received | Sensor | Aircraft in the last `aircraft.json` |
 | Aircraft with position | Sensor | Of those, the number with a known position |
 | Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
-| Message rate | Sensor (msg/s) | Mode S messages per second, computed between two polls |
+| Message rate | Sensor (msg/s) | Mode S messages per second, averaged over the statistics interval |
 | Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
@@ -18,8 +18,8 @@ Everything from `aircraft.json`, the part every setup gets:
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
 | Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](watchlist.md) is in the air. Only there when you have set one |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
-| Messages | Sensor (diagnostic) | The total message counter of the receiver |
-| Receiver updated | Sensor (diagnostic) | The timestamp inside `aircraft.json` |
+| Messages | Sensor (diagnostic) | The total message counter of the receiver, updated at the statistics interval |
+| Receiver updated | Sensor (diagnostic, off by default) | The timestamp inside `aircraft.json`. New on every poll, so off unless you switch it on |
 
 The highest and the fastest also count aircraft that never broadcast a position: altitude and speed reach us from Mode S alone, and leaving those out would understate both. Their `distance` attribute is then empty.
 

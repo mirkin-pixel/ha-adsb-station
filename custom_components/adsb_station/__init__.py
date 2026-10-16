@@ -24,6 +24,8 @@ from .services import async_setup_services
 LEGACY_ROUTE_SOURCE = "route_source"
 # The sensor that counted PiAware's uptime, before it became a start time.
 LEGACY_PIAWARE_UPTIME = "piaware_uptime"
+# The moment aircraft.json was last read, on by default until 0.8.5.
+RECEIVER_UPDATED = "receiver_updated"
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -105,8 +107,24 @@ async def async_migrate_entry(
             if registered.unique_id.endswith(f"_{LEGACY_PIAWARE_UPTIME}"):
                 registry.async_remove(registered.entity_id)
 
+    # The moment aircraft.json was last read is new on every poll, and so a
+    # row every poll, for what the receiver binary sensor already tells. It is
+    # off by default now, and switched off once for entries that had it on;
+    # one somebody switched off themselves keeps saying so.
+    if entry.version < 5:
+        registry = er.async_get(hass)
+        for registered in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if (
+                registered.unique_id.endswith(f"_{RECEIVER_UPDATED}")
+                and registered.disabled_by is None
+            ):
+                registry.async_update_entity(
+                    registered.entity_id,
+                    disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+                )
+
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=4
+        entry, data=data, options=options, version=5
     )
     return True
 

@@ -501,7 +501,48 @@ async def test_migration_keeps_the_answer_to_the_route_question(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 4
+    assert entry.version == 5
     assert entry.options[CONF_LOOK_UP_ROUTES] is expected
     assert "route_source" not in entry.options
     assert (entry.runtime_data.route_lookup is not None) is expected
+
+
+@pytest.mark.parametrize(
+    ("disabled_by", "expected"),
+    [
+        # On, as every entry before 0.8.5 had it: switched off once.
+        (None, er.RegistryEntryDisabler.INTEGRATION),
+        # Switched off by hand already, and it keeps saying who did that.
+        (er.RegistryEntryDisabler.USER, er.RegistryEntryDisabler.USER),
+    ],
+)
+async def test_migration_switches_off_receiver_updated(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    disabled_by: er.RegistryEntryDisabler | None,
+    expected: er.RegistryEntryDisabler,
+) -> None:
+    """Test that the timestamp of the last poll goes off on upgrading."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=4,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    updated = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{MOCK_ALIAS}_receiver_updated",
+        config_entry=entry,
+        disabled_by=disabled_by,
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert entry.version == 5
+    registered = registry.async_get(updated.entity_id)
+    assert registered is not None
+    assert registered.disabled_by is expected

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
@@ -21,6 +22,7 @@ from custom_components.adsb_station.const import (
     CONF_STATS_URL,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEATURE_AIRCRAFT_TYPES,
     FEATURE_FREQUENCY_ERROR,
@@ -119,38 +121,98 @@ async def test_aircraft_sensors(
         EXPECTED_MAX_RANGE_KM, abs=0.5
     )
 
+    # New on every poll by definition, so off unless somebody wants it.
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_receiver_updated"
+    )
+    assert entity_id is not None
+    entry = registry.async_get(entity_id)
+    assert entry is not None
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+
+    registry.async_update_entity(entity_id, disabled_by=None)
+    assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
     updated = dt_util.parse_datetime(_state(hass, "receiver_updated"))
     assert updated == dt_util.utc_from_timestamp(MOCK_AIRCRAFT["now"])
+
+
+async def _poll(hass: HomeAssistant, freezer: Any, seconds: int) -> None:
+    """Let some time pass and have the coordinator poll."""
+    freezer.tick(timedelta(seconds=seconds))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
 
 
 async def test_message_rate(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
+    freezer: Any,
 ) -> None:
-    """Test the message rate over consecutive polls."""
+    """Test the message rate over consecutive statistics polls."""
     assert await setup_integration(hass, mock_config_entry)
+    statistics = DEFAULT_STATISTICS_INTERVAL + 1
 
     set_responses(
         mock_api,
-        aircraft={**MOCK_AIRCRAFT, "now": 1636387414.0, "messages": 1000500},
+        aircraft={**MOCK_AIRCRAFT, "now": 1636387464.0, "messages": 1003000},
     )
-    await _refresh(hass)
+    await _poll(hass, freezer, statistics)
     assert float(_state(hass, "message_rate")) == pytest.approx(50.0)
 
     # A restarted receiver resets both its counter and its clock
     set_responses(
-        mock_api, aircraft={**MOCK_AIRCRAFT, "now": 1636387424.0, "messages": 12}
+        mock_api, aircraft={**MOCK_AIRCRAFT, "now": 1636387474.0, "messages": 12}
     )
-    await _refresh(hass)
+    await _poll(hass, freezer, statistics)
     assert _state(hass, "message_rate") == STATE_UNKNOWN
 
     # Two samples with the same timestamp cannot produce a rate either
     set_responses(
-        mock_api, aircraft={**MOCK_AIRCRAFT, "now": 1636387424.0, "messages": 99}
+        mock_api, aircraft={**MOCK_AIRCRAFT, "now": 1636387474.0, "messages": 99}
     )
-    await _refresh(hass)
+    await _poll(hass, freezer, statistics)
     assert _state(hass, "message_rate") == STATE_UNKNOWN
+
+
+async def test_message_figures_wait_for_the_statistics_interval(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that the counter and the rate move once a minute, not every poll.
+
+    They describe the station rather than the sky, and a new value on every
+    fifteen-second poll was a row in the recorder each time. The aircraft
+    themselves are still read on every poll.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+
+    set_responses(
+        mock_api,
+        aircraft={
+            **MOCK_AIRCRAFT,
+            "now": 1636387419.0,
+            "messages": 1000750,
+            "aircraft": MOCK_AIRCRAFT["aircraft"][:1],
+        },
+    )
+    await _poll(hass, freezer, DEFAULT_SCAN_INTERVAL)
+    assert _state(hass, "aircraft_received") == "1"
+    assert _state(hass, "messages") == "1000000"
+    assert _state(hass, "message_rate") == STATE_UNKNOWN
+
+    # The minute is up: a rate over all of it, from the first sample.
+    set_responses(
+        mock_api,
+        aircraft={**MOCK_AIRCRAFT, "now": 1636387464.0, "messages": 1003000},
+    )
+    await _poll(hass, freezer, DEFAULT_STATISTICS_INTERVAL - DEFAULT_SCAN_INTERVAL)
+    assert _state(hass, "messages") == "1003000"
+    assert float(_state(hass, "message_rate")) == pytest.approx(50.0)
 
 
 async def test_empty_and_garbled_values(
@@ -186,7 +248,6 @@ async def test_empty_and_garbled_values(
         "messages",
         "message_rate",
         "max_range",
-        "receiver_updated",
     ):
         assert _state(hass, key) == STATE_UNKNOWN, key
 
