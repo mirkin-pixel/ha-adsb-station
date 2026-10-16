@@ -41,6 +41,7 @@ from .const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
+    CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
     CONF_WATCHLIST,
     DEFAULT_LOOK_UP_ROUTES,
@@ -48,6 +49,7 @@ from .const import (
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STATION_NAME,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEEDER_FR24,
     FEEDER_PIAWARE,
@@ -109,6 +111,17 @@ OPTIONS_SCHEMA = vol.Schema(
             )
         ),
         vol.Required(
+            CONF_STATISTICS_INTERVAL, default=DEFAULT_STATISTICS_INTERVAL
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=MIN_SCAN_INTERVAL,
+                max=MAX_SCAN_INTERVAL,
+                step=1,
+                unit_of_measurement="s",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Required(
             CONF_PROXIMITY_RADIUS, default=DEFAULT_PROXIMITY_RADIUS
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(
@@ -144,7 +157,7 @@ OPTIONS_SCHEMA = vol.Schema(
 class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
-    VERSION = 3
+    VERSION = 4
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -452,6 +465,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
         if user_input is not None:
             options: dict[str, Any] = {
                 CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                CONF_STATISTICS_INTERVAL: int(user_input[CONF_STATISTICS_INTERVAL]),
                 CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
                 CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],

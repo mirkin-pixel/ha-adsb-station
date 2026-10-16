@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -134,6 +134,10 @@ class AdsbStationSensorEntityDescription(SensorEntityDescription):
     # Extra detail alongside the value, such as the sentence a status colour
     # stands for.
     attributes_fn: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
+    # How far a timestamp that is worked out rather than read may wander
+    # before it is a different moment. Without it, a boot time derived from an
+    # uptime would move by a second on every other poll.
+    settle: timedelta | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -151,6 +155,41 @@ class AdsbStationReceptionSensorEntityDescription(SensorEntityDescription):
     # Only create this sensor when the receiver was found to report the
     # optional data it needs.
     feature: str | None = None
+
+
+def _as_shown(description: SensorEntityDescription, value: Any) -> Any:
+    """Round a measurement to the precision it is shown at.
+
+    The recorder keeps the value, not what is shown of it, so a temperature
+    that wavers in its third decimal is a new row on every poll while the
+    dashboard shows the same figure. Only where the value is shown in its own
+    unit: rounding bytes to the precision of megabytes would round nothing.
+    """
+    if (
+        not isinstance(value, float)
+        or (digits := description.suggested_display_precision) is None
+        or description.suggested_unit_of_measurement
+        not in (None, description.native_unit_of_measurement)
+    ):
+        return value
+    return round(value, digits)
+
+
+def _piaware_started(payload: dict[str, Any]) -> datetime | None:
+    """Return when the host PiAware runs on was started.
+
+    PiAware reports how long that has been, which is a new value on every
+    poll for as long as the host runs. When it was started is the same
+    information, and only changes when the host restarts. The document says
+    when it was written, so that is the moment the uptime is counted back from.
+    """
+    if (uptime := _as_float(payload.get("system_uptime"))) is None:
+        return None
+    if (written := _as_float(payload.get("time"))) is None:
+        now = dt_util.utcnow()
+    else:
+        now = dt_util.utc_from_timestamp(written / 1000)
+    return now - timedelta(seconds=uptime)
 
 
 FR24_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
@@ -323,15 +362,13 @@ PIAWARE_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         supported_fn=lambda payload: "cpu_load_percent" in payload,
     ),
     AdsbStationSensorEntityDescription(
-        key="piaware_uptime",
-        translation_key="piaware_uptime",
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        suggested_unit_of_measurement=UnitOfTime.HOURS,
-        device_class=SensorDeviceClass.DURATION,
+        key="piaware_started",
+        translation_key="piaware_started",
+        device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
-        suggested_display_precision=1,
-        value_fn=lambda payload: _as_float(payload.get("system_uptime")),
+        value_fn=_piaware_started,
         supported_fn=lambda payload: "system_uptime" in payload,
+        settle=timedelta(minutes=1),
     ),
     AdsbStationSensorEntityDescription(
         key="piaware_cpu_temperature",
@@ -660,11 +697,20 @@ class AdsbStationSensor(AdsbStationEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator, description.key)
         self.entity_description = description
+        self._settled: datetime | None = None
 
     @property
     def native_value(self) -> Any:
         """Return the sensor value."""
-        return self.entity_description.value_fn(self.feeder)
+        description = self.entity_description
+        value = _as_shown(description, description.value_fn(self.feeder))
+        if description.settle is None or not isinstance(value, datetime):
+            return value
+        settled = self._settled
+        if settled is not None and abs(value - settled) <= description.settle:
+            return settled
+        self._settled = value
+        return value
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -715,7 +761,8 @@ class AdsbStationReceptionSensor(AdsbStationReceptionEntity, SensorEntity):
         """Return the sensor value."""
         if (reception := self.reception) is None:
             return None
-        return self.entity_description.value_fn(reception)
+        description = self.entity_description
+        return _as_shown(description, description.value_fn(reception))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

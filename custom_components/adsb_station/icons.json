@@ -142,8 +142,8 @@
       "piaware_cpu_load": {
         "default": "mdi:cpu-64-bit"
       },
-      "piaware_uptime": {
-        "default": "mdi:timer-outline"
+      "piaware_started": {
+        "default": "mdi:restart"
       },
       "piaware_cpu_temperature": {
         "default": "mdi:thermometer"

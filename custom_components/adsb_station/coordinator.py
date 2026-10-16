@@ -24,6 +24,7 @@ from .const import (
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
+    CONF_STATISTICS_INTERVAL,
     CONF_WATCHLIST,
     DB_FLAG_INTERESTING,
     DB_FLAG_LADD,
@@ -32,6 +33,7 @@ from .const import (
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATISTICS_INTERVAL,
     DEGREE_METRES,
     DOMAIN,
     EMERGENCY_SQUAWKS,
@@ -735,17 +737,29 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         reference: ReferenceTables = EMPTY_REFERENCE,
     ) -> None:
         """Initialize the coordinator."""
-        scan_interval = config_entry.options.get(
-            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+        scan_interval = timedelta(
+            seconds=config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        )
+        self.statistics_interval = timedelta(
+            seconds=config_entry.options.get(
+                CONF_STATISTICS_INTERVAL, DEFAULT_STATISTICS_INTERVAL
+            )
         )
         super().__init__(
             hass,
             _LOGGER,
             config_entry=config_entry,
             name=DOMAIN,
-            update_interval=timedelta(seconds=scan_interval),
+            # Without aircraft.json there is nothing to read more often than
+            # the statistics, so polling faster would only repeat them.
+            update_interval=(
+                scan_interval if client.aircraft_url else self.statistics_interval
+            ),
         )
         self.client = client
+        # When the feeder and stats.json were last read. None until the first
+        # poll, which always reads them.
+        self._statistics_read_at: datetime | None = None
         # The names for the codes an aircraft broadcasts. Empty when the tables
         # could not be read, which costs a name and nothing else.
         self.reference = reference
@@ -827,6 +841,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         stops answering does not take the feed entities with it. Without a
         feeder the receiver is all there is, and failing to read it is fatal.
         """
+        if self.data is not None and not self._statistics_due():
+            return replace(
+                self.data,
+                aircraft=await self._async_get_aircraft(
+                    required=not self.client.has_feeder
+                ),
+            )
+
         feeder: dict[str, Any] | None = None
         if self.client.has_feeder:
             try:
@@ -834,13 +856,28 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             except AdsbStationError as err:
                 raise UpdateFailed(err) from err
 
-        return AdsbStationData(
+        data = AdsbStationData(
             feeder=feeder,
             aircraft=await self._async_get_aircraft(
                 required=not self.client.has_feeder
             ),
             stats=await self._async_get_stats(),
         )
+        self._statistics_read_at = dt_util.utcnow()
+        return data
+
+    def _statistics_due(self) -> bool:
+        """Return whether the feeder and stats.json should be read this poll.
+
+        Polls do not land on the second, so a poll that is due within half a
+        poll of now counts as due: otherwise a minute of fifteen-second polls
+        would read the statistics on the fifth poll rather than the fourth.
+        """
+        if self._statistics_read_at is None:
+            return True
+        slack = (self.update_interval or timedelta()) / 2
+        elapsed = dt_util.utcnow() - self._statistics_read_at
+        return elapsed + slack >= self.statistics_interval
 
     async def _async_get_aircraft(self, *, required: bool) -> AircraftStats | None:
         """Fetch aircraft.json.

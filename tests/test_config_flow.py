@@ -22,7 +22,9 @@ from custom_components.adsb_station.const import (
     CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_RADIUS,
     CONF_RECEIVER_FEATURES,
+    CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEEDER_FR24,
     ROUTESET_URL,
@@ -538,6 +540,7 @@ async def test_options_flow(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.options == {
         CONF_SCAN_INTERVAL: 45,
+        CONF_STATISTICS_INTERVAL: DEFAULT_STATISTICS_INTERVAL,
         CONF_PROXIMITY_RADIUS: 25,
         # Nothing asked for a route, so nothing looks one up, and nothing
         # asked for a map, so no aircraft is drawn on one.

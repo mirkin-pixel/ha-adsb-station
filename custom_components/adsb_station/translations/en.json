@@ -98,6 +98,7 @@
         "title": "ADS-B station options",
         "data": {
           "scan_interval": "Update interval",
+          "statistics_interval": "Statistics interval",
           "proximity_radius": "Nearby radius",
           "proximity_max_altitude": "Overhead ceiling",
           "map_aircraft": "Aircraft on the map",
@@ -105,7 +106,8 @@
           "watchlist": "Watchlist"
         },
         "data_description": {
-          "scan_interval": "How often the station is read, in seconds. Everything runs on your own network, so a short interval is fine.",
+          "scan_interval": "How often the aircraft are read, in seconds. Everything runs on your own network, so a short interval is fine.",
+          "statistics_interval": "How often the feeder and the decoder's statistics are read, in seconds. Those are counters and averages over a minute, so reading them more often mostly fills the recorder. A station that only feeds is read at this interval alone.",
           "proximity_radius": "How close an aircraft has to be to count as nearby, in kilometres. Ten is roughly what you can see and hear.",
           "proximity_max_altitude": "How high an aircraft may be and still count as nearby, in feet. Leave it empty and the radius alone decides, which is worth knowing about: a radius is a circle on the ground, so without a ceiling an airliner at 36,000 feet is overhead. It applies to what is nearby, what is overhead and what counts as a passage, and to nothing else: the aircraft still counts as received, still sets range records, and an emergency squawk is still reported at any height.",
           "map_aircraft": "Puts every aircraft inside the nearby radius on the map as its own entity, for as long as it is there. Nothing is registered and nothing is kept, so they leave no trace once they have flown on; that also means they cannot be renamed or hidden individually, and they are not listed under this station's device.",
@@ -314,8 +316,8 @@
       "piaware_cpu_load": {
         "name": "CPU load"
       },
-      "piaware_uptime": {
-        "name": "Uptime"
+      "piaware_started": {
+        "name": "Last boot"
       },
       "piaware_cpu_temperature": {
         "name": "CPU temperature"

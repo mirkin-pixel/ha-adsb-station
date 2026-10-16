@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+from typing import Any
+
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.util import dt as dt_util
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEEDER_PIAWARE,
 )
@@ -243,5 +251,102 @@ async def test_migration_leaves_a_known_feeder_alone(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 3
+    assert entry.version == 4
     assert entry.data[CONF_FEEDER_TYPE] == FEEDER_PIAWARE
+
+
+async def _poll_piaware(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+    **changes: Any,
+) -> None:
+    """Let a minute pass and have PiAware answer with a newer document."""
+    freezer.tick(timedelta(seconds=DEFAULT_STATISTICS_INTERVAL + 1))
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(PIAWARE_URL, json={**MOCK_PIAWARE, **changes})
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+async def test_piaware_reports_when_the_host_started(
+    hass: HomeAssistant,
+    mock_piaware_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that the uptime becomes a moment, which only moves on a restart.
+
+    An uptime is a new value on every poll, and so a new row in the recorder
+    every poll for as long as the host runs.
+    """
+    aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
+    assert await setup_integration(hass, mock_piaware_entry)
+
+    written = MOCK_PIAWARE["time"] / 1000
+    started = dt_util.utc_from_timestamp(written - MOCK_PIAWARE["system_uptime"])
+    state = _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_started")
+    assert state is not None
+    first = dt_util.parse_datetime(state)
+    assert first is not None
+    assert abs(first - started) < timedelta(seconds=1)
+
+    # A minute later, with the uptime counted in whole seconds and written a
+    # little after the minute: the same moment, so the same state.
+    await _poll_piaware(
+        hass,
+        aioclient_mock,
+        freezer,
+        time=MOCK_PIAWARE["time"] + 60_900,
+        system_uptime=MOCK_PIAWARE["system_uptime"] + 60,
+    )
+    assert _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_started") == state
+
+    # And then the host restarts.
+    await _poll_piaware(
+        hass,
+        aioclient_mock,
+        freezer,
+        time=MOCK_PIAWARE["time"] + 120_000,
+        system_uptime=30,
+    )
+    state = _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_started")
+    assert state is not None
+    restarted = dt_util.parse_datetime(state)
+    assert restarted is not None
+    assert abs(restarted - dt_util.utc_from_timestamp(written + 90)) < timedelta(
+        seconds=1
+    )
+
+
+async def test_migration_removes_the_piaware_uptime(
+    hass: HomeAssistant,
+    mock_piaware_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that the uptime sensor goes when its start time takes over.
+
+    Its history is a duration in hours, which means nothing on a timestamp,
+    so it is not carried over to the new sensor but removed with the old one.
+    """
+    aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id=mock_piaware_entry.unique_id,
+        data=dict(mock_piaware_entry.data),
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    uptime = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{PIAWARE_UNIQUE_ID}_piaware_uptime",
+        config_entry=entry,
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert entry.version == 4
+    assert registry.async_get(uptime.entity_id) is None
+    assert _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_started") is not None

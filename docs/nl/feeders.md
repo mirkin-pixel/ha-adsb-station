@@ -33,7 +33,7 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | MLAT | Sensor | Multilateratie |
 | PiAware-dienst | Sensor (diagnostisch) | De feeder zelf |
 | CPU-belasting | Sensor (%, diagnostisch) | Belasting van de host |
-| Bedrijfstijd | Sensor (u, diagnostisch) | Hoe lang de host draait |
+| Laatst opgestart | Sensor (tijdstip, diagnostisch) | Wanneer de host voor het laatst is opgestart |
 | CPU-temperatuur | Sensor (diagnostisch) | Alleen aangemaakt op een host die er een uitleest |
 
 Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iets wat de andere twee niet kunnen: een feeder die een onstabiele klok meldt draait prima, maar zal nooit multilatereren. De kleur is de state, en de zin erachter, *"Local clock source is unstable"*, staat als attribuut `message` op de entiteit.

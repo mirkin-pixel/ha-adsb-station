@@ -129,6 +129,13 @@ DEFAULT_SCAN_INTERVAL = 15
 MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 600
 
+# How often the figures that describe the station rather than the sky are
+# read: the feeder's status document and the decoder's stats.json. Those are
+# counters and averages over a minute, so reading them every fifteen seconds
+# only gives the recorder four rows for what is one figure.
+CONF_STATISTICS_INTERVAL = "statistics_interval"
+DEFAULT_STATISTICS_INTERVAL = 60
+
 # How close an aircraft has to be to count as nearby, in kilometres. Ten is
 # roughly the circle you can see and hear from, which is what makes it useful
 # for automations; the range of a good receiver is many times that.

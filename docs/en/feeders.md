@@ -33,7 +33,7 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | MLAT | Sensor | Multilateration |
 | PiAware service | Sensor (diagnostic) | The feeder itself |
 | CPU load | Sensor (%, diagnostic) | Load on the host |
-| Uptime | Sensor (h, diagnostic) | How long the host has been up |
+| Last boot | Sensor (timestamp, diagnostic) | When the host was last started |
 | CPU temperature | Sensor (diagnostic) | Only created on a host that reads one |
 
 Those four are green, amber or red rather than on or off, because amber says something neither of the other two can: a feeder reporting an unstable clock is running fine but will never multilaterate. The colour is the state, and the sentence behind it, *"Local clock source is unstable"*, is on the entity as a `message` attribute.
