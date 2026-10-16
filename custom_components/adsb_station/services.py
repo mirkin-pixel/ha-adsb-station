@@ -14,7 +14,7 @@ automation hammer a decoder that is already being read on a schedule.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import (
@@ -27,7 +27,15 @@ from homeassistant.core import (
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.util.json import JsonArrayType
-import voluptuous as vol
+
+# Home Assistant 2026.10 replaced voluptuous with probatio, which keeps its API,
+# and puts it in place under the old name before anything is imported. So at
+# run time `voluptuous` is probatio there and voluptuous itself before it; only
+# the type checker has to be told which one Home Assistant's signatures mean.
+if TYPE_CHECKING:
+    import probatio as vol
+else:
+    import voluptuous as vol
 
 from .const import DOMAIN
 from .coordinator import (

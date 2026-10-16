@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import socket
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
@@ -16,7 +16,15 @@ from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import voluptuous as vol
+
+# Home Assistant 2026.10 replaced voluptuous with probatio, which keeps its API,
+# and puts it in place under the old name before anything is imported. So at
+# run time `voluptuous` is probatio there and voluptuous itself before it; only
+# the type checker has to be told which one Home Assistant's signatures mean.
+if TYPE_CHECKING:
+    import probatio as vol
+else:
+    import voluptuous as vol
 
 from .api import (
     AdsbStationClient,
