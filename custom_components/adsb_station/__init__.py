@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -21,6 +22,8 @@ from .services import async_setup_services
 
 # What the option was called while it named a source rather than a yes or no.
 LEGACY_ROUTE_SOURCE = "route_source"
+# The sensor that counted PiAware's uptime, before it became a start time.
+LEGACY_PIAWARE_UPTIME = "piaware_uptime"
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -92,8 +95,18 @@ async def async_migrate_entry(
             options.pop(LEGACY_ROUTE_SOURCE) not in (None, "none")
         )
 
+    # PiAware's uptime became the moment the host was started, which says the
+    # same thing without a new row in the recorder every poll. It is a
+    # different sensor rather than the same one in another unit: history in
+    # hours has no place on a timestamp, so the old one goes.
+    if entry.version < 4:
+        registry = er.async_get(hass)
+        for registered in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if registered.unique_id.endswith(f"_{LEGACY_PIAWARE_UPTIME}"):
+                registry.async_remove(registered.entity_id)
+
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=3
+        entry, data=data, options=options, version=4
     )
     return True
 

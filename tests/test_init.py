@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntryState
@@ -21,7 +22,9 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_LOOK_UP_ROUTES,
+    CONF_STATISTICS_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     RECEIVER_READ_ATTEMPTS,
     ROUTESET_URL,
@@ -31,13 +34,16 @@ from .conftest import (
     AIRCRAFT_URL,
     ANTENNA_LATITUDE,
     ANTENNA_LONGITUDE,
+    FEEDER_URL,
     HOME_LATITUDE,
     HOME_LONGITUDE,
     MOCK_ALIAS,
     MOCK_HOST,
+    MOCK_PIAWARE,
     MOCK_RECEIVER,
     MOCK_RECEIVER_READSB,
     MOCK_RECEIVER_VERSION,
+    PIAWARE_URL,
     RECEIVER_UNIQUE_ID,
     RECEIVER_URL,
     STATS_URL,
@@ -52,6 +58,18 @@ async def _refresh(hass: HomeAssistant) -> None:
     """Advance time past one update interval."""
     async_fire_time_changed(hass, dt_util.utcnow() + REFRESH)
     await hass.async_block_till_done()
+
+
+async def _refresh_statistics(hass: HomeAssistant, freezer: Any) -> None:
+    """Advance the clock far enough for the feeder and stats.json to be read."""
+    freezer.tick(timedelta(seconds=DEFAULT_STATISTICS_INTERVAL + 1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+def _reads(mock_api: AiohttpClientMocker, url: str) -> int:
+    """Return how often one URL has been requested so far."""
+    return len([call for call in mock_api.mock_calls if str(call[1]) == url])
 
 
 def _state(
@@ -166,13 +184,14 @@ async def test_feeder_outage_marks_everything_unavailable(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
+    freezer: Any,
 ) -> None:
     """Test that entities become unavailable when the feeder cannot be read."""
     assert await setup_integration(hass, mock_config_entry)
     assert _state(hass, "sensor", "aircraft_tracked") == "25"
 
     set_responses(mock_api, monitor_kwargs={"exc": aiohttp.ClientError("boom")})
-    await _refresh(hass)
+    await _refresh_statistics(hass, freezer)
 
     assert _state(hass, "sensor", "aircraft_tracked") == STATE_UNAVAILABLE
     assert _state(hass, "binary_sensor", "receiver") == STATE_UNAVAILABLE
@@ -197,6 +216,64 @@ async def test_changing_the_scan_interval_reloads(
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
     assert mock_config_entry.runtime_data.update_interval == timedelta(seconds=60)
+
+
+async def test_statistics_are_read_less_often_than_the_sky(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that the feeder and stats.json wait for the statistics interval.
+
+    They are counters and averages over a minute, and every poll that read
+    them anyway would be another row in the recorder for each of them.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+    feeder, stats, aircraft = (
+        _reads(mock_api, url) for url in (FEEDER_URL, STATS_URL, AIRCRAFT_URL)
+    )
+
+    polls = DEFAULT_STATISTICS_INTERVAL // DEFAULT_SCAN_INTERVAL
+    for _ in range(polls - 1):
+        freezer.tick(timedelta(seconds=DEFAULT_SCAN_INTERVAL))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    assert _reads(mock_api, AIRCRAFT_URL) == aircraft + polls - 1
+    assert _reads(mock_api, FEEDER_URL) == feeder
+    assert _reads(mock_api, STATS_URL) == stats
+    # Still there between reads, rather than gone until the next one.
+    assert _state(hass, "sensor", "aircraft_tracked") == "25"
+    assert _state(hass, "sensor", "strong_signals") == "6"
+
+    freezer.tick(timedelta(seconds=DEFAULT_SCAN_INTERVAL))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert _reads(mock_api, FEEDER_URL) == feeder + 1
+    assert _reads(mock_api, STATS_URL) == stats + 1
+
+
+async def test_a_feeder_alone_is_polled_at_the_statistics_interval(
+    hass: HomeAssistant,
+    mock_piaware_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an entry with no aircraft.json does not poll any faster."""
+    set_responses(aioclient_mock)
+    aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
+    assert await setup_integration(hass, mock_piaware_entry)
+    assert mock_piaware_entry.runtime_data.update_interval == timedelta(
+        seconds=DEFAULT_STATISTICS_INTERVAL
+    )
+
+    hass.config_entries.async_update_entry(
+        mock_piaware_entry, options={CONF_STATISTICS_INTERVAL: 300}
+    )
+    await hass.async_block_till_done()
+
+    assert mock_piaware_entry.runtime_data.update_interval == timedelta(seconds=300)
 
 
 async def test_setup_without_a_feeder(
@@ -367,6 +444,7 @@ async def test_statistics_outage_is_reported_once(
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
     caplog: pytest.LogCaptureFixture,
+    freezer: Any,
 ) -> None:
     """Test that a failing stats.json only takes the statistics down."""
     caplog.set_level(logging.INFO)
@@ -374,17 +452,17 @@ async def test_statistics_outage_is_reported_once(
     assert _state(hass, "sensor", "strong_signals") == "6"
 
     set_responses(mock_api, stats_kwargs={"status": 500})
-    await _refresh(hass)
+    await _refresh_statistics(hass, freezer)
 
     assert _state(hass, "sensor", "aircraft_received") == "3"
     assert _state(hass, "sensor", "strong_signals") == STATE_UNAVAILABLE
     assert caplog.text.count(f"Could not read {STATS_URL}") == 1
 
-    await _refresh(hass)
+    await _refresh_statistics(hass, freezer)
     assert caplog.text.count(f"Could not read {STATS_URL}") == 1
 
     set_responses(mock_api)
-    await _refresh(hass)
+    await _refresh_statistics(hass, freezer)
     assert _state(hass, "sensor", "strong_signals") == "6"
     assert f"{STATS_URL} can be read again" in caplog.text
 
@@ -423,7 +501,7 @@ async def test_migration_keeps_the_answer_to_the_route_question(
 
     assert await setup_integration(hass, entry)
 
-    assert entry.version == 3
+    assert entry.version == 4
     assert entry.options[CONF_LOOK_UP_ROUTES] is expected
     assert "route_source" not in entry.options
     assert (entry.runtime_data.route_lookup is not None) is expected

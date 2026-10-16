@@ -336,8 +336,10 @@ async def test_reception_sensors(
     assert _state(hass, "messages_accepted") == "2050"
     assert _state(hass, "tracks") == "42"
     assert _state(hass, "single_message_tracks") == "7"
-    assert float(_state(hass, "demodulator_load")) == pytest.approx(
-        EXPECTED_DEMODULATOR_LOAD
+    # Kept at the precision it is shown at, so the recorder does not take a
+    # new row for every wobble in the decimals nobody sees.
+    assert float(_state(hass, "demodulator_load")) == round(
+        EXPECTED_DEMODULATOR_LOAD, 1
     )
 
     entity_id = er.async_get(hass).async_get_entity_id(
@@ -1062,7 +1064,7 @@ async def test_health_sensors_absent_on_the_fr24feed_fork(
         ), key
 
     # The error rate needs nothing optional, so it is there either way
-    assert float(_state(hass, "error_rate")) == pytest.approx(188132 / 357314 * 100)
+    assert float(_state(hass, "error_rate")) == round(188132 / 357314 * 100, 1)
 
 
 async def test_feeder_health_sensors(
