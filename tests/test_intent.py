@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import Context, HomeAssistant
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import intent
 from homeassistant.setup import async_setup_component
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 import voluptuous as vol
 import yaml
@@ -364,6 +364,42 @@ async def test_install_sentences(
     assert await hass.services.async_call(
         DOMAIN, SERVICE_INSTALL_SENTENCES, {}, blocking=True, return_response=True
     )
+
+
+async def test_install_sentences_is_for_administrators(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    tmp_path: Path,
+    hass_admin_user: MockUser,
+    hass_read_only_user: MockUser,
+) -> None:
+    """Test that only an administrator may write into the configuration."""
+    assert await setup_integration(hass, mock_config_entry)
+    hass.config.config_dir = str(tmp_path)
+
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_INSTALL_SENTENCES,
+            {},
+            blocking=True,
+            context=Context(user_id=hass_read_only_user.id),
+            return_response=True,
+        )
+    assert not (tmp_path / "custom_sentences").exists()
+
+    # An administrator still gets the answer back, not only the files
+    answer = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_INSTALL_SENTENCES,
+        {},
+        blocking=True,
+        context=Context(user_id=hass_admin_user.id),
+        return_response=True,
+    )
+    assert answer["languages"] == ["en", "nl"]
+    assert (tmp_path / "custom_sentences" / "en" / SENTENCES_FILE).is_file()
 
 
 async def test_closest_with_nothing_placeable(

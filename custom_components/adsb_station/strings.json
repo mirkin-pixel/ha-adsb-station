@@ -444,7 +444,7 @@
     },
     "install_sentences": {
       "name": "Install voice sentences",
-      "description": "Copies the spoken sentences this integration ships into your configuration directory, where Assist reads them from. Run conversation.reload afterwards, or restart."
+      "description": "Copies the spoken sentences this integration ships into your configuration directory, where Assist reads them from. Only an administrator can run it. Run conversation.reload afterwards, or restart."
     },
     "speak": {
       "name": "Speak an answer",
