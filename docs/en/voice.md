@@ -56,7 +56,7 @@ Or let the integration copy them, if you would rather not go looking:
 - action: adsb_station.install_sentences
 ```
 
-Be plain about what that does: **it writes two files into your configuration directory** and overwrites them if they are already there. It is the same copy you would make by hand, and nothing else is touched.
+Be plain about what that does: **it writes two files into your configuration directory** and overwrites them if they are already there. It is the same copy you would make by hand, and nothing else is touched. Because it writes into your configuration, only an administrator can run it.
 
 Either way Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
 

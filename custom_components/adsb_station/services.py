@@ -26,6 +26,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util.json import JsonArrayType
 
 # Home Assistant 2026.10 replaced voluptuous with probatio, which keeps its API,
@@ -267,7 +268,8 @@ async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
     configuration rather than into its own directory. That is worth being
     plain about: it is a file this integration puts in your folder, it
     overwrites the same file on every call, and copying the two files by hand
-    does exactly the same thing.
+    does exactly the same thing. Writing into the configuration is an
+    administrator's call, so only an administrator can make this one.
 
     Nothing is loaded by writing them. Assist reads its sentences at start,
     so `conversation.reload` or a restart is what makes them work.
@@ -315,7 +317,10 @@ async def _async_speak(call: ServiceCall) -> ServiceResponse:
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
-    hass.services.async_register(
+    # The one that writes into the configuration is for administrators only;
+    # the other three only read the last poll, so anyone may ask them.
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_INSTALL_SENTENCES,
         _async_install_sentences,

@@ -56,7 +56,7 @@ Of laat de integratie ze kopiëren, als je er liever niet naar op zoek gaat:
 - action: adsb_station.install_sentences
 ```
 
-Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiemap** en overschrijft ze als ze er al staan. Het is dezelfde kopie die je met de hand zou maken, en verder wordt er niets aangeraakt.
+Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiemap** en overschrijft ze als ze er al staan. Het is dezelfde kopie die je met de hand zou maken, en verder wordt er niets aangeraakt. Omdat het in je configuratie schrijft, kan alleen een beheerder het uitvoeren.
 
 Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conversation.reload` of herstart. Probeer het vervolgens onder **Instellingen → Spraakassistenten**, en vraag het ook eens met een lege lucht — dat is het antwoord dat het vaakst voorkomt.
 

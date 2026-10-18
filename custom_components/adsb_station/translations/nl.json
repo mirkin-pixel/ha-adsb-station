@@ -444,7 +444,7 @@
     },
     "install_sentences": {
       "name": "Spraakzinnen installeren",
-      "description": "Kopieert de gesproken zinnen die deze integratie meelevert naar je configuratiemap, waar Assist ze uit leest. Draai daarna conversation.reload, of herstart."
+      "description": "Kopieert de gesproken zinnen die deze integratie meelevert naar je configuratiemap, waar Assist ze uit leest. Alleen een beheerder kan dit uitvoeren. Draai daarna conversation.reload, of herstart."
     },
     "speak": {
       "name": "Een antwoord uitspreken",
