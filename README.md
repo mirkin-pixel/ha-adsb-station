@@ -59,9 +59,8 @@ Requires Home Assistant 2026.3 or newer.
 #### Via HACS
 
 1. Open HACS in Home Assistant.
-2. Choose **⋮ → Custom repositories**, add `https://github.com/mirkin-pixel/ha-adsb-station` as an **Integration**.
-3. Search for **ADS-B Station** and click **Download**.
-4. Restart Home Assistant.
+2. Search for **ADS-B Station** and click **Download**.
+3. Restart Home Assistant.
 
 #### Manual
 
@@ -135,9 +134,8 @@ Vereist Home Assistant 2026.3 of nieuwer.
 #### Via HACS
 
 1. Open HACS in Home Assistant.
-2. Kies **⋮ → Aangepaste repositories** en voeg `https://github.com/mirkin-pixel/ha-adsb-station` toe als **Integratie**.
-3. Zoek naar **ADS-B Station** en klik op **Download**.
-4. Herstart Home Assistant.
+2. Zoek naar **ADS-B Station** en klik op **Download**.
+3. Herstart Home Assistant.
 
 #### Handmatig
 
