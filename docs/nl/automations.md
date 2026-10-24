@@ -149,3 +149,20 @@ automation:
             {{ trigger.event.data.distance }} km ver
             {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
 ```
+
+Melding wanneer de ontvanger niets meer hoort, wat na een herstart meestal betekent dat de dongle er even uit en weer in moet:
+
+```yaml
+automation:
+  - alias: "ADS-B: ontvanger stil"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_ontvanger_stil
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            De ADS-B-ontvanger hoort al tien minuten niets.
+            Trek de dongle eruit en steek hem er weer in.
+```

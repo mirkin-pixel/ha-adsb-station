@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -14,6 +14,7 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_STATS_URL,
+    DOMAIN,
     FEEDER_FR24,
 )
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
@@ -133,6 +134,9 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> bool:
     """Unload a config entry."""
+    # A silent receiver is noticed again by the next coordinator, and an entry
+    # that is being removed should not leave a repair behind that names it.
+    ir.async_delete_issue(hass, DOMAIN, f"receiver_silent_{entry.entry_id}")
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

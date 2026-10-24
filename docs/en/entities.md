@@ -18,6 +18,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
 | Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](watchlist.md) is in the air. Only there when you have set one |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
+| Receiver silent | Binary sensor (problem, diagnostic) | On when the decoder has counted no messages for ten minutes, which is a dongle that is gone or wedged rather than a quiet sky. Also raises a repair; see [troubleshooting](troubleshooting.md#the-receiver-hears-nothing) |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver, updated at the statistics interval |
 | Receiver updated | Sensor (diagnostic, off by default) | The timestamp inside `aircraft.json`. New on every poll, so off unless you switch it on |
 

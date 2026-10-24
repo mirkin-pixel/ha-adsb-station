@@ -149,3 +149,20 @@ automation:
             {{ trigger.event.data.distance }} km away
             {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} feet{% endif %}.
 ```
+
+Notification when the receiver stops hearing anything, which after a reboot usually means the dongle wants plugging back in:
+
+```yaml
+automation:
+  - alias: "ADS-B: receiver silent"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ads_b_station_receiver_silent
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          message: >-
+            The ADS-B receiver has heard nothing for ten minutes.
+            Unplug the dongle and plug it back in.
+```

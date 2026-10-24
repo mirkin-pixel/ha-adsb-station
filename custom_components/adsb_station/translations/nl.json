@@ -366,6 +366,13 @@
           "on": "Werkt"
         }
       },
+      "receiver_silent": {
+        "name": "Ontvanger stil",
+        "state": {
+          "off": "Hoort vliegtuigen",
+          "on": "Stil"
+        }
+      },
       "emergency": {
         "name": "Noodsquawk",
         "state": {
@@ -395,6 +402,12 @@
       "reset_range": {
         "name": "Bereikrecords wissen"
       }
+    }
+  },
+  "issues": {
+    "receiver_silent": {
+      "title": "{station} hoort niets",
+      "description": "De decoder van {station} heeft al {minutes} minuten geen berichten geteld. Een werkende ontvanger hoort elke seconde iets, dus dit is bijna altijd de dongle: die is van de USB-bus gevallen, of kwam na een herstart niet terug omdat hij nooit stroomloos is geweest.\n\nTrek de dongle eruit en steek hem er weer in, of herstart de decoder. Deze melding verdwijnt vanzelf zodra de ontvanger weer vliegtuigen hoort."
     }
   },
   "services": {

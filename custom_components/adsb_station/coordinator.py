@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -48,6 +49,7 @@ from .const import (
     RADIO_HORIZON_ALLOWANCE,
     RADIO_HORIZON_METRES_PER_ROOT_FOOT,
     RECEIVER_READ_ATTEMPTS,
+    RECEIVER_SILENT_AFTER,
     SECTORS,
     UNSET_RECEIVER_VERSION,
     WATCHLIST_HEX,
@@ -781,6 +783,12 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # one aircraft shows. None the moment the sky above you is empty.
         self.overhead: Passage | None = None
         self._previous_messages: tuple[int, float] | None = None
+        # When the decoder's message counter last went up, and what it stood at
+        # on the last read. Seeded with the start, so a dongle that is gone
+        # from the first poll is noticed as soon as one that goes quiet later.
+        self._heard_at = dt_util.utcnow()
+        self._heard_count: int | None = None
+        self.receiver_silent = False
         self._aircraft_failed = False
         self._stats_failed = False
         self._antenna: tuple[float, float] | None = None
@@ -890,6 +898,56 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             aircraft, message_rate=self._take_message_rate(aircraft.messages, now)
         )
 
+    def _listen(self, messages: int | None, *, answered: bool) -> None:
+        """Note whether the receiver heard anything, and say so when it stops.
+
+        A dongle that drops off the bus, or comes back from a reboot without
+        having been power cycled, does not always take the decoder with it.
+        The decoder can stop, hang on its last aircraft.json, or keep serving
+        one with nothing in it, and to every other entity the last of those
+        looks like an empty sky. What all three have in common is that the
+        message counter stops going up, so that is what this watches.
+
+        A decoder that answers without a counter at all is one we cannot
+        judge, and is taken at its word rather than called silent.
+        """
+        now = dt_util.utcnow()
+        previous, self._heard_count = self._heard_count, messages
+        if answered and (
+            messages is None or (previous is not None and messages > previous)
+        ):
+            self._heard_at = now
+
+        silent = now - self._heard_at >= RECEIVER_SILENT_AFTER
+        if silent == self.receiver_silent:
+            return
+        self.receiver_silent = silent
+
+        entry = self.config_entry
+        issue_id = f"receiver_silent_{entry.entry_id}"
+        if not silent:
+            _LOGGER.info("%s is hearing aircraft again", self.client.aircraft_url)
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        _LOGGER.warning(
+            "%s has counted no messages since %s. The dongle may be gone or "
+            "wedged; plugging it back in or restarting the decoder usually helps",
+            self.client.aircraft_url,
+            self._heard_at.isoformat(timespec="seconds"),
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="receiver_silent",
+            translation_placeholders={
+                "station": entry.title,
+                "minutes": str(int(RECEIVER_SILENT_AFTER.total_seconds() // 60)),
+            },
+        )
+
     def _statistics_due(self) -> bool:
         """Return whether the feeder and stats.json should be read this poll.
 
@@ -914,6 +972,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_aircraft()
         except AdsbStationError as err:
+            self._listen(None, answered=False)
             if required:
                 raise UpdateFailed(err) from err
             # The feeder keeps working without the decoder, so degrade instead
@@ -931,6 +990,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         if self._aircraft_failed:
             self._aircraft_failed = False
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
+        self._listen(_as_int(data.get("messages")), answered=True)
 
         await self._async_read_receiver()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
