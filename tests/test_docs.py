@@ -5,6 +5,8 @@ that a change to one belongs in the other. Nothing enforced that, and the way
 it goes wrong is quiet: a section added to one language six months from now,
 and a reader of the other never learns the feature exists.
 
+The two halves of the README are held to the same, and to listing every page.
+
 This checks the shape rather than the prose. Whether a paragraph says the
 same thing in both languages is a matter for review; whether a page or a
 heading exists in one and not the other is a matter of counting.
@@ -60,3 +62,34 @@ def test_every_page_starts_with_one_title() -> None:
             assert levels, f"{path} has no headings"
             assert levels[0] == 1, f"{path} does not open with a title"
             assert levels.count(1) == 1, f"{path} has more than one title"
+
+
+def _readme_halves() -> dict[str, str]:
+    """Return the English and the Dutch half of the README."""
+    text = (DOCS.parent / "README.md").read_text("utf-8")
+    english, dutch = text.split("\n## Nederlands\n")
+    return {"en": english.split("\n## English\n")[1], "nl": dutch}
+
+
+def test_the_readme_halves_have_the_same_shape() -> None:
+    """Test that a section added to one half of the README is in the other."""
+    halves = _readme_halves()
+    english = _headings(halves["en"])
+    dutch = _headings(halves["nl"])
+
+    assert english == dutch, (
+        f"The README has {len(english)} headings in English and "
+        f"{len(dutch)} in Dutch"
+    )
+    assert len(english) > 5
+
+
+def test_the_readme_points_at_every_page() -> None:
+    """Test that each half of the README lists every page of its language."""
+    for language, half in _readme_halves().items():
+        linked = set(re.findall(rf"docs/{language}/([\w-]+\.md)", half))
+        pages = {path.name for path in (DOCS / language).glob("*.md")}
+        assert linked == pages, (
+            f"The {language} README misses {sorted(pages - linked)} "
+            f"and links {sorted(linked - pages)}, which do not exist"
+        )
