@@ -94,8 +94,9 @@ async def async_migrate_entry(
     # sixth of the aircraft the way they had come. Anyone who picked either of
     # them asked for routes, and that is all the setting says now.
     if entry.version < 3 and LEGACY_ROUTE_SOURCE in options:
-        options[CONF_LOOK_UP_ROUTES] = (
-            options.pop(LEGACY_ROUTE_SOURCE) not in (None, "none")
+        options[CONF_LOOK_UP_ROUTES] = options.pop(LEGACY_ROUTE_SOURCE) not in (
+            None,
+            "none",
         )
 
     # PiAware's uptime became the moment the host was started, which says the
@@ -124,9 +125,7 @@ async def async_migrate_entry(
                     disabled_by=er.RegistryEntryDisabler.INTEGRATION,
                 )
 
-    hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=5
-    )
+    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
     return True
 
 

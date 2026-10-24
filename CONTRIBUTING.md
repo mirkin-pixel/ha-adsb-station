@@ -28,6 +28,7 @@ which pins the Home Assistant version they run against.
 
 ```bash
 ruff check .        # style and imports
+ruff format .       # layout; CI runs it with --check
 mypy                # types, over custom_components/adsb_station
 pytest --cov        # tests, and the coverage floor
 ```

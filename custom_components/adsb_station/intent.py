@@ -116,7 +116,8 @@ class _AdsbStationIntent(intent.IntentHandler):
         return {
             "aircraft": name_of(summary, language),
             "distance": (
-                "" if summary.distance is None
+                ""
+                if summary.distance is None
                 else distance_of(summary.distance, language, units)
             ),
             "sector": sector or "",

@@ -1270,7 +1270,6 @@ async def test_a_higher_aircraft_replaces_the_reading(
     assert _attributes(hass, "highest_aircraft")["flight"] == "LOW1"
 
 
-
 @pytest.mark.parametrize(
     ("key", "attribute"),
     [("aircraft_nearby", "aircraft"), ("passages_today", "passages")],

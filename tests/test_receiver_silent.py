@@ -183,9 +183,7 @@ async def test_a_decoder_that_does_not_answer(
     assert await setup_integration(hass, mock_config_entry)
 
     for _ in range(MINUTES):
-        await _poll(
-            hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM
-        )
+        await _poll(hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM)
 
     assert _state(hass, mock_config_entry) == STATE_ON
     assert _issue(hass, mock_config_entry) is not None
@@ -205,9 +203,7 @@ async def test_a_station_without_a_feeder_still_gets_the_repair(
     assert await setup_integration(hass, mock_receiver_entry)
 
     for _ in range(MINUTES):
-        await _poll(
-            hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM
-        )
+        await _poll(hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM)
 
     assert _state(hass, mock_receiver_entry) == STATE_UNAVAILABLE
     assert _issue(hass, mock_receiver_entry) is not None

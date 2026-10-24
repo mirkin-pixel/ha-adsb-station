@@ -12,6 +12,8 @@ try {
     Write-Host "== ruff ==" -ForegroundColor Cyan
     & $python -m ruff check .
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $python -m ruff format --check .
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "== mypy ==" -ForegroundColor Cyan
     & $python -m mypy

@@ -204,7 +204,5 @@ async def test_the_map_leaves_no_registry_entries(
     # is why it may not be renamed or hidden either
     registry = er.async_get(hass)
     assert [
-        entry
-        for entry in registry.entities.values()
-        if entry.domain == "geo_location"
+        entry for entry in registry.entities.values() if entry.domain == "geo_location"
     ] == []

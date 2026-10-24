@@ -310,8 +310,6 @@ async def test_a_passage_keeps_its_closest_approach(
     assert passage.closest.altitude == 3000
 
 
-
-
 async def test_the_overhead_sensor_shows_the_nearest(
     hass: HomeAssistant,
     freezer: Any,

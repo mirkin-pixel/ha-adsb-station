@@ -971,7 +971,6 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
     # state already carries. The count keeps its history; the list does not.
     _unrecorded_attributes = frozenset({"aircraft"})
 
-
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, "aircraft_nearby")
@@ -1055,9 +1054,7 @@ class RememberedPassage(ExtraStoredData):
         )
 
 
-class AdsbStationOverheadSensor(
-    AdsbStationAircraftEntity, RestoreEntity, SensorEntity
-):
+class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, SensorEntity):
     """The one aircraft above you, which is what a panel shows.
 
     Nearest first, measured through the air rather than across the ground, and
@@ -1155,9 +1152,7 @@ class PassageBoard(ExtraStoredData):
         )
 
 
-class AdsbStationPassagesSensor(
-    AdsbStationAircraftEntity, RestoreEntity, SensorEntity
-):
+class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, SensorEntity):
     """How many aircraft came over today, and which ones.
 
     A departure board rather than a counter: the state is the tally, and the
@@ -1175,7 +1170,6 @@ class AdsbStationPassagesSensor(
     # worth keeping. The board survives a restart through the restore state,
     # which is not the recorder.
     _unrecorded_attributes = frozenset({"passages"})
-
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the sensor."""

@@ -20,6 +20,8 @@ jobs:
         run: pip install -r requirements_test.txt
       - name: Run ruff
         run: ruff check .
+      - name: Check formatting
+        run: ruff format --check .
 
   types:
     name: Mypy
