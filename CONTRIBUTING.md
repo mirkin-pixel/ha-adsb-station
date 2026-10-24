@@ -101,6 +101,45 @@ mirrored into `translations/en.json` and `translations/nl.json`. The English
 two are identical; a change to one belongs in the other. Entity names come from
 `translation_key`, never from a hard-coded `name`.
 
+`tests/test_translations.py` holds all of this to account: it fails when the
+English two differ, and when any language is missing a key English has or
+fills in a different placeholder.
+
+### Adding a language
+
+A new language comes in two parts, and the first is useful on its own.
+Announce it with the *New language* issue first, so nobody translates the same
+thing twice.
+
+**1. What Home Assistant shows.** Copy `translations/en.json` to
+`translations/<code>.json`, where `<code>` is the code Home Assistant uses for
+the language: `de`, `fr`, or with a region, `pt-BR`. Translate the values only.
+Keys stay as they are, and so does anything in braces, such as `{station}`:
+that is filled in when the text is shown. Anything you leave out is shown in
+English, but leave nothing out on purpose; the test treats a missing key as a
+mistake. `strings.json` is not touched, because it is the English source.
+
+**2. What the station says out loud, and what it understands.** These belong
+together: an answer nobody can ask for is no use, and neither is a question
+that is answered in English. Both are keyed by the language alone, without a
+region, because that is all Home Assistant's language is matched on here: a
+`pt` table answers `pt-BR` and `pt-PT` alike.
+
+- In `speech.py`, add a `<code>` entry with every key the `en` entry has to
+  `PHRASES` and to `SECTORS`, and one to `_THOUSANDS` and `_DECIMAL`. The last
+  two are how the language writes 3,700 and 2.5; get them the wrong way round
+  and a height becomes a different number.
+- Add `sentences/<code>/adsb_station.yaml`, with `language: <code>` and an
+  entry for every intent in the English file. Write the questions the way
+  people actually ask them, not as a translation of the English ones; this
+  part needs a native or daily speaker more than any other.
+
+**Not part of a translation:** the pages under `docs/` and the README. They are
+thirteen pages per language and are kept in English and Dutch only.
+
+The checks in [Checks](#checks) tell you whether everything is there before you
+open the pull request.
+
 ## Releases
 
 The standard HACS flow: bump `version` in `manifest.json`, merge to the default
