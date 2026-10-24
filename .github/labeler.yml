@@ -1,0 +1,15 @@
+# Labels a pull request by what it touches, so a translation or a page of
+# documentation is recognisable in the list without opening it.
+translation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - custom_components/adsb_station/translations/**
+          - custom_components/adsb_station/sentences/**
+          - custom_components/adsb_station/speech.py
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+          - CONTRIBUTING.md
