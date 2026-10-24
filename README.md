@@ -71,6 +71,10 @@ Requires Home Assistant 2026.3 or newer.
 
 The integration speaks English and Dutch: the entity names and the setup, and the answers it gives out loud through Assist. Home Assistant shows English for any other language. A translation is welcome, and the first part of it is a single file to fill in. [Offer one here](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=new_language.yml); the issue says what is involved.
 
+### Upgrading
+
+From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised, and what may still change, is in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises).
+
 ### Development
 
 Working on the integration itself is covered in [CONTRIBUTING.md](CONTRIBUTING.md): how to set up, the three checks that are the whole of what CI can tell you about the code, how the code is laid out, and how a release is cut. It needs Python 3.14 or newer and nothing else: no Home Assistant installation of your own.
@@ -149,6 +153,10 @@ Vereist Home Assistant 2026.3 of nieuwer.
 ### Talen
 
 De integratie spreekt Engels en Nederlands: de namen van de entiteiten en de configuratie, en de antwoorden die hij hardop geeft via Assist. Voor elke andere taal toont Home Assistant Engels. Een vertaling is welkom, en het eerste deel ervan is één bestand om in te vullen. [Bied er hier een aan](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=new_language.yml); het issue legt uit wat erbij komt kijken.
+
+### Bijwerken
+
+Vanaf 1.0 breekt een update binnen dezelfde hoofdversie niets van wat je erop gebouwd hebt: entiteits-ID's en hun geschiedenis, attributen, acties en hun antwoorden, en events blijven zoals ze zijn. Wat er precies beloofd wordt, en wat nog wel kan veranderen, staat in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises) (Engels).
 
 ### Ontwikkeling
 

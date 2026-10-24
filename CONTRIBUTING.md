@@ -141,9 +141,39 @@ thirteen pages per language and are kept in English and Dutch only.
 The checks in [Checks](#checks) tell you whether everything is there before you
 open the pull request.
 
+## What a version number promises
+
+From 1.0 on, the version says whether an upgrade can break something you
+built. Automations, dashboards and templates lean on the integration in a few
+places, and those stay as they are until the next major version:
+
+- **Entities keep their identity.** A unique ID is never changed, so the
+  entity ID, its history and anything that refers to it survive every
+  upgrade. An entity is not removed and does not change what it measures or
+  its unit.
+- **Attributes keep their name and meaning.** A template reading
+  `state_attr(..., 'altitude')` keeps working.
+- **Actions keep their name, their fields and their response.**
+  `adsb_station.look_up_aircraft`, `list_aircraft`, `speak` and
+  `install_sentences`.
+- **Events keep their name and their data.** `adsb_station_aircraft_passage`,
+  `adsb_station_watchlist_match` and `adsb_station_aircraft_approaching`.
+- **A configured station keeps working.** An older entry is migrated in
+  place, as every version before 1.0 already did, and never has to be
+  removed and set up again.
+
+What a minor version may do, because none of it breaks what is already there:
+add entities, attributes, fields and events; change a display name or a
+translation, since the entity ID is not taken from it after setup; and ask
+for a newer Home Assistant, which HACS checks before it offers the update.
+
+Anything else is a major version, with the change and what to do about it at
+the top of the release notes. A patch version only fixes what did not work as
+documented.
+
 ## Releases
 
 The standard HACS flow: bump `version` in `manifest.json`, merge to the default
-branch, then publish a GitHub release with a matching tag, `v0.2.0` for
-version `0.2.0`. The release workflow checks that the tag matches the manifest
+branch, then publish a GitHub release with a matching tag, `v1.0.0` for
+version `1.0.0`. The release workflow checks that the tag matches the manifest
 version and attaches a zip of the integration to the release.
