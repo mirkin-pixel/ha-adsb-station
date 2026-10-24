@@ -4,7 +4,9 @@ This file is for people working on the integration. If you are looking for how
 to install or configure it, that is the [README](README.md), which is the page
 HACS shows, and [`docs/`](docs), which holds a page per subject in English and
 Dutch. Both languages are kept side by side: a change to one belongs in the
-other, and the README stays short enough to stand on its own.
+other, and the README stays short enough to stand on its own. If you do not
+write Dutch, put your English text in the Dutch page as well and say so in the
+pull request; it is translated before the merge.
 
 Contributions are welcome. An issue first is appreciated for anything larger
 than a fix, so nobody writes the same thing twice.
@@ -97,14 +99,23 @@ blocks are flattened before they are written rather than searched as they come.
 
 ## Translations
 
-User-facing text lives in `custom_components/adsb_station/strings.json`, and is
-mirrored into `translations/en.json` and `translations/nl.json`. The English
-two are identical; a change to one belongs in the other. Entity names come from
-`translation_key`, never from a hard-coded `name`.
+**English is the source**, as it is for the rest of Home Assistant. User-facing
+text lives in `custom_components/adsb_station/strings.json`, and is mirrored
+into `translations/en.json`; the two are identical, so a change to one belongs
+in the other. Entity names come from `translation_key`, never from a hard-coded
+`name`.
 
-`tests/test_translations.py` holds all of this to account: it fails when the
-English two differ, and when any language is missing a key English has or
-fills in a different placeholder.
+That is all a contribution has to do. Every other language, Dutch included,
+may lag behind: Home Assistant shows the English text for anything a
+translation lacks, and the spoken answers fall back to English phrase by
+phrase. What each language is missing is kept up to date in the
+[Translation status](https://github.com/mirkin-pixel/ha-adsb-station/issues?q=is%3Aissue+is%3Aopen+label%3Atranslation+%22Translation+status%22) issue, written by
+`scripts/translation_status.py` on every push to `main`. A pull request shows
+the same table in the summary of its *Translation status* run.
+
+`tests/test_translations.py` holds the rest to account. It fails when the two
+English files differ, and when a translation is wrong rather than behind: a
+key English no longer has, or a placeholder English does not fill in.
 
 ### Adding a language
 
@@ -117,8 +128,9 @@ thing twice.
 the language: `de`, `fr`, or with a region, `pt-BR`. Translate the values only.
 Keys stay as they are, and so does anything in braces, such as `{station}`:
 that is filled in when the text is shown. Anything you leave out is shown in
-English, but leave nothing out on purpose; the test treats a missing key as a
-mistake. `strings.json` is not touched, because it is the English source.
+English and listed in the status issue, so a partial translation is welcome
+and can be finished later, by you or someone else. `strings.json` is not
+touched, because it is the English source.
 
 **2. What the station says out loud, and what it understands.** These belong
 together: an answer nobody can ask for is no use, and neither is a question
@@ -126,10 +138,11 @@ that is answered in English. Both are keyed by the language alone, without a
 region, because that is all Home Assistant's language is matched on here: a
 `pt` table answers `pt-BR` and `pt-PT` alike.
 
-- In `speech.py`, add a `<code>` entry with every key the `en` entry has to
-  `PHRASES` and to `SECTORS`, and one to `_THOUSANDS` and `_DECIMAL`. The last
-  two are how the language writes 3,700 and 2.5; get them the wrong way round
-  and a height becomes a different number.
+- In `speech.py`, add a `<code>` entry to `PHRASES` and to `SECTORS` with the
+  keys of the `en` entry; a phrase you leave out is said in English. Add one
+  to `_THOUSANDS` and `_DECIMAL` as well, which are required: they are how the
+  language writes 3,700 and 2.5, and the wrong way round turns a height into a
+  different number.
 - Add `sentences/<code>/adsb_station.yaml`, with `language: <code>` and an
   entry for every intent in the English file. Write the questions the way
   people actually ask them, not as a translation of the English ones; this
@@ -138,8 +151,9 @@ region, because that is all Home Assistant's language is matched on here: a
 **Not part of a translation:** the pages under `docs/` and the README. They are
 thirteen pages per language and are kept in English and Dutch only.
 
-The checks in [Checks](#checks) tell you whether everything is there before you
-open the pull request.
+The checks in [Checks](#checks) tell you whether what is there fits, and
+`python scripts/translation_status.py` what is still left, before you open the
+pull request.
 
 ## What a version number promises
 

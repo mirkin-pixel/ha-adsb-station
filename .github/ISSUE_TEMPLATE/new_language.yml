@@ -42,7 +42,7 @@ body:
       description: The first part is a copy of a JSON file. The second needs sentences that sound right out loud, and comes as a whole, because an answer nobody can ask for is no use.
       options:
         - label: "**Entity, config and service texts**: `custom_components/adsb_station/translations/<code>.json`, a copy of `en.json` with only the values translated. Keys and placeholders such as `{station}` stay as they are."
-        - label: "**Spoken answers and Assist sentences**: a `<code>` entry in `PHRASES`, `SECTORS`, `_THOUSANDS` and `_DECIMAL` in `custom_components/adsb_station/speech.py`, with every key the `en` entry has, and `custom_components/adsb_station/sentences/<code>/adsb_station.yaml` with one entry per intent in the `en` file, written the way people actually ask. Keyed by the language alone, without a region: `pt`, not `pt-BR`."
+        - label: "**Spoken answers and Assist sentences**: a `<code>` entry in `PHRASES`, `SECTORS`, `_THOUSANDS` and `_DECIMAL` in `custom_components/adsb_station/speech.py`, with the keys of the `en` entry (a phrase left out is said in English), and `custom_components/adsb_station/sentences/<code>/adsb_station.yaml` with one entry per intent in the `en` file, written the way people actually ask. Keyed by the language alone, without a region: `pt`, not `pt-BR`."
 
   - type: input
     id: numbers

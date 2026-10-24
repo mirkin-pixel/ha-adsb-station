@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from custom_components.adsb_station.coordinator import AircraftSummary
-from custom_components.adsb_station.speech import language_of, name_of
+from custom_components.adsb_station.speech import (
+    PHRASES,
+    SECTORS,
+    language_of,
+    name_of,
+    say,
+    sector_word,
+)
 
 
 def _aircraft(**values: object) -> AircraftSummary:
@@ -66,3 +73,29 @@ def test_language_of(asked: str | None, answered: str) -> None:
 def test_name_of(aircraft: AircraftSummary, spoken: str) -> None:
     """Test what an aircraft is called out loud."""
     assert name_of(aircraft, "en") == spoken
+
+
+def test_a_phrase_a_language_lacks_is_said_in_english(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that a translation behind English answers rather than fails."""
+    dutch = {key: text for key, text in PHRASES["nl"].items() if key != "no_route"}
+    monkeypatch.setitem(PHRASES, "nl", dutch)
+
+    assert say("nl", "no_route", aircraft="KLM") == "I have no route for KLM."
+    assert say("nl", "no_aircraft") == "geen vliegtuigen"
+
+
+def test_a_direction_a_language_lacks_is_said_in_english(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that a missing direction, or a missing table, falls back too."""
+    monkeypatch.setitem(
+        SECTORS, "nl", {key: word for key, word in SECTORS["nl"].items() if key != "w"}
+    )
+    assert sector_word("w", "nl") == "west"
+    assert sector_word("e", "nl") == "oosten"
+
+    monkeypatch.delitem(SECTORS, "nl")
+    assert sector_word("e", "nl") == "east"
+    assert sector_word(None, "nl") is None
