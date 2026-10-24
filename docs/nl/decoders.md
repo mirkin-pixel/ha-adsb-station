@@ -35,6 +35,15 @@ Voeg daarna de optie toe aan `/etc/default/readsb`, bij de argumenten waarmee re
 
 Herstart readsb en de extra velden staan meteen in `aircraft.json`. De integratie pikt ze vanzelf op: de attributen verschijnen zodra de decoder ze stuurt, dus je hoeft niets te herconfigureren. De database is een momentopname, dus ververs hem af en toe door hetzelfde commando opnieuw te draaien.
 
+## Ultrafeeder
+
+[Ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) is readsb en tar1090 in één Docker-container, en voor deze integratie is het readsb: de laatste kolom van de tabel hierboven geldt. Twee instellingen van de container bepalen hoeveel je ervan krijgt:
+
+- **Maak de webinterface bereikbaar.** De container serveert die op poort 80, en `aircraft.json` staat daar onder `/data/`. Koppel hem aan poort 80 of 8080 op de host, `8080:80` in het voorbeeld van de README zelf, en de configuratie vindt hem vanzelf. Elke andere poort werkt ook, met het adres met de hand ingevuld.
+- **Zet `TAR1090_ENABLE_AC_DB=true`.** Dat staat standaard uit, en het is wat [de vliegtuigdatabase](#de-vliegtuigdatabase) in readsb laadt, dus zonder is er geen registratie en geen type. Zet ook `LAT` en `LONG`, zodat het bereik vanaf de antenne gemeten wordt.
+
+Wat Ultrafeeder naar ADS-B Exchange, adsb.fi, airplanes.live en de andere netwerken stuurt, kan deze integratie niet laten zien. Geen van die netwerken houdt een statusdocument bij op je eigen netwerk: de staat van een feed staat in `docker logs`, en op de website van het netwerk zelf. Flightradar24, FlightAware en Plane Finder draaien in eigen containers ernaast, en elk daarvan stel je in als feeder zoals altijd, zolang de statuspoort naar de host is gekoppeld.
+
 ## Wat de decoder verder meldt
 
 Er reizen nog vijf attributen met een vliegtuig mee, en net als hierboven staan ze er alleen als de decoder ze stuurt:
