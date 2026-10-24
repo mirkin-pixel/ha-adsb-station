@@ -3,6 +3,3 @@ contact_links:
   - name: Troubleshooting
     url: https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md
     about: The usual reasons an entity is missing or a value looks wrong.
-  - name: Probleemoplossing (Nederlands)
-    url: https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/nl/troubleshooting.md
-    about: De gebruikelijke redenen dat een entiteit ontbreekt of een waarde niet klopt.
