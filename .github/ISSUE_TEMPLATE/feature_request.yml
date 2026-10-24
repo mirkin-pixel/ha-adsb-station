@@ -1,0 +1,44 @@
+name: An idea
+description: Something the integration could do that it does not do yet.
+title: "<what you would like, in a few words>"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Two things decide most ideas, so they are worth knowing up
+        front: everything is read off your own network, with route lookups as
+        the one opt-in exception, and a figure has to come from something the
+        decoder or a feeder actually reports. An idea that needs a new outside
+        service is not ruled out, but it would be off by default.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to do
+      description: The situation rather than the solution. "I want to know when a helicopter lands at the hospital nearby" says more than "add a sensor for altitude below 500 ft".
+    validations:
+      required: true
+
+  - type: textarea
+    id: how
+    attributes:
+      label: How you picture it
+      description: An entity, an attribute, an event, an action, a line in the documentation. Optional; the first answer is the one that matters.
+
+  - type: dropdown
+    id: decoder
+    attributes:
+      label: Decoder you run
+      description: Some ideas only work with what one decoder reports.
+      options:
+        - readsb (with or without tar1090, or inside Ultrafeeder)
+        - dump1090-fa or SkyAware
+        - dump1090 as shipped with fr24feed
+        - Something else, or I do not know
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today instead
+      description: A template, an automation, another integration. It helps to see how close the integration already gets.

@@ -1,0 +1,19 @@
+name: Label
+
+# pull_request_target, so a pull request from a fork can be labelled too. It
+# runs the labeler from the default branch against the list of changed files
+# and never checks out or runs the code of the pull request itself.
+on:
+  pull_request_target:
+
+permissions: {}
+
+jobs:
+  label:
+    name: Label by changed files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@v7
