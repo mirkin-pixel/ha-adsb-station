@@ -173,6 +173,15 @@ EVENT_AIRCRAFT_PASSAGE = f"{DOMAIN}_aircraft_passage"
 # the edge of the radius would otherwise ring the doorbell every poll.
 PASSAGE_GAP = timedelta(minutes=10)
 
+# How long the dongle may deliver no samples before the receiver counts as
+# silent. Samples are the raw radio, 2.4 million a second whether or not
+# anything is flying, so this is a figure about the hardware rather than the
+# sky: a decoder restarting, or reopening a dongle that hiccupped, is back
+# within the minute, and three minutes of nothing is a dongle that is gone.
+# Counting messages instead does not work: a modest antenna hears none at all
+# for twenty minutes on a quiet night.
+RECEIVER_SILENT_AFTER = timedelta(minutes=3)
+
 # A standing list of aircraft worth knowing about, one to a line. Unlike a
 # passage this has no radius: the question is whether the aircraft is up
 # there at all, however far away, so it is matched against everything the

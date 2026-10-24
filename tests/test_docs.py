@@ -78,8 +78,7 @@ def test_the_readme_halves_have_the_same_shape() -> None:
     dutch = _headings(halves["nl"])
 
     assert english == dutch, (
-        f"The README has {len(english)} headings in English and "
-        f"{len(dutch)} in Dutch"
+        f"The README has {len(english)} headings in English and {len(dutch)} in Dutch"
     )
     assert len(english) > 5
 

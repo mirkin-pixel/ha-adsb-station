@@ -174,9 +174,8 @@ def kind_of(entry: str, models: dict[str, str]) -> str | None:
     # to be: PH-BXA is a registration, KLM123 a callsign, and N123AB could
     # be read as either, so it is compared against both and the match says
     # which one it hit.
-    if (
-        _NAME_LENGTH[0] <= len(text) <= _NAME_LENGTH[1]
-        and any(character.isalpha() for character in text)
+    if _NAME_LENGTH[0] <= len(text) <= _NAME_LENGTH[1] and any(
+        character.isalpha() for character in text
     ):
         return WATCHLIST_NAME
     return None

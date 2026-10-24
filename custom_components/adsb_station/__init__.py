@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -14,6 +14,7 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_STATS_URL,
+    DOMAIN,
     FEEDER_FR24,
 )
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
@@ -93,8 +94,9 @@ async def async_migrate_entry(
     # sixth of the aircraft the way they had come. Anyone who picked either of
     # them asked for routes, and that is all the setting says now.
     if entry.version < 3 and LEGACY_ROUTE_SOURCE in options:
-        options[CONF_LOOK_UP_ROUTES] = (
-            options.pop(LEGACY_ROUTE_SOURCE) not in (None, "none")
+        options[CONF_LOOK_UP_ROUTES] = options.pop(LEGACY_ROUTE_SOURCE) not in (
+            None,
+            "none",
         )
 
     # PiAware's uptime became the moment the host was started, which says the
@@ -123,9 +125,7 @@ async def async_migrate_entry(
                     disabled_by=er.RegistryEntryDisabler.INTEGRATION,
                 )
 
-    hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=5
-    )
+    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
     return True
 
 
@@ -133,6 +133,9 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> bool:
     """Unload a config entry."""
+    # A silent receiver is noticed again by the next coordinator, and an entry
+    # that is being removed should not leave a repair behind that names it.
+    ir.async_delete_issue(hass, DOMAIN, f"receiver_silent_{entry.entry_id}")
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

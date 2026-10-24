@@ -1,6 +1,16 @@
 # Problemen oplossen
 
-Blijven entiteiten op `unknown` of `unavailable` staan? Verzamel dan de twee onderstaande zaken en voeg ze toe aan een [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).
+## De ontvanger hoort niets
+
+Een werkende dongle levert de decoder 2,4 miljoen samples per seconde, de ruwe radio, of er nu iets vliegt of niet. Heeft hij drie minuten niets geleverd, dan gaat **Ontvanger stil** aan en verschijnt er een melding onder **Instellingen → Systeem → Reparaties**. Allebei verdwijnen ze vanzelf zodra de dongle weer levert.
+
+Het is bijna altijd de dongle. Die is van de USB-bus gevallen, of de host is herstart zonder dat de dongle stroomloos werd, en hij kwam terug in een toestand waar de decoder niet uit kan lezen. Trek hem eruit en steek hem er weer in, of herstart de decoder (`sudo systemctl restart readsb`, of `dump1090-fa`). Een virtuele machine is het gewone geval van het tweede: een herstart van de gast laat het USB-apparaat onder stroom, en alleen eruit trekken zet het terug.
+
+De sensor kijkt naar de samples en niet naar de berichten of de vliegtuigen, dus een rustige lucht wordt nooit aangezien voor een dode ontvanger: een bescheiden antenne kan op een rustige nacht twintig minuten geen enkel bericht horen en toch prima werken. Hij leest ze uit `stats.json`, dus een decoder zonder krijgt deze sensor niet. Hij gaat ook aan als de decoder helemaal niet meer antwoordt, zolang er een feeder is om dat te melden. Een station zonder feeder wordt dan als geheel onbeschikbaar, en de melding verschijnt toch.
+
+## Entiteiten blijven onbekend of onbeschikbaar
+
+Verzamel de twee onderstaande zaken en voeg ze toe aan een [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).
 
 **Debug-logging aanzetten.** Ga naar **Instellingen → Apparaten & diensten → ADS-B Station**, klik op de drie puntjes en kies **Debug-logging aanzetten**. Reproduceer het probleem en kies daarna **Debug-logging uitzetten**, en Home Assistant downloadt de log automatisch.
 

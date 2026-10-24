@@ -195,6 +195,12 @@
       }
     },
     "binary_sensor": {
+      "receiver_silent": {
+        "default": "mdi:antenna",
+        "state": {
+          "on": "mdi:access-point-off"
+        }
+      },
       "nearby": {
         "default": "mdi:airplane-alert"
       },

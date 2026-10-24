@@ -175,9 +175,7 @@ def name_of(summary: AircraftSummary, language: str) -> str:
     return say(language, "unknown_aircraft")
 
 
-def altitude_of(
-    summary: AircraftSummary, language: str, units: UnitSystem
-) -> str:
+def altitude_of(summary: AircraftSummary, language: str, units: UnitSystem) -> str:
     """Return how high an aircraft is, in whole units of the right kind."""
     if summary.altitude is None:
         return say(language, "no_altitude")

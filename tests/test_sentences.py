@@ -80,9 +80,7 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
 
 def _intents(language: str) -> Intents:
     """Parse one shipped file the way the conversation agent parses it."""
-    payload = yaml.safe_load(
-        (SENTENCES / language / SENTENCES_FILE).read_text("utf-8")
-    )
+    payload = yaml.safe_load((SENTENCES / language / SENTENCES_FILE).read_text("utf-8"))
     return Intents.from_dict(payload)
 
 
