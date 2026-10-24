@@ -15,7 +15,7 @@ It is not tied to a single network. Anything that serves an `aircraft.json` work
 
 | Decoder | What you get |
 |---|---|
-| readsb or tar1090 | Every receiver entity, and the most of them; see [Which decoder](docs/en/decoders.md) |
+| readsb or tar1090, also inside Ultrafeeder | Every receiver entity, and the most of them; see [Which decoder](docs/en/decoders.md) |
 | dump1090-fa or SkyAware | Every receiver entity |
 | dump1090, dump1090-mutability | The receiver entities its build reports |
 | The dump1090 fork bundled with fr24feed | The receiver entities that fork reports |
@@ -94,7 +94,7 @@ De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aan
 
 | Decoder | Wat je krijgt |
 |---|---|
-| readsb of tar1090 | Alle ontvanger-entiteiten, en daarvan de meeste; zie [Welke decoder](docs/nl/decoders.md) |
+| readsb of tar1090, ook binnen Ultrafeeder | Alle ontvanger-entiteiten, en daarvan de meeste; zie [Welke decoder](docs/nl/decoders.md) |
 | dump1090-fa of SkyAware | Alle ontvanger-entiteiten |
 | dump1090, dump1090-mutability | De ontvanger-entiteiten die deze build meldt |
 | De dump1090-fork die fr24feed meelevert | De ontvanger-entiteiten die die fork meldt |
