@@ -369,7 +369,7 @@
       "receiver_silent": {
         "name": "Receiver silent",
         "state": {
-          "off": "Hearing aircraft",
+          "off": "Delivering",
           "on": "Silent"
         }
       },
@@ -407,7 +407,7 @@
   "issues": {
     "receiver_silent": {
       "title": "{station} hears nothing",
-      "description": "The decoder of {station} has counted no messages for {minutes} minutes. A working receiver hears something every second, so this is almost always the dongle: it dropped off the USB bus, or it did not come back after a reboot because it was never power cycled.\n\nUnplug the dongle and plug it back in, or restart the decoder. This message goes away by itself as soon as the receiver hears aircraft again."
+      "description": "The dongle of {station} has delivered nothing to the decoder for {minutes} minutes. A working dongle hands over millions of samples a second, whether or not anything is flying, so this is the dongle and not a quiet sky: it dropped off the USB bus, or it did not come back after a reboot because it never lost power.\n\nUnplug the dongle and plug it back in, or restart the decoder. This message goes away by itself as soon as the dongle delivers again."
     }
   },
   "services": {

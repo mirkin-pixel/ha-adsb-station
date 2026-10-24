@@ -2,11 +2,11 @@
 
 ## De ontvanger hoort niets
 
-Een werkende ontvanger telt elke seconde berichten, ook 's nachts, omdat de teller alle vliegtuigen meetelt die hij kan horen en niet alleen die in de buurt. Heeft de decoder tien minuten niets geteld, dan gaat **Ontvanger stil** aan en verschijnt er een melding onder **Instellingen → Systeem → Reparaties**. Allebei verdwijnen ze vanzelf zodra er weer berichten binnenkomen.
+Een werkende dongle levert de decoder 2,4 miljoen samples per seconde, de ruwe radio, of er nu iets vliegt of niet. Heeft hij drie minuten niets geleverd, dan gaat **Ontvanger stil** aan en verschijnt er een melding onder **Instellingen → Systeem → Reparaties**. Allebei verdwijnen ze vanzelf zodra de dongle weer levert.
 
 Het is bijna altijd de dongle. Die is van de USB-bus gevallen, of de host is herstart zonder dat de dongle stroomloos werd, en hij kwam terug in een toestand waar de decoder niet uit kan lezen. Trek hem eruit en steek hem er weer in, of herstart de decoder (`sudo systemctl restart readsb`, of `dump1090-fa`). Een virtuele machine is het gewone geval van het tweede: een herstart van de gast laat het USB-apparaat onder stroom, en alleen eruit trekken zet het terug.
 
-De sensor kijkt naar de teller en niet naar het aantal vliegtuigen, dus een rustige lucht wordt nooit aangezien voor een dode ontvanger. Hij gaat ook aan als de decoder helemaal niet meer antwoordt, zolang er een feeder is om dat te melden. Een station zonder feeder wordt dan als geheel onbeschikbaar, en de melding verschijnt toch.
+De sensor kijkt naar de samples en niet naar de berichten of de vliegtuigen, dus een rustige lucht wordt nooit aangezien voor een dode ontvanger: een bescheiden antenne kan op een rustige nacht twintig minuten geen enkel bericht horen en toch prima werken. Hij leest ze uit `stats.json`, dus een decoder zonder krijgt deze sensor niet. Hij gaat ook aan als de decoder helemaal niet meer antwoordt, zolang er een feeder is om dat te melden. Een station zonder feeder wordt dan als geheel onbeschikbaar, en de melding verschijnt toch.
 
 ## Entiteiten blijven onbekend of onbeschikbaar
 

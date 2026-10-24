@@ -369,7 +369,7 @@
       "receiver_silent": {
         "name": "Ontvanger stil",
         "state": {
-          "off": "Hoort vliegtuigen",
+          "off": "Levert",
           "on": "Stil"
         }
       },
@@ -407,7 +407,7 @@
   "issues": {
     "receiver_silent": {
       "title": "{station} hoort niets",
-      "description": "De decoder van {station} heeft al {minutes} minuten geen berichten geteld. Een werkende ontvanger hoort elke seconde iets, dus dit is bijna altijd de dongle: die is van de USB-bus gevallen, of kwam na een herstart niet terug omdat hij nooit stroomloos is geweest.\n\nTrek de dongle eruit en steek hem er weer in, of herstart de decoder. Deze melding verdwijnt vanzelf zodra de ontvanger weer vliegtuigen hoort."
+      "description": "De dongle van {station} heeft al {minutes} minuten niets aan de decoder geleverd. Een werkende dongle levert miljoenen samples per seconde, of er nu iets vliegt of niet, dus dit is de dongle en geen rustige lucht: hij is van de USB-bus gevallen, of kwam na een herstart niet terug omdat hij nooit stroomloos is geweest.\n\nTrek de dongle eruit en steek hem er weer in, of herstart de decoder. Deze melding verdwijnt vanzelf zodra de dongle weer levert."
     }
   },
   "services": {

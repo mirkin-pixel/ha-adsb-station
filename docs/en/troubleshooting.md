@@ -2,11 +2,11 @@
 
 ## The receiver hears nothing
 
-A working receiver counts messages every second, at night as well, because the counter takes in every aircraft it can hear and not only the ones nearby. When the decoder has counted nothing for ten minutes, **Receiver silent** turns on and a repair appears under **Settings → System → Repairs**. Both clear on their own as soon as messages come in again.
+A working dongle hands the decoder 2.4 million samples a second, the raw radio, whether or not anything is flying. When it has delivered nothing for three minutes, **Receiver silent** turns on and a repair appears under **Settings → System → Repairs**. Both clear on their own as soon as the dongle delivers again.
 
 It is nearly always the dongle. It dropped off the USB bus, or the host was rebooted without the dongle losing power, and it came back in a state the decoder cannot read from. Unplug it and plug it back in, or restart the decoder (`sudo systemctl restart readsb`, or `dump1090-fa`). A virtual machine is the usual case of the second: restarting the guest leaves the USB device powered, and only taking it out resets it.
 
-The sensor watches the counter rather than the number of aircraft, so a quiet sky is never mistaken for a dead receiver. It also turns on when the decoder stops answering at all, with a feeder still there to say so. A station without a feeder becomes unavailable as a whole instead, and the repair appears all the same.
+The sensor watches the samples rather than the messages or the aircraft, so a quiet sky is never mistaken for a dead receiver: a modest antenna can hear no message at all for twenty minutes on a quiet night, and still be fine. It reads them from `stats.json`, so a decoder without one gets no such sensor. It also turns on when the decoder stops answering at all, with a feeder still there to say so. A station without a feeder becomes unavailable as a whole instead, and the repair appears all the same.
 
 ## Entities stay unknown or unavailable
 

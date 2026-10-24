@@ -18,7 +18,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vandaag gehoord | Sensor | Hoeveel verschillende toestellen het station vandaag hoorde, op elke afstand |
 | Watchlist in bereik | Binary sensor | Aan zolang er een toestel van je [watchlist](watchlist.md) in de lucht is. Staat er alleen als je er een hebt ingesteld |
 | Noodsquawk | Binary sensor (veiligheid) | Aan zolang een vliegtuig in je bereik 7500, 7600 of 7700 squawkt |
-| Ontvanger stil | Binary sensor (probleem, diagnostisch) | Aan als de decoder tien minuten geen berichten heeft geteld. Dat is een dongle die weg is of vastzit, geen rustige lucht. Geeft ook een melding onder Reparaties; zie [problemen oplossen](troubleshooting.md#de-ontvanger-hoort-niets) |
+| Ontvanger stil | Binary sensor (probleem, diagnostisch) | Aan als de dongle drie minuten niets aan de decoder heeft geleverd. Dat is een dongle die weg is of vastzit, geen rustige lucht. Geeft ook een melding onder Reparaties. Heeft `stats.json` nodig; zie [problemen oplossen](troubleshooting.md#de-ontvanger-hoort-niets) |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger, bijgewerkt op de ververstijd voor statistieken |
 | Ontvanger bijgewerkt | Sensor (diagnostisch, standaard uit) | Het tijdstempel in `aircraft.json`. Elke meting nieuw, dus uit tenzij je hem aanzet |
 

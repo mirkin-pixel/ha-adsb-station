@@ -783,11 +783,12 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # one aircraft shows. None the moment the sky above you is empty.
         self.overhead: Passage | None = None
         self._previous_messages: tuple[int, float] | None = None
-        # When the decoder's message counter last went up, and what it stood at
-        # on the last read. Seeded with the start, so a dongle that is gone
-        # from the first poll is noticed as soon as one that goes quiet later.
-        self._heard_at = dt_util.utcnow()
-        self._heard_count: int | None = None
+        # When the dongle last delivered samples, and where the last minute of
+        # stats.json ended on the last read. Seeded with the start, so a dongle
+        # that is gone from the first poll is noticed as soon as one that goes
+        # quiet later.
+        self._sampled_at = dt_util.utcnow()
+        self._sampled_until: float | None = None
         self.receiver_silent = False
         self._aircraft_failed = False
         self._stats_failed = False
@@ -898,27 +899,44 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             aircraft, message_rate=self._take_message_rate(aircraft.messages, now)
         )
 
-    def _listen(self, messages: int | None, *, answered: bool) -> None:
-        """Note whether the receiver heard anything, and say so when it stops.
+    def _check_samples(self, data: dict[str, Any] | None) -> None:
+        """Note whether the dongle is delivering, and say so when it stops.
 
         A dongle that drops off the bus, or comes back from a reboot without
         having been power cycled, does not always take the decoder with it.
-        The decoder can stop, hang on its last aircraft.json, or keep serving
-        one with nothing in it, and to every other entity the last of those
-        looks like an empty sky. What all three have in common is that the
-        message counter stops going up, so that is what this watches.
+        The decoder can stop, hang, or keep running on nothing, and to every
+        other entity the last of those looks like an empty sky. What gives it
+        away is the samples: the decoder counts every one the dongle hands
+        it, at a steady 2.4 million a second, and none of that depends on
+        anything flying. So the last minute of stats.json is read for them,
+        and a minute that has not moved on since the last read is a decoder
+        that hung.
 
-        A decoder that answers without a counter at all is one we cannot
-        judge, and is taken at its word rather than called silent.
+        Always the last minute, not the window the other figures come from:
+        those fall back to a longer window when the last minute heard no
+        signal, which is exactly the minute this is about. A decoder that
+        does not count samples is one we cannot judge, and is taken at its
+        word rather than called silent. None is a stats.json that could not
+        be read, which counts as nothing delivered.
         """
         now = dt_util.utcnow()
-        previous, self._heard_count = self._heard_count, messages
-        if answered and (
-            messages is None or (previous is not None and messages > previous)
-        ):
-            self._heard_at = now
+        window = data.get("last1min") if data is not None else None
+        if isinstance(window, dict):
+            local = window.get("local")
+            samples = (
+                _as_int(local.get("samples_processed"))
+                if isinstance(local, dict)
+                else None
+            )
+            until = _as_float(window.get("end"))
+            moved_on = until is None or until != self._sampled_until
+            self._sampled_until = until
+            if samples is None or (samples > 0 and moved_on):
+                self._sampled_at = now
+        elif data is not None:
+            self._sampled_at = now
 
-        silent = now - self._heard_at >= RECEIVER_SILENT_AFTER
+        silent = now - self._sampled_at >= RECEIVER_SILENT_AFTER
         if silent == self.receiver_silent:
             return
         self.receiver_silent = silent
@@ -926,14 +944,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         entry = self.config_entry
         issue_id = f"receiver_silent_{entry.entry_id}"
         if not silent:
-            _LOGGER.info("%s is hearing aircraft again", self.client.aircraft_url)
+            _LOGGER.info(
+                "The dongle behind %s is delivering again", self.client.stats_url
+            )
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
             return
         _LOGGER.warning(
-            "%s has counted no messages since %s. The dongle may be gone or "
-            "wedged; plugging it back in or restarting the decoder usually helps",
-            self.client.aircraft_url,
-            self._heard_at.isoformat(timespec="seconds"),
+            "The dongle behind %s has delivered no samples since %s. It may be "
+            "gone or wedged; plugging it back in or restarting the decoder "
+            "usually helps",
+            self.client.stats_url,
+            self._sampled_at.isoformat(timespec="seconds"),
         )
         ir.async_create_issue(
             self.hass,
@@ -972,8 +993,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_aircraft()
         except AdsbStationError as err:
-            self._listen(None, answered=False)
             if required:
+                # Nothing else will be read this poll, stats.json included, and
+                # a decoder that is not there delivers no samples either.
+                if self.client.stats_url:
+                    self._check_samples(None)
                 raise UpdateFailed(err) from err
             # The feeder keeps working without the decoder, so degrade instead
             # of taking every entity down. Report the outage only once.
@@ -990,7 +1014,6 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         if self._aircraft_failed:
             self._aircraft_failed = False
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
-        self._listen(_as_int(data.get("messages")), answered=True)
 
         await self._async_read_receiver()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
@@ -1236,6 +1259,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_stats()
         except AdsbStationError as err:
+            self._check_samples(None)
             if not self._stats_failed:
                 self._stats_failed = True
                 _LOGGER.warning(
@@ -1250,6 +1274,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self._stats_failed = False
             _LOGGER.info("%s can be read again", self.client.stats_url)
 
+        self._check_samples(data)
         return self._build_receiver_stats(data)
 
     async def _async_read_receiver(self) -> None:

@@ -133,8 +133,10 @@ async def async_setup_entry(
             )
             if description.supported_fn is None or description.supported_fn(payload)
         )
-    if coordinator.client.aircraft_url:
+    # It reads the samples in stats.json, so only where there is one.
+    if coordinator.client.stats_url:
         entities.append(AdsbStationReceiverSilentBinarySensor(coordinator))
+    if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))
         entities.append(AdsbStationNearbyBinarySensor(coordinator))
         # Only where there is a list to watch. An always-off sensor for a
@@ -166,10 +168,10 @@ class AdsbStationBinarySensor(AdsbStationEntity, BinarySensorEntity):
 
 
 class AdsbStationReceiverSilentBinarySensor(AdsbStationEntity, BinarySensorEntity):
-    """On while the receiver has heard nothing for a while.
+    """On while the dongle has delivered nothing for a few minutes.
 
-    Not an aircraft entity: it has to stay available while aircraft.json
-    cannot be read, because that is one of the ways a receiver goes silent.
+    Not a reception entity: it has to stay available while stats.json cannot
+    be read, because that is one of the ways a receiver goes silent.
     """
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -182,7 +184,7 @@ class AdsbStationReceiverSilentBinarySensor(AdsbStationEntity, BinarySensorEntit
 
     @property
     def is_on(self) -> bool:
-        """Return True when the decoder has counted no messages for a while."""
+        """Return True when the dongle has delivered no samples for a while."""
         return self.coordinator.receiver_silent
 
 

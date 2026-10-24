@@ -1,10 +1,13 @@
-"""Tests for noticing a receiver that has stopped hearing anything.
+"""Tests for noticing a dongle that has stopped delivering.
 
 The way it happens in practice: the dongle drops off the bus, or a host comes
 back from a reboot with the dongle not power cycled. The decoder may stop, may
-hang on its last aircraft.json, or may keep serving an empty one, and each of
-those has to end in the same place: the problem sensor on, and a repair that
-says what to do about it.
+hang, or may keep running on nothing, and each of those has to end in the
+same place: the problem sensor on, and a repair that says what to do.
+
+What is watched is the samples the decoder counts, not the messages. A
+modest antenna hears no messages at all for twenty minutes on a quiet night,
+and that must never read as a dead receiver.
 """
 
 from __future__ import annotations
@@ -23,20 +26,23 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
-    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     RECEIVER_SILENT_AFTER,
 )
 
 from .conftest import (
-    MOCK_AIRCRAFT,
     MOCK_PIAWARE,
+    MOCK_STATS,
     PIAWARE_URL,
     set_responses,
     setup_integration,
 )
 
-POLL = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
+MINUTE = timedelta(seconds=DEFAULT_STATISTICS_INTERVAL)
+MINUTES = int(RECEIVER_SILENT_AFTER / MINUTE)
+START = MOCK_STATS["last1min"]["end"]
+BOOM = {"exc": aiohttp.ClientError("boom")}
 
 
 def _state(hass: HomeAssistant, entry: MockConfigEntry) -> str:
@@ -55,88 +61,114 @@ def _issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEntry | None:
     )
 
 
+def _stats(minute: int, samples: int = 143_917_056) -> dict[str, Any]:
+    """Return a stats.json whose last minute ended that many minutes in."""
+    window = MOCK_STATS["last1min"]
+    return {
+        **MOCK_STATS,
+        "last1min": {
+            **window,
+            "end": START + 60 * minute,
+            "local": {**window["local"], "samples_processed": samples},
+        },
+    }
+
+
 async def _poll(
     hass: HomeAssistant,
     freezer: Any,
     aioclient_mock: AiohttpClientMocker,
-    after: timedelta = POLL,
     **responses: Any,
 ) -> None:
-    """Let some time pass, and poll with the given responses."""
+    """Let a minute pass, and poll with the given responses."""
     set_responses(aioclient_mock, **responses)
-    freezer.tick(after)
+    freezer.tick(MINUTE)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
 
-def _counted(messages: int) -> dict[str, Any]:
-    """Return an aircraft.json whose counter stands at the given number."""
-    return {"aircraft": {**MOCK_AIRCRAFT, "messages": messages}}
-
-
-async def test_a_receiver_that_hears_is_not_silent(
+async def test_a_quiet_night_is_not_silence(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
     freezer: Any,
 ) -> None:
-    """Test that a counter going up keeps the sensor off, however long."""
+    """Test that no messages for a long while is not a dead receiver.
+
+    The dongle keeps delivering samples while nothing is flying, so twenty
+    minutes in which the message counter stands still stay off.
+    """
     assert await setup_integration(hass, mock_config_entry)
 
-    for messages in range(1_000_100, 1_004_100, 100):
-        await _poll(hass, freezer, mock_api, **_counted(messages))
+    for minute in range(1, 21):
+        await _poll(hass, freezer, mock_api, stats=_stats(minute))
 
     assert _state(hass, mock_config_entry) == STATE_OFF
     assert _issue(hass, mock_config_entry) is None
 
 
-async def test_a_counter_that_stops_is_silence(
+async def test_a_dongle_that_stops_delivering(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
     freezer: Any,
 ) -> None:
-    """Test a decoder that keeps answering but counts nothing new."""
+    """Test a decoder that keeps running, with nothing coming from the dongle."""
     assert await setup_integration(hass, mock_config_entry)
-    await _poll(hass, freezer, mock_api, **_counted(1_000_500))
 
+    for minute in range(1, MINUTES):
+        await _poll(hass, freezer, mock_api, stats=_stats(minute, samples=0))
     # Just short of the limit, nothing is said yet.
-    await _poll(
-        hass, freezer, mock_api, RECEIVER_SILENT_AFTER - POLL, **_counted(1_000_500)
-    )
     assert _state(hass, mock_config_entry) == STATE_OFF
 
-    await _poll(hass, freezer, mock_api, POLL, **_counted(1_000_500))
+    await _poll(hass, freezer, mock_api, stats=_stats(MINUTES, samples=0))
     assert _state(hass, mock_config_entry) == STATE_ON
     issue = _issue(hass, mock_config_entry)
     assert issue is not None
     assert issue.translation_key == "receiver_silent"
     assert issue.translation_placeholders == {
         "station": mock_config_entry.title,
-        "minutes": "10",
+        "minutes": "3",
     }
 
     # The dongle is back: the sensor and the repair clear on their own.
-    await _poll(hass, freezer, mock_api, **_counted(1_000_900))
+    await _poll(hass, freezer, mock_api, stats=_stats(MINUTES + 1))
     assert _state(hass, mock_config_entry) == STATE_OFF
     assert _issue(hass, mock_config_entry) is None
 
 
-async def test_silent_from_the_start(
+async def test_a_decoder_that_hangs(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
     freezer: Any,
 ) -> None:
-    """Test a dongle that was already gone when Home Assistant started."""
+    """Test a stats.json that keeps serving the same minute."""
     assert await setup_integration(hass, mock_config_entry)
 
-    await _poll(hass, freezer, mock_api, RECEIVER_SILENT_AFTER)
+    for _ in range(MINUTES):
+        await _poll(hass, freezer, mock_api, stats=_stats(0))
 
     assert _state(hass, mock_config_entry) == STATE_ON
 
 
-async def test_a_decoder_that_does_not_answer_is_silence(
+async def test_silent_from_the_start(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test a dongle that was already gone when Home Assistant started."""
+    set_responses(aioclient_mock, stats=_stats(0, samples=0))
+    assert await setup_integration(hass, mock_config_entry)
+
+    for minute in range(1, MINUTES + 1):
+        await _poll(hass, freezer, aioclient_mock, stats=_stats(minute, samples=0))
+
+    assert _state(hass, mock_config_entry) == STATE_ON
+
+
+async def test_a_decoder_that_does_not_answer(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
@@ -144,19 +176,16 @@ async def test_a_decoder_that_does_not_answer_is_silence(
 ) -> None:
     """Test a decoder that stopped, with the feeder still there to report it.
 
-    The aircraft entities go unavailable, which says the decoder cannot be
+    The reception entities go unavailable, which says stats.json cannot be
     read; this one stays available, because the reason it cannot is the
     thing it is there to say.
     """
     assert await setup_integration(hass, mock_config_entry)
 
-    await _poll(
-        hass,
-        freezer,
-        mock_api,
-        RECEIVER_SILENT_AFTER,
-        aircraft_kwargs={"exc": aiohttp.ClientError("boom")},
-    )
+    for _ in range(MINUTES):
+        await _poll(
+            hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM
+        )
 
     assert _state(hass, mock_config_entry) == STATE_ON
     assert _issue(hass, mock_config_entry) is not None
@@ -175,45 +204,30 @@ async def test_a_station_without_a_feeder_still_gets_the_repair(
     """
     assert await setup_integration(hass, mock_receiver_entry)
 
-    await _poll(
-        hass,
-        freezer,
-        mock_api,
-        RECEIVER_SILENT_AFTER,
-        aircraft_kwargs={"exc": aiohttp.ClientError("boom")},
-    )
+    for _ in range(MINUTES):
+        await _poll(
+            hass, freezer, mock_api, aircraft_kwargs=BOOM, stats_kwargs=BOOM
+        )
 
     assert _state(hass, mock_receiver_entry) == STATE_UNAVAILABLE
     assert _issue(hass, mock_receiver_entry) is not None
 
 
-async def test_a_restarted_decoder_is_not_silence(
+async def test_a_decoder_without_a_sample_count_is_taken_at_its_word(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
-    mock_api: AiohttpClientMocker,
-    freezer: Any,
-) -> None:
-    """Test that a counter starting over counts again from its new start."""
-    assert await setup_integration(hass, mock_config_entry)
-
-    await _poll(hass, freezer, mock_api, RECEIVER_SILENT_AFTER - POLL, **_counted(20))
-    await _poll(hass, freezer, mock_api, **_counted(400))
-
-    assert _state(hass, mock_config_entry) == STATE_OFF
-
-
-async def test_a_decoder_without_a_counter_is_taken_at_its_word(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api: AiohttpClientMocker,
+    aioclient_mock: AiohttpClientMocker,
     freezer: Any,
 ) -> None:
     """Test that a decoder we cannot judge is never called silent."""
-    without = {key: value for key, value in MOCK_AIRCRAFT.items() if key != "messages"}
-    set_responses(mock_api, aircraft=without)
+    window = MOCK_STATS["last1min"]
+    local = {k: v for k, v in window["local"].items() if k != "samples_processed"}
+    without = {**MOCK_STATS, "last1min": {**window, "local": local}}
+    set_responses(aioclient_mock, stats=without)
     assert await setup_integration(hass, mock_config_entry)
 
-    await _poll(hass, freezer, mock_api, RECEIVER_SILENT_AFTER, aircraft=without)
+    for _ in range(MINUTES + 1):
+        await _poll(hass, freezer, aioclient_mock, stats=without)
 
     assert _state(hass, mock_config_entry) == STATE_OFF
 
@@ -226,7 +240,8 @@ async def test_unloading_takes_the_repair_with_it(
 ) -> None:
     """Test that a removed station does not leave a repair naming it."""
     assert await setup_integration(hass, mock_config_entry)
-    await _poll(hass, freezer, mock_api, RECEIVER_SILENT_AFTER)
+    for minute in range(1, MINUTES + 1):
+        await _poll(hass, freezer, mock_api, stats=_stats(minute, samples=0))
     assert _issue(hass, mock_config_entry) is not None
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
@@ -234,12 +249,12 @@ async def test_unloading_takes_the_repair_with_it(
     assert _issue(hass, mock_config_entry) is None
 
 
-async def test_no_sensor_without_a_decoder(
+async def test_no_sensor_without_stats(
     hass: HomeAssistant,
     mock_piaware_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Test that a feeder with no decoder of its own gets no such sensor."""
+    """Test that an entry with no stats.json to read gets no such sensor."""
     aioclient_mock.get(PIAWARE_URL, json=MOCK_PIAWARE)
     assert await setup_integration(hass, mock_piaware_entry)
 

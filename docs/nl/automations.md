@@ -163,6 +163,6 @@ automation:
       - service: notify.mobile_app
         data:
           message: >-
-            De ADS-B-ontvanger hoort al tien minuten niets.
+            De ADS-B-dongle levert al drie minuten niets.
             Trek de dongle eruit en steek hem er weer in.
 ```

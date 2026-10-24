@@ -163,6 +163,6 @@ automation:
       - service: notify.mobile_app
         data:
           message: >-
-            The ADS-B receiver has heard nothing for ten minutes.
+            The ADS-B dongle has delivered nothing for three minutes.
             Unplug the dongle and plug it back in.
 ```
