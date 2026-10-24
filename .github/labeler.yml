@@ -13,3 +13,12 @@ documentation:
           - docs/**
           - README.md
           - CONTRIBUTING.md
+
+# What reaches an installation, so belongs in a release.
+integration:
+  - changed-files:
+      - any-glob-to-any-file: custom_components/**
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file: .github/**
