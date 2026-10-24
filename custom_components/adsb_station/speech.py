@@ -12,6 +12,10 @@ Two languages, and English for anything else. Not because the other thirty
 are unwelcome, but because a sentence that has to sound natural cannot be
 machine translated and left at that; the tables are laid out so adding one is
 adding a key, not restructuring anything.
+
+English is the source, as it is for the rest of Home Assistant: a phrase or a
+direction a language does not have yet is said in English rather than not at
+all, so a new phrase can land before every translation has caught up.
 """
 
 from __future__ import annotations
@@ -134,8 +138,9 @@ def language_of(language: str | None) -> str:
 
 
 def say(language: str, key: str, **values: object) -> str:
-    """Return one phrase, filled in."""
-    return PHRASES[language][key].format(**values)
+    """Return one phrase, filled in, in English where the language lacks it."""
+    phrase = PHRASES[language].get(key) or PHRASES[DEFAULT_LANGUAGE][key]
+    return phrase.format(**values)
 
 
 def whole(value: float, language: str) -> str:
@@ -198,7 +203,10 @@ def distance_of(metres: float, language: str, units: UnitSystem) -> str:
 
 def sector_word(sector: str | None, language: str) -> str | None:
     """Return a compass sector as the word for it."""
-    return None if sector is None else SECTORS[language].get(sector)
+    if sector is None:
+        return None
+    words = SECTORS.get(language, {})
+    return words.get(sector) or SECTORS[DEFAULT_LANGUAGE].get(sector)
 
 
 def counted(count: int, language: str) -> str:

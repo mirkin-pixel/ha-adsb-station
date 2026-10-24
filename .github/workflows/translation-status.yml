@@ -1,0 +1,61 @@
+name: Translation status
+
+# English is the source and every other language may lag behind it. This
+# keeps one issue up to date with what each language is missing, so anyone
+# who wants to translate can see where, and shows the same table on a pull
+# request, so it is clear what a change leaves to be translated.
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/adsb_station/strings.json
+      - custom_components/adsb_station/translations/**
+      - custom_components/adsb_station/speech.py
+      - scripts/translation_status.py
+      - .github/workflows/translation-status.yml
+  pull_request:
+    paths:
+      - custom_components/adsb_station/strings.json
+      - custom_components/adsb_station/translations/**
+      - custom_components/adsb_station/speech.py
+      - scripts/translation_status.py
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TITLE: Translation status
+
+jobs:
+  status:
+    name: Count what each language is missing
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Only used on the default branch, to write the issue.
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies
+        run: pip install -r requirements_test.txt
+      - name: Count
+        run: python scripts/translation_status.py > status.md
+      - name: Show it on the run
+        run: cat status.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Write it to the issue
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --label translation --search "in:title \"$TITLE\"" \
+            --json number,title --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")
+          if [ -z "$number" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" \
+              --label translation --body-file status.md
+          else
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --body-file status.md
+          fi

@@ -1,15 +1,17 @@
-"""Tests that every language says everything English says.
+"""Tests that every language is a faithful copy of English, however far along.
 
-A translation arrives as a file someone copied and filled in, and the way it
-goes wrong is quiet: a key the copy predates, a placeholder translated along
-with the sentence around it, a language with words but no way to write a
-number. Home Assistant shows the English text for a missing entity name, but
-a missing spoken phrase is a `KeyError` in the middle of an answer, and a
-renamed placeholder is one in the middle of a notification.
+English is the source, as it is for the rest of Home Assistant. Another
+language may lack a text: Home Assistant shows the English one instead, and
+so does the spoken side, so a contribution only has to be written in English
+and the translations catch up after. What `scripts/translation_status.py`
+reports is that lag, and nothing here fails on it.
 
-So each layer is compared against English by its keys and its placeholders.
-Whether the words are good is a matter for review; whether they are all there
-is a matter of counting.
+What a translation may not do is be wrong rather than behind: carry a key
+English no longer has, which is a text nobody will ever see, or fill in a
+placeholder English does not, which fails the moment the text is shown. A
+language with words but no way to write a number is wrong too, because the
+number would come out in another language's notation. Whether the words are
+good is a matter for review; whether they fit is a matter of counting.
 """
 
 from __future__ import annotations
@@ -54,16 +56,14 @@ def _placeholders(text: str) -> set[str]:
     return {name for _, name, _, _ in Formatter().parse(text) if name}
 
 
-def _same_shape(english: dict[str, str], other: dict[str, str], where: str) -> None:
-    """Assert that a translation has English's keys, and its placeholders."""
-    missing = sorted(english.keys() - other.keys())
+def _fits(english: dict[str, str], other: dict[str, str], where: str) -> None:
+    """Assert that a translation has no key English lacks, and its placeholders."""
     extra = sorted(other.keys() - english.keys())
-    assert not missing, f"{where} is missing {missing}"
     assert not extra, f"{where} has keys English does not: {extra}"
-    for key, text in english.items():
-        assert _placeholders(other[key]) == _placeholders(text), (
-            f"{where} {key} fills in {sorted(_placeholders(other[key]))}, "
-            f"English fills in {sorted(_placeholders(text))}"
+    for key, text in other.items():
+        assert _placeholders(text) == _placeholders(english[key]), (
+            f"{where} {key} fills in {sorted(_placeholders(text))}, "
+            f"English fills in {sorted(_placeholders(english[key]))}"
         )
 
 
@@ -75,9 +75,9 @@ def test_english_is_the_source() -> None:
 @pytest.mark.parametrize(
     "path", sorted(TRANSLATIONS.glob("*.json")), ids=lambda path: path.stem
 )
-def test_every_translation_has_every_text(path: Path) -> None:
-    """Test that a translation file has the keys and placeholders of English."""
-    _same_shape(
+def test_every_translation_fits_english(path: Path) -> None:
+    """Test that a translation file has only English's keys and placeholders."""
+    _fits(
         _flatten(_load(INTEGRATION / "strings.json")),
         _flatten(_load(path)),
         path.name,
@@ -85,15 +85,34 @@ def test_every_translation_has_every_text(path: Path) -> None:
 
 
 @pytest.mark.parametrize("language", sorted(PHRASES))
-def test_every_language_can_say_everything(language: str) -> None:
-    """Test that a spoken language has every phrase and every direction."""
-    _same_shape(PHRASES[DEFAULT_LANGUAGE], PHRASES[language], f"PHRASES[{language}]")
-    _same_shape(SECTORS[DEFAULT_LANGUAGE], SECTORS[language], f"SECTORS[{language}]")
+def test_every_spoken_language_fits_english(language: str) -> None:
+    """Test that a spoken language has only English's phrases and directions."""
+    _fits(PHRASES[DEFAULT_LANGUAGE], PHRASES[language], f"PHRASES[{language}]")
+    _fits(
+        SECTORS[DEFAULT_LANGUAGE],
+        SECTORS.get(language, {}),
+        f"SECTORS[{language}]",
+    )
+
+
+def test_english_says_everything() -> None:
+    """Test that the source itself is whole, since every gap falls back on it."""
+    assert set(SECTORS[DEFAULT_LANGUAGE]) == {
+        "n",
+        "ne",
+        "e",
+        "se",
+        "s",
+        "sw",
+        "w",
+        "nw",
+    }
+    assert all(PHRASES[DEFAULT_LANGUAGE].values())
 
 
 def test_every_spoken_language_can_write_a_number() -> None:
     """Test that the number tables cover the same languages as the phrases."""
-    assert set(SECTORS) == set(PHRASES)
+    assert set(SECTORS) <= set(PHRASES)
     assert set(_THOUSANDS) == set(PHRASES)
     assert set(_DECIMAL) == set(PHRASES)
 
