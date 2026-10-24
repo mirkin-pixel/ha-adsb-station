@@ -1,0 +1,79 @@
+name: Something is not working
+description: An entity that is missing or wrong, a setup that fails, an answer that makes no sense.
+title: "<what goes wrong, in a few words>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. Most of what goes wrong comes down to
+        which decoder and feeder a station runs, so the questions below are
+        mostly about that. The
+        [troubleshooting page](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md)
+        covers the usual causes, and is worth a look first.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what you expected instead
+      description: An entity name, a value you see and the value you think it should be, an error from the setup. A screenshot is welcome.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version of ADS-B Station
+      description: Shown in HACS, or under Settings → Devices & services → ADS-B Station.
+      placeholder: "0.8.6"
+    validations:
+      required: true
+
+  - type: input
+    id: homeassistant
+    attributes:
+      label: Version of Home Assistant
+      description: Settings → About.
+      placeholder: "2026.10.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: decoder
+    attributes:
+      label: Decoder
+      description: What serves the aircraft.json. When you are not sure, the decoders page explains how to tell.
+      options:
+        - readsb (with or without tar1090)
+        - dump1090-fa or SkyAware
+        - dump1090 as shipped with fr24feed
+        - Something else, or I do not know
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feeders
+    attributes:
+      label: Feeders set up in the integration
+      multiple: true
+      options:
+        - Flightradar24 (fr24feed)
+        - FlightAware (PiAware)
+        - Plane Finder (pfclient)
+        - None, the receiver on its own
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Settings → Devices & services → ADS-B Station, the three dots, **Download diagnostics**, and drag the file in here.
+        The address of your receiver and your feed alias are already left out of it.
+      placeholder: Drag the downloaded .json file here.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines
+      description: Anything mentioning `adsb_station` from Settings → System → Logs. Pasted here, it is shown as code.
+      render: text
