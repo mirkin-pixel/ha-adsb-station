@@ -6,11 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. A translation is welcome in parts: the entity and config
-        texts on their own are already useful, because Home Assistant falls
-        back to English for anything that is missing, and so does the spoken
-        side of the integration. Tick what you intend to do; nothing here is
-        required beyond the first layer.
+        Thank you. A translation is welcome in two parts: the entity and
+        config texts on their own are already useful, because the spoken side
+        of the integration falls back to English for a language it does not
+        have. Tick what you intend to do; nothing here is required beyond the
+        first part.
 
         The page texts under `docs/` are deliberately not on this list. They
         are thirteen pages per language and are kept in English and Dutch only.
@@ -39,17 +39,16 @@ body:
     id: layers
     attributes:
       label: What you intend to translate
-      description: Each layer is independent. The first is a copy of a JSON file; the other two need a sentence to sound right out loud.
+      description: The first part is a copy of a JSON file. The second needs sentences that sound right out loud, and comes as a whole, because an answer nobody can ask for is no use.
       options:
-        - label: "**Entity, config and service texts**: `custom_components/adsb_station/translations/<code>.json`, a copy of `en.json` with only the values translated. Keys and placeholders such as `{count}` stay as they are."
-        - label: "**Spoken answers**: a `<code>` entry in `SECTORS`, `PHRASES`, `_THOUSANDS` and `_DECIMAL` in `custom_components/adsb_station/speech.py`, with every key the `en` entry has."
-        - label: "**Assist sentences**: `custom_components/adsb_station/sentences/<code>/adsb_station.yaml`, one entry per intent in the `en` file, written the way people actually ask."
+        - label: "**Entity, config and service texts**: `custom_components/adsb_station/translations/<code>.json`, a copy of `en.json` with only the values translated. Keys and placeholders such as `{station}` stay as they are."
+        - label: "**Spoken answers and Assist sentences**: a `<code>` entry in `PHRASES`, `SECTORS`, `_THOUSANDS` and `_DECIMAL` in `custom_components/adsb_station/speech.py`, with every key the `en` entry has, and `custom_components/adsb_station/sentences/<code>/adsb_station.yaml` with one entry per intent in the `en` file, written the way people actually ask. Keyed by the language alone, without a region: `pt`, not `pt-BR`."
 
   - type: input
     id: numbers
     attributes:
       label: How the language writes numbers
-      description: Only needed for the spoken answers. Which character groups the thousands, and which one is the decimal separator? English writes 3,700 and 2.5; Dutch writes 3.700 and 2,5. Getting this wrong turns a height into a different number.
+      description: Only needed for the second part. Which character groups the thousands, and which one is the decimal separator? English writes 3,700 and 2.5; Dutch writes 3.700 and 2,5. Getting this wrong turns a height into a different number.
       placeholder: "thousands: . (full stop)   decimal: , (comma)"
 
   - type: textarea
