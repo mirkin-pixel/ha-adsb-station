@@ -17,6 +17,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
 | Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](watchlist.md) is in the air. Only there when you have set one |
+| Watchlist: add, Watchlist: remove | Text (configuration) | Type a line to put it on the watchlist or take it off, without opening the options. See [keeping it from a dashboard](watchlist.md#keeping-it-from-a-dashboard) |
 | Emergency squawk | Binary sensor (safety) | On while an aircraft in range squawks 7500, 7600 or 7700 |
 | Receiver silent | Binary sensor (problem, diagnostic) | On when the dongle has delivered nothing to the decoder for three minutes, which is a dongle that is gone or wedged rather than a quiet sky. Also raises a repair. Needs `stats.json`; see [troubleshooting](troubleshooting.md#the-receiver-hears-nothing) |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver, updated at the statistics interval |
