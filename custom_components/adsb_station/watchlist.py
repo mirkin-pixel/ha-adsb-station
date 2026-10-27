@@ -4,8 +4,9 @@ The list lives in the options of the entry that carries the receiver, one line
 to an aircraft, and the options form is where it was always edited. That is a
 long way round for "tell me when PH-BXA is up", so the actions and the two text
 entities edit the same option directly. They go through the same check the
-form does, so a line the form would refuse is refused here too, and saving the
-options reloads the entry exactly as saving the form does.
+form does, so a line the form would refuse is refused here too. Saving takes
+the new list over in place, without a reload, whichever way it was edited;
+see `async_set_watchlist`.
 """
 
 from __future__ import annotations

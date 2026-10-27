@@ -66,4 +66,4 @@ data:
   aircraft: PH-BXA
 ```
 
-Two things to know. Either way the entry reloads, exactly as it does after saving the options form, so the sensors start over for a moment. And the actions are for administrators, like the options form. The boxes are entities, so anyone who can use your dashboard can type into them.
+The new list takes effect straight away, without reloading the integration, so nothing under way is lost: an aircraft that was already announced is not announced again, and a passage overhead is not counted twice. That goes for the options form as well, as long as the watchlist is all you change there. The actions are for administrators, like the options form. The boxes are entities, so anyone who can use your dashboard can type into them.

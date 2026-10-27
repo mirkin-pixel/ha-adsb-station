@@ -6,13 +6,19 @@ from typing import Any
 
 from homeassistant.components.text import ATTR_VALUE, SERVICE_SET_VALUE
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import Context, HomeAssistant
+from homeassistant.core import Context, Event, HomeAssistant
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_station.const import CONF_WATCHLIST, DOMAIN
+from custom_components.adsb_station.const import (
+    CONF_PROXIMITY_RADIUS,
+    CONF_WATCHLIST,
+    DOMAIN,
+    EVENT_AIRCRAFT_PASSAGE,
+    EVENT_WATCHLIST_MATCH,
+)
 from custom_components.adsb_station.services import SERVICE_UNWATCH, SERVICE_WATCH
 
 from .conftest import MOCK_PIAWARE, PIAWARE_URL, set_responses, setup_integration
@@ -287,3 +293,54 @@ async def test_the_actions_are_for_administrators(
                 context=Context(user_id=hass_read_only_user.id),
             )
     assert _watching(mock_config_entry) is None
+
+
+async def test_changing_the_list_forgets_nothing_under_way(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a watched aircraft overhead is not announced twice.
+
+    KLM123 is overhead and on the list. Adding a second line used to reload
+    the entry, which forgot both, so the aircraft was announced again and its
+    passage counted a second time. Now the list is taken over in place.
+    """
+    watched: list[Event] = []
+    passages: list[Event] = []
+    hass.bus.async_listen(EVENT_WATCHLIST_MATCH, watched.append)
+    hass.bus.async_listen(EVENT_AIRCRAFT_PASSAGE, passages.append)
+    assert await setup_integration(hass, mock_config_entry)
+    coordinator = mock_config_entry.runtime_data
+
+    await _type(hass, WATCH_BOX, "KLM123")
+    assert (len(watched), len(passages)) == (1, 1)
+
+    await _type(hass, WATCH_BOX, "PH-BXA")
+    await _type(hass, UNWATCH_BOX, "PH-BXA")
+
+    # The same coordinator, so nothing was reloaded and nothing forgotten.
+    assert mock_config_entry.runtime_data is coordinator
+    assert (len(watched), len(passages)) == (1, 1)
+    state = hass.states.get(IN_RANGE)
+    assert state is not None
+    assert state.attributes["watching"] == ["KLM123"]
+
+
+async def test_any_other_option_still_reloads(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that only the watchlist is taken over in place."""
+    assert await setup_integration(hass, mock_config_entry)
+    coordinator = mock_config_entry.runtime_data
+
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, CONF_PROXIMITY_RADIUS: 25},
+    )
+    await hass.async_block_till_done()
+
+    assert mock_config_entry.runtime_data is not coordinator
+    assert mock_config_entry.runtime_data.proximity_radius == 25_000

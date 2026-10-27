@@ -66,4 +66,4 @@ data:
   aircraft: PH-BXA
 ```
 
-Twee dingen om te weten. Op beide manieren herlaadt de entry, precies zoals na het opslaan van het optieformulier, dus de sensoren beginnen even opnieuw. En de acties zijn voor beheerders, net als het optieformulier. De vakjes zijn entiteiten, dus iedereen die je dashboard kan gebruiken kan erin typen.
+De nieuwe lijst werkt meteen, zonder dat de integratie herlaadt, dus er gaat niets verloren van wat er gaande is: een toestel dat al gemeld was wordt niet nog eens gemeld, en een passage overhead telt niet dubbel. Dat geldt ook voor het optieformulier, zolang je daar alleen de watchlist wijzigt. De acties zijn voor beheerders, net als het optieformulier. De vakjes zijn entiteiten, dus iedereen die je dashboard kan gebruiken kan erin typen.

@@ -493,7 +493,7 @@
     },
     "watch": {
       "name": "Uitkijken naar een vliegtuig",
-      "description": "Zet één regel op de watchlist van een station, alsof hij onder Configureren is toegevoegd. De entry herlaadt om ernaar uit te kijken.",
+      "description": "Zet één regel op de watchlist van een station, alsof hij onder Configureren is toegevoegd. Er wordt vanaf de volgende poll naar uitgekeken.",
       "fields": {
         "aircraft": {
           "name": "Vliegtuig",
@@ -507,7 +507,7 @@
     },
     "unwatch": {
       "name": "Niet meer uitkijken naar een vliegtuig",
-      "description": "Haalt één regel van de watchlist van een station, hoe hij er ook geschreven staat. De entry herlaadt om er niet meer naar uit te kijken.",
+      "description": "Haalt één regel van de watchlist van een station, hoe hij er ook geschreven staat.",
       "fields": {
         "aircraft": {
           "name": "Vliegtuig",

@@ -3,7 +3,7 @@
 Two boxes on the station's device, one to put a line on the watchlist and one
 to take it off again, so the list can be kept from a dashboard. They hold
 nothing themselves: what was typed goes straight into the options, and the box
-is empty again once the entry has reloaded with the new list.
+stays empty.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class AdsbStationWatchText(AdsbStationWatchlistText):
         super().__init__(coordinator, "watch")
 
     async def async_set_value(self, value: str) -> None:
-        """Add the line, which reloads the entry when it was not there yet."""
+        """Put the line on the watchlist."""
         add_line(
             self.hass,
             self.coordinator.config_entry,
@@ -75,5 +75,5 @@ class AdsbStationUnwatchText(AdsbStationWatchlistText):
         super().__init__(coordinator, "unwatch")
 
     async def async_set_value(self, value: str) -> None:
-        """Remove the line, which reloads the entry."""
+        """Take the line off the watchlist."""
         remove_line(self.hass, self.coordinator.config_entry, value)

@@ -13,6 +13,7 @@ from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
@@ -663,6 +664,11 @@ def aircraft_attributes(
     return attributes
 
 
+def watchlist_signal(entry_id: str) -> str:
+    """Return what is sent when an entry's watchlist changes in place."""
+    return f"{DOMAIN}_{entry_id}_watchlist"
+
+
 def watchlist_of(entry: ConfigEntry, models: dict[str, str]) -> list[WatchlistEntry]:
     """Read the watchlist off an entry, dropping what it cannot read.
 
@@ -807,6 +813,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
         self.watchlist = watchlist_of(config_entry, reference.models)
+        # The options this coordinator was started with, so that a change to
+        # the watchlist alone can be told apart from one that needs a reload.
+        self.started_with = dict(config_entry.options)
         # When each watched aircraft was last announced, so that one aircraft
         # crossing the sky is one message rather than one every fifteen
         # seconds. The same gap a passage uses, for the same reason.
@@ -854,6 +863,23 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         is in use decides whether the range figures mean anything.
         """
         return "receiver" if self._antenna is not None else "home_location"
+
+    async def async_set_watchlist(self) -> None:
+        """Take over a changed watchlist without reloading the entry.
+
+        A reload forgets everything that is under way: which aircraft were
+        already announced, and which are crossing the sky right now. Every
+        watched aircraft in the air would be announced again, and every one
+        overhead would start a second passage and be counted twice. Editing the
+        list is something done from a dashboard while things are flying, so it
+        is the one option that is taken over in place.
+        """
+        self.watchlist = watchlist_of(self.config_entry, self.reference.models)
+        self.started_with = dict(self.config_entry.options)
+        # The sensor that stands for the list comes and goes with it.
+        async_dispatcher_send(self.hass, watchlist_signal(self.config_entry.entry_id))
+        # Matched against the new list now, rather than on the next poll.
+        await self.async_request_refresh()
 
     async def _async_update_data(self) -> AdsbStationData:
         """Fetch every endpoint; only the primary source is fatal.

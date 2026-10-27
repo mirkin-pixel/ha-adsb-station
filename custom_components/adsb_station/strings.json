@@ -493,7 +493,7 @@
     },
     "watch": {
       "name": "Watch for an aircraft",
-      "description": "Puts one line on the watchlist of a station, as if it were added under Configure. The entry reloads to start watching.",
+      "description": "Puts one line on the watchlist of a station, as if it were added under Configure. It is watched for from the next poll.",
       "fields": {
         "aircraft": {
           "name": "Aircraft",
@@ -507,7 +507,7 @@
     },
     "unwatch": {
       "name": "Stop watching for an aircraft",
-      "description": "Takes one line off the watchlist of a station, however it was written there. The entry reloads to stop watching.",
+      "description": "Takes one line off the watchlist of a station, however it was written there.",
       "fields": {
         "aircraft": {
           "name": "Aircraft",
