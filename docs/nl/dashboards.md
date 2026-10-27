@@ -15,6 +15,26 @@ hours_to_show: 0
 
 Die `hours_to_show: 0` is het overwegen waard. Alles daarboven tekent een spoor uit de recorder, en deze entiteiten worden daar niet in bewaard.
 
+Standaard draagt een marker de eerste letters van de callsign. Met `label_mode: icon` laat hij in plaats daarvan zien wat het toestel doet:
+
+```yaml
+type: map
+geo_location_sources:
+  - source: adsb_station
+    label_mode: icon
+hours_to_show: 0
+```
+
+| Icoon | Wanneer |
+|---|---|
+| `mdi:helicopter` | Een helikopter, volgens de categorie die hij uitzendt |
+| `mdi:shield-airplane` | Militair |
+| `mdi:airplane-takeoff` | Stijgt met 500 voet per minuut of meer |
+| `mdi:airplane-landing` | Daalt met 500 voet per minuut of meer |
+| `mdi:airplane` | De rest: vliegt vlak, of zegt te weinig om het te weten |
+
+Wat het is gaat vóór wat het doet, dus een helikopter die opstijgt blijft een helikopter. Hetzelfde icoon staat overal op de entiteit, ook in een lijst of een tegel.
+
 Dat is precies de afweging die deze optie maakt, en die is het waard om te kennen voor je hem aanzet. **Deze vliegtuigen worden bewust niet geregistreerd.** Ze bestaan zolang ze boven je zijn en zijn weg zodra ze zijn doorgevlogen, dus een week verkeer laat niets achter — geen duizenden entiteiten in je registratie, geen `unavailable` toestellen die na elke herstart terugkomen, niets om op te ruimen. Daar staat tegenover dat je ze niet kunt hernoemen, verbergen of aan een gebied koppelen vanuit de interface, dat ze niet onder het apparaat van je station staan, en dat hun attributen buiten de recorder blijven. Hun entity-id's worden ook hergebruikt: `geo_location.klm123` is volgende week een andere vlucht onder dezelfde naam. Voor de geschiedenis is er het passagebord en het [passage-event](passages.md), en die zijn er wél op gebouwd.
 
 Elk toestel heet naar zijn callsign, of naar zijn hexcode als hij er nog geen heeft gestuurd, en die naam ligt vast op het moment dat hij verschijnt. Een callsign komt vaak een paar polls later binnen, en hernoemen zou dan het entity-id middenin een passage onder je dashboard vandaan trekken.

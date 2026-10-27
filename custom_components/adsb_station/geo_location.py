@@ -24,7 +24,13 @@ from homeassistant.const import MATCH_ALL, UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_MAP_AIRCRAFT, DEFAULT_MAP_AIRCRAFT, DOMAIN
+from .const import (
+    CATEGORY_ROTORCRAFT,
+    CLIMB_RATE_SHOWN,
+    CONF_MAP_AIRCRAFT,
+    DEFAULT_MAP_AIRCRAFT,
+    DOMAIN,
+)
 from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
@@ -34,6 +40,25 @@ from .coordinator import (
 
 # Updates are centralized through the coordinator
 PARALLEL_UPDATES = 0
+
+
+def aircraft_icon(summary: AircraftSummary) -> str:
+    """Return the icon that says at a glance what an aircraft is doing.
+
+    What it is before what it is doing: a helicopter is drawn as one whether it
+    climbs or not, and military as the same shield the counter of military
+    traffic uses. A map card shows this as the marker with `label_mode: icon`.
+    """
+    if summary.category == CATEGORY_ROTORCRAFT:
+        return "mdi:helicopter"
+    if summary.military:
+        return "mdi:shield-airplane"
+    rate = summary.vertical_rate
+    if rate is not None and rate >= CLIMB_RATE_SHOWN:
+        return "mdi:airplane-takeoff"
+    if rate is not None and rate <= -CLIMB_RATE_SHOWN:
+        return "mdi:airplane-landing"
+    return "mdi:airplane"
 
 
 async def async_setup_entry(
@@ -132,6 +157,11 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         """
         if self.hass is not None:
             self.hass.async_create_task(self.async_remove(force_remove=True))
+
+    @property
+    def icon(self) -> str:
+        """Return what the aircraft is, or what it is doing."""
+        return aircraft_icon(self._summary)
 
     @property
     def extra_state_attributes(self) -> dict[str, str | float | None]:

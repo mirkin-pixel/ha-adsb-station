@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -206,3 +207,74 @@ async def test_the_map_leaves_no_registry_entries(
     assert [
         entry for entry in registry.entities.values() if entry.domain == "geo_location"
     ] == []
+
+
+def _klm(**fields: Any) -> dict[str, Any]:
+    """Return KLM123 overhead, with whatever else it says."""
+    return {
+        "hex": "484123",
+        "flight": "KLM123",
+        "lat": NEARBY_LATITUDE,
+        "lon": NEARBY_LONGITUDE,
+        "alt_baro": 2000,
+        **fields,
+    }
+
+
+@pytest.mark.parametrize(
+    ("fields", "icon"),
+    [
+        ({}, "mdi:airplane"),
+        # Holding its level: a few hundred feet a minute either way is drift.
+        ({"baro_rate": 320}, "mdi:airplane"),
+        ({"baro_rate": -480}, "mdi:airplane"),
+        ({"baro_rate": 1500}, "mdi:airplane-takeoff"),
+        ({"baro_rate": -900}, "mdi:airplane-landing"),
+        # What it is goes before what it is doing.
+        ({"category": "A7", "baro_rate": 1500}, "mdi:helicopter"),
+        ({"dbFlags": 1, "baro_rate": -900}, "mdi:shield-airplane"),
+    ],
+)
+async def test_the_marker_says_what_it_is_doing(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    fields: dict[str, Any],
+    icon: str,
+) -> None:
+    """Test the icon a map card draws with label_mode: icon."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_MAP_AIRCRAFT: True}
+    )
+    set_responses(aioclient_mock, aircraft=_poll(_klm(**fields)))
+
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("geo_location.klm123")
+    assert state is not None
+    assert state.attributes["icon"] == icon
+
+
+async def test_the_marker_follows_the_aircraft(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that an aircraft levelling off is drawn level on the next poll."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_MAP_AIRCRAFT: True}
+    )
+    set_responses(aioclient_mock, aircraft=_poll(_klm(baro_rate=-1200)))
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get("geo_location.klm123").attributes["icon"] == (
+        "mdi:airplane-landing"
+    )
+
+    set_responses(aioclient_mock, aircraft=_poll(_klm(baro_rate=0)))
+    await _refresh(hass)
+
+    assert hass.states.get("geo_location.klm123").attributes["icon"] == "mdi:airplane"
