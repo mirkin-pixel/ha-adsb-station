@@ -8,6 +8,10 @@ The integration brings a card of its own: the aircraft overhead with its photo, 
 type: custom:adsb-station-card
 ```
 
+<img src="../images/card.png" alt="The card with the last aircraft overhead, a Ryanair Boeing 737 MAX 8 climbing through 17,475 feet, and the station's figures with a green dot for Flightradar24 and FlightAware" width="535">
+
+This is the card with photos switched off. With them on, the photo sits above the aircraft's details; it is left out here because a photo from Planespotters may only be shown where it is credited and links back, and a screenshot in this repository would be neither.
+
 That is all it needs. It finds the station's entities by what they are, not by their IDs, so it works whatever language your entities were named in. Everything else can be set in the card editor as well:
 
 | Option | Default | |
