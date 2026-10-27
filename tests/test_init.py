@@ -10,7 +10,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
@@ -47,6 +47,7 @@ from .conftest import (
     RECEIVER_UNIQUE_ID,
     RECEIVER_URL,
     STATS_URL,
+    our_device,
     set_responses,
     setup_integration,
 )
@@ -316,9 +317,7 @@ async def test_receiver_only_device_has_no_manufacturer(
 
     assert await setup_integration(hass, mock_receiver_entry)
 
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        (DOMAIN, RECEIVER_UNIQUE_ID), mock_receiver_entry.entry_id
-    )
+    device = our_device(hass, (DOMAIN, RECEIVER_UNIQUE_ID), mock_receiver_entry)
     assert device is not None
     assert device.manufacturer is None
     assert device.model == "ADS-B receiver"

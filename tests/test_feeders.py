@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
@@ -34,6 +34,7 @@ from .conftest import (
     PIAWARE_URL,
     PLANEFINDER_UNIQUE_ID,
     PLANEFINDER_URL,
+    our_device,
     setup_integration,
 )
 
@@ -75,9 +76,7 @@ async def test_piaware(
     )
     assert _state(hass, PIAWARE_UNIQUE_ID, "sensor", "piaware_cpu_load") == "17"
 
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        (DOMAIN, PIAWARE_UNIQUE_ID), mock_piaware_entry.entry_id
-    )
+    device = our_device(hass, (DOMAIN, PIAWARE_UNIQUE_ID), mock_piaware_entry)
     assert device is not None
     assert device.manufacturer == "FlightAware"
     assert device.model == "PiAware"
@@ -142,9 +141,7 @@ async def test_planefinder(
     # Nothing multilaterated is nothing sent
     assert _state(hass, PLANEFINDER_UNIQUE_ID, "binary_sensor", "pf_mlat") == "off"
 
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        (DOMAIN, PLANEFINDER_UNIQUE_ID), mock_planefinder_entry.entry_id
-    )
+    device = our_device(hass, (DOMAIN, PLANEFINDER_UNIQUE_ID), mock_planefinder_entry)
     assert device is not None
     assert device.manufacturer == "Plane Finder"
     assert device.model == "pfclient"

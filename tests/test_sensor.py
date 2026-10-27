@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
@@ -47,6 +47,7 @@ from .conftest import (
     MOCK_STATS,
     MOCK_STATS_READSB,
     MOCK_STATS_WITH_GAIN,
+    our_device,
     set_responses,
     setup_integration,
 )
@@ -289,9 +290,7 @@ async def test_device_info(
     """Test the device registry entry for the feeder."""
     assert await setup_integration(hass, mock_config_entry)
 
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        (DOMAIN, MOCK_ALIAS), mock_config_entry.entry_id
-    )
+    device = our_device(hass, (DOMAIN, MOCK_ALIAS), mock_config_entry)
     assert device is not None
     assert device.manufacturer == "Flightradar24"
     assert device.model == "fr24feed"
@@ -313,9 +312,7 @@ async def test_device_falls_back_to_a_generic_name(
 
     assert await setup_integration(hass, mock_config_entry)
 
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        (DOMAIN, MOCK_ALIAS), mock_config_entry.entry_id
-    )
+    device = our_device(hass, (DOMAIN, MOCK_ALIAS), mock_config_entry)
     assert device is not None
     assert device.name == "FR24 feeder"
     assert device.sw_version is None

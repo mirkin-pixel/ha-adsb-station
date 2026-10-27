@@ -49,6 +49,21 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov --cov-report=term-missing
 
+  oldest:
+    # The oldest Home Assistant hacs.json promises, on the Python it runs on.
+    # Coverage is measured once, against the newest, in the job above.
+    name: Tests (oldest supported Home Assistant)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install test dependencies
+        run: pip install -r requirements_test_oldest.txt
+      - name: Run tests
+        run: pytest
+
   hassfest:
     name: Hassfest
     runs-on: ubuntu-latest
