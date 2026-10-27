@@ -1,6 +1,7 @@
 {
   "domain": "adsb_station",
   "name": "ADS-B Station",
+  "after_dependencies": ["frontend", "http"],
   "codeowners": ["@mirkin-pixel"],
   "config_flow": true,
   "documentation": "https://github.com/mirkin-pixel/ha-adsb-station",

@@ -2,6 +2,9 @@
 # 2025.7, on the Python 3.13 it runs on. CI runs the whole suite against it as
 # well as against the newest, so the promise in hacs.json is checked rather than
 # assumed. Raise both together, never one without the other.
+#
+# Kept out of the repository root so Dependabot leaves it alone: it updates
+# every requirements file there, and these pins are the point of the file.
 pytest-homeassistant-custom-component==0.13.264
 # What the conversation integration of that release requires, so the sentence
 # files are parsed by the same version that will read them.

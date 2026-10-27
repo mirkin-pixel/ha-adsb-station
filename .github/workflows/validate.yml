@@ -65,9 +65,26 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install test dependencies
-        run: pip install -r requirements_test_oldest.txt
+        run: pip install -r tests/oldest/requirements.txt
       - name: Run tests
         run: pytest
+
+  card:
+    # The dashboard card is JavaScript, so pytest never runs it. This does, in
+    # a simulated browser; see tests/card/card.test.mjs.
+    name: Card
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install test dependencies
+        run: npm ci
+        working-directory: tests/card
+      - name: Run the card tests
+        run: npm test
+        working-directory: tests/card
 
   hassfest:
     name: Hassfest
