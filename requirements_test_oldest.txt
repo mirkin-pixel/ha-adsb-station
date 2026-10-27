@@ -6,3 +6,7 @@ pytest-homeassistant-custom-component==0.13.264
 # What the conversation integration of that release requires, so the sentence
 # files are parsed by the same version that will read them.
 hassil==2.2.3
+# aiodns 3.5.0, which that release pins, asks only for pycares 4.9 or newer, and
+# pycares 5 removed what it calls. Nothing pins it on Home Assistant's side, so
+# a fresh install would get the one that breaks every test before it starts.
+pycares==4.11.0
