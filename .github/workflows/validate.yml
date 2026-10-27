@@ -7,6 +7,11 @@ on:
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
+# Every job here only reads the code. Said here rather than left to the
+# repository default, so it holds whatever that default is set to.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Ruff
