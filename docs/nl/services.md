@@ -44,3 +44,7 @@ Allebei reiken ze tot **alles wat de decoder vasthoudt**, dus de hele lucht die 
 Probeer ze onder **Ontwikkelhulpmiddelen → Acties**, met **Antwoordgegevens teruggeven** aangevinkt.
 
 Draai je meerdere entries — een feeder of twee naast de entry die je decoder draagt — dan kun je het station weglaten. Alleen de entries die echt een ontvanger hebben tellen mee, dus het veld is pas nodig als er twee van jou een antenne lezen.
+
+## De watchlist wijzigen
+
+Twee acties veranderen iets in plaats van te antwoorden: `adsb_station.watch` en `adsb_station.unwatch` zetten een regel op de watchlist en halen hem er weer af. Ze staan beschreven bij de [watchlist](watchlist.md#bijhouden-vanaf-een-dashboard).

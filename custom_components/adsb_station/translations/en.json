@@ -404,6 +404,14 @@
       "reset_range": {
         "name": "Reset range records"
       }
+    },
+    "text": {
+      "watch": {
+        "name": "Watchlist: add"
+      },
+      "unwatch": {
+        "name": "Watchlist: remove"
+      }
     }
   },
   "issues": {
@@ -482,6 +490,34 @@
           "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
         }
       }
+    },
+    "watch": {
+      "name": "Watch for an aircraft",
+      "description": "Puts one line on the watchlist of a station, as if it were added under Configure. It is watched for from the next poll.",
+      "fields": {
+        "aircraft": {
+          "name": "Aircraft",
+          "description": "A hex code (484123), a registration or callsign (PH-BXA, KLM123), an aircraft type (EC35) or a squawk (7700). A line already on the list is left as it is."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Whose watchlist to change. Only needed when more than one of your entries carries a receiver."
+        }
+      }
+    },
+    "unwatch": {
+      "name": "Stop watching for an aircraft",
+      "description": "Takes one line off the watchlist of a station, however it was written there.",
+      "fields": {
+        "aircraft": {
+          "name": "Aircraft",
+          "description": "The line to take off: PH-BXA takes off PHBXA as well."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Whose watchlist to change. Only needed when more than one of your entries carries a receiver."
+        }
+      }
     }
   },
   "exceptions": {
@@ -499,6 +535,15 @@
     },
     "sentences_not_written": {
       "message": "The sentences could not be written to your configuration directory: {error}"
+    },
+    "no_watchlist_station": {
+      "message": "None of your ADS-B stations reads a receiver, so there is no watchlist to change."
+    },
+    "unreadable_watchlist_line": {
+      "message": "{line} is not a hex code, a registration or callsign, an aircraft type or a squawk."
+    },
+    "not_on_watchlist": {
+      "message": "{line} is not on the watchlist of {station}."
     }
   }
 }

@@ -13,14 +13,17 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import FEEDER_FR24, FEEDER_PLANEFINDER
+from .const import DOMAIN, FEEDER_FR24, FEEDER_PLANEFINDER
 from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
+    watchlist_signal,
 )
 from .entity import AdsbStationAircraftEntity, AdsbStationEntity
 
@@ -141,10 +144,45 @@ async def async_setup_entry(
         entities.append(AdsbStationNearbyBinarySensor(coordinator))
         # Only where there is a list to watch. An always-off sensor for a
         # feature nobody switched on is an entity nobody asked for.
+        watching: list[AdsbStationWatchlistBinarySensor] = []
         if coordinator.watchlist:
-            entities.append(AdsbStationWatchlistBinarySensor(coordinator))
+            watching.append(AdsbStationWatchlistBinarySensor(coordinator))
+            entities.extend(watching)
+        else:
+            _forget_watchlist_sensor(hass, coordinator)
+
+        @callback
+        def _follow_watchlist() -> None:
+            """Add the sensor for a first line, and remove it with the last."""
+            if coordinator.watchlist and not watching:
+                watching.append(AdsbStationWatchlistBinarySensor(coordinator))
+                async_add_entities(watching)
+            elif not coordinator.watchlist and watching:
+                watching.clear()
+                _forget_watchlist_sensor(hass, coordinator)
+
+        entry.async_on_unload(
+            async_dispatcher_connect(
+                hass, watchlist_signal(entry.entry_id), _follow_watchlist
+            )
+        )
 
     async_add_entities(entities)
+
+
+def _forget_watchlist_sensor(
+    hass: HomeAssistant, coordinator: AdsbStationDataUpdateCoordinator
+) -> None:
+    """Remove the watchlist sensor of a list that has been emptied.
+
+    It is registered, so leaving it out is not enough: the registry would
+    keep it, and it would sit on the device as unavailable for good.
+    """
+    registry = er.async_get(hass)
+    entry = coordinator.config_entry
+    unique_id = f"{entry.unique_id or entry.entry_id}_watchlist"
+    if entity_id := registry.async_get_entity_id("binary_sensor", DOMAIN, unique_id):
+        registry.async_remove(entity_id)
 
 
 class AdsbStationBinarySensor(AdsbStationEntity, BinarySensorEntity):

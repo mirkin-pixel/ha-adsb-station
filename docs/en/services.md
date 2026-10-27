@@ -44,3 +44,7 @@ Both reach **everything the decoder is holding**, which is the whole sky your an
 Try them under **Developer tools → Actions**, with **Return response data** ticked.
 
 If you run several entries — a feeder or two beside the entry that carries your decoder — you can leave the station out. Only the entries that actually have a receiver are considered, so the field is needed only when two of yours are reading antennas.
+
+## Changing the watchlist
+
+Two actions change something rather than answer: `adsb_station.watch` and `adsb_station.unwatch` put a line on the watchlist and take it off again. They are described with the [watchlist](watchlist.md#keeping-it-from-a-dashboard).

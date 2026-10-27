@@ -404,6 +404,14 @@
       "reset_range": {
         "name": "Bereikrecords wissen"
       }
+    },
+    "text": {
+      "watch": {
+        "name": "Watchlist: toevoegen"
+      },
+      "unwatch": {
+        "name": "Watchlist: verwijderen"
+      }
     }
   },
   "issues": {
@@ -482,6 +490,34 @@
           "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
         }
       }
+    },
+    "watch": {
+      "name": "Uitkijken naar een vliegtuig",
+      "description": "Zet één regel op de watchlist van een station, alsof hij onder Configureren is toegevoegd. Er wordt vanaf de volgende poll naar uitgekeken.",
+      "fields": {
+        "aircraft": {
+          "name": "Vliegtuig",
+          "description": "Een hexcode (484123), een registratie of callsign (PH-BXA, KLM123), een vliegtuigtype (EC35) of een squawk (7700). Een regel die er al op staat blijft zoals hij is."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Wiens watchlist je wijzigt. Alleen nodig als meer dan één van je entries een ontvanger heeft."
+        }
+      }
+    },
+    "unwatch": {
+      "name": "Niet meer uitkijken naar een vliegtuig",
+      "description": "Haalt één regel van de watchlist van een station, hoe hij er ook geschreven staat.",
+      "fields": {
+        "aircraft": {
+          "name": "Vliegtuig",
+          "description": "De regel die eraf moet: PH-BXA haalt ook PHBXA eraf."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Wiens watchlist je wijzigt. Alleen nodig als meer dan één van je entries een ontvanger heeft."
+        }
+      }
     }
   },
   "exceptions": {
@@ -499,6 +535,15 @@
     },
     "sentences_not_written": {
       "message": "De zinnen konden niet naar je configuratiemap geschreven worden: {error}"
+    },
+    "no_watchlist_station": {
+      "message": "Geen van je ADS-B-stations leest een ontvanger uit, dus er is geen watchlist om te wijzigen."
+    },
+    "unreadable_watchlist_line": {
+      "message": "{line} is geen hexcode, registratie of callsign, vliegtuigtype of squawk."
+    },
+    "not_on_watchlist": {
+      "message": "{line} staat niet op de watchlist van {station}."
     }
   }
 }

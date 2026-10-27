@@ -40,3 +40,30 @@ automation:
 ```
 
 The event carries the line that matched, `matched_on` to say which part of the aircraft it hit, and everything else the aircraft attributes carry. One aircraft is one message, however many lines name it, and it is not repeated while the aircraft stays in the air — the same ten minute gap a passage uses. Ten minutes after it drops out, coming back is worth being told about again.
+
+## Keeping it from a dashboard
+
+The list does not have to be edited under **Configure**. The entry that carries your decoder has two boxes for it on its device page: **Watchlist: add** and **Watchlist: remove**. Type a line and press enter. It goes through the same check as the form, so a line that would not save there is refused here too, with the line named, and adding a line already on the list, written however it was written, changes nothing. Removing a line that is not on the list says so rather than doing nothing, because that is usually a typo.
+
+An entities card puts them beside the sensor that shows the list:
+
+```yaml
+type: entities
+title: Watchlist
+entities:
+  - entity: text.your_station_watchlist_add
+  - entity: text.your_station_watchlist_remove
+  - entity: binary_sensor.your_station_watchlist_in_range
+```
+
+The list itself is in the `watching` attribute of **Watchlist in range**.
+
+The same two things are actions, for a script or an automation: `adsb_station.watch` and `adsb_station.unwatch`, each with the line as `aircraft`:
+
+```yaml
+action: adsb_station.watch
+data:
+  aircraft: PH-BXA
+```
+
+The new list takes effect straight away, without reloading the integration, so nothing under way is lost: an aircraft that was already announced is not announced again, and a passage overhead is not counted twice. That goes for the options form as well, as long as the watchlist is all you change there. The actions are for administrators, like the options form. The boxes are entities, so anyone who can use your dashboard can type into them.

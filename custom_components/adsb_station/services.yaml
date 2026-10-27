@@ -82,3 +82,27 @@ speak:
       selector:
         config_entry:
           integration: adsb_station
+
+watch:
+  fields:
+    aircraft:
+      required: true
+      example: PH-BXA
+      selector:
+        text:
+    config_entry:
+      selector:
+        config_entry:
+          integration: adsb_station
+
+unwatch:
+  fields:
+    aircraft:
+      required: true
+      example: PH-BXA
+      selector:
+        text:
+    config_entry:
+      selector:
+        config_entry:
+          integration: adsb_station

@@ -14,6 +14,7 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_STATS_URL,
+    CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
 )
@@ -33,6 +34,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.GEO_LOCATION,
     Platform.SENSOR,
+    Platform.TEXT,
 ]
 
 
@@ -69,7 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     return True
 
@@ -139,8 +141,16 @@ async def async_unload_entry(
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_reload_entry(
+async def async_options_updated(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> None:
-    """Reload the entry after the options changed."""
+    """Apply changed options: the watchlist in place, anything else by reload."""
+    coordinator = entry.runtime_data
+    before, after = coordinator.started_with, dict(entry.options)
+    changed = {
+        key for key in before.keys() | after.keys() if before.get(key) != after.get(key)
+    }
+    if changed <= {CONF_WATCHLIST}:
+        await coordinator.async_set_watchlist()
+        return
     await hass.config_entries.async_reload(entry.entry_id)
