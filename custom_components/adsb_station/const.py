@@ -101,6 +101,19 @@ AIRCRAFT_TYPE_GROUPS: dict[str, tuple[str, ...]] = {
     "mode_s": ("mode_s",),
 }
 
+# What the traffic counters split everything the antenna hears into, in the
+# order an aircraft is tried against them: the first that fits is the one it
+# counts under, so each aircraft is counted once and the four add up to the
+# aircraft received. Military first, because a military helicopter or a
+# transport flying under an airline-style callsign is military before it is
+# anything else.
+TRAFFIC_MILITARY = "military"
+TRAFFIC_HELICOPTER = "helicopter"
+TRAFFIC_AIRLINE = "airline"
+TRAFFIC_OTHER = "other"
+# The emitter category a rotorcraft broadcasts.
+CATEGORY_ROTORCRAFT = "A7"
+
 # The bits of readsb's dbFlags, which an aircraft database fills in and a
 # decoder without one leaves out altogether. Military is the one that has an
 # entity of its own; the other three say something about the aircraft that

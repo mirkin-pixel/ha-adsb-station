@@ -34,6 +34,18 @@
       "aircraft_received": {
         "default": "mdi:airplane-search"
       },
+      "aircraft_military": {
+        "default": "mdi:shield-airplane"
+      },
+      "aircraft_helicopter": {
+        "default": "mdi:helicopter"
+      },
+      "aircraft_airline": {
+        "default": "mdi:airport"
+      },
+      "aircraft_other": {
+        "default": "mdi:airplane"
+      },
       "aircraft_with_position": {
         "default": "mdi:map-marker-radius"
       },

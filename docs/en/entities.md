@@ -5,6 +5,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Entity | Type | Description |
 |---|---|---|
 | Aircraft received | Sensor | Aircraft in the last `aircraft.json` |
+| Military aircraft, Helicopters, Airline flights, Other aircraft | Sensor | The same aircraft split four ways, over everything your antenna hears. Each counts under exactly one, tried in that order, so the four add up to **Aircraft received**. Military comes off the aircraft database or the address block, a helicopter off the category it broadcasts (A7), an airline flight off a callsign that opens with a known airline designator. Other is the rest: private flying, business aviation under a registration, and anything without a callsign |
 | Aircraft with position | Sensor | Of those, the number with a known position |
 | Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, averaged over the statistics interval |
