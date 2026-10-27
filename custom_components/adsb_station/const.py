@@ -114,6 +114,11 @@ TRAFFIC_OTHER = "other"
 # The emitter category a rotorcraft broadcasts.
 CATEGORY_ROTORCRAFT = "A7"
 
+# How fast an aircraft has to climb or descend, in feet per minute, before the
+# map shows it climbing or descending. Below this it is holding its level and
+# drifting, which is not worth a different marker.
+CLIMB_RATE_SHOWN = 500
+
 # The bits of readsb's dbFlags, which an aircraft database fills in and a
 # decoder without one leaves out altogether. Military is the one that has an
 # entity of its own; the other three say something about the aircraft that

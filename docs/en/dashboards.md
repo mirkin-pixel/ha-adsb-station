@@ -15,6 +15,26 @@ hours_to_show: 0
 
 `hours_to_show: 0` is worth having. Anything higher draws a trail from the recorder, and these entities are not kept there.
 
+By default a marker carries the first letter of each word of the name, so a callsign such as KLM123 is a single K. With `label_mode: icon` it shows what the aircraft is doing instead:
+
+```yaml
+type: map
+geo_location_sources:
+  - source: adsb_station
+    label_mode: icon
+hours_to_show: 0
+```
+
+| Icon | When |
+|---|---|
+| `mdi:helicopter` | A helicopter, by the category it broadcasts |
+| `mdi:shield-airplane` | Military |
+| `mdi:airplane-takeoff` | Climbing at 500 feet a minute or more |
+| `mdi:airplane-landing` | Descending at 500 feet a minute or more |
+| `mdi:airplane` | Everything else, holding its level or saying too little to tell |
+
+What it is goes before what it is doing, so a helicopter climbing out is still a helicopter. The same icon is on the entity everywhere else, in a list or a tile.
+
 That is the trade this option makes, and it is worth understanding before you turn it on. **These aircraft are deliberately not registered.** They exist while they are overhead and are gone the moment they fly on, so a week of traffic leaves nothing behind — no thousands of entities in your registry, no `unavailable` aircraft coming back after every restart, nothing to clean up. In exchange they cannot be renamed, hidden or given an area from the interface, they are not listed under the station's device, and their attributes are kept out of the recorder. Their entity IDs are reused, too: `geo_location.klm123` next week is a different flight under the same name. For history there is the passage board and the [passage event](passages.md), which are built to be kept.
 
 Each aircraft is named after its callsign, or its hex code when it has not sent one yet, and that name is fixed the moment it appears. A callsign often arrives a few polls late, and renaming then would move the entity ID out from under your dashboard halfway through a passage.
