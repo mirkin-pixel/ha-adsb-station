@@ -157,6 +157,18 @@
       "aircraft_received": {
         "name": "Aircraft received"
       },
+      "aircraft_military": {
+        "name": "Military aircraft"
+      },
+      "aircraft_helicopter": {
+        "name": "Helicopters"
+      },
+      "aircraft_airline": {
+        "name": "Airline flights"
+      },
+      "aircraft_other": {
+        "name": "Other aircraft"
+      },
       "aircraft_with_position": {
         "name": "Aircraft with position"
       },

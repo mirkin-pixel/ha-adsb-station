@@ -5,6 +5,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Entiteit | Type | Omschrijving |
 |---|---|---|
 | Vliegtuigen ontvangen | Sensor | Vliegtuigen in de laatste `aircraft.json` |
+| Militaire toestellen, Helikopters, Lijnvluchten, Overige toestellen | Sensor | Dezelfde vliegtuigen in vieren gedeeld, over alles wat je antenne hoort. Elk toestel telt bij precies één, in die volgorde geprobeerd, dus samen zijn ze **Vliegtuigen ontvangen**. Militair komt uit de vliegtuigdatabase of het adresblok, een helikopter uit de categorie die hij uitzendt (A7), een lijnvlucht uit een callsign die met een bekende maatschappijcode begint. Overig is de rest: privévliegen, zakenluchtvaart onder een registratie, en alles zonder callsign |
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
 | Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, gemiddeld over de ververstijd voor statistieken |

@@ -157,6 +157,18 @@
       "aircraft_received": {
         "name": "Vliegtuigen ontvangen"
       },
+      "aircraft_military": {
+        "name": "Militaire toestellen"
+      },
+      "aircraft_helicopter": {
+        "name": "Helikopters"
+      },
+      "aircraft_airline": {
+        "name": "Lijnvluchten"
+      },
+      "aircraft_other": {
+        "name": "Overige toestellen"
+      },
       "aircraft_with_position": {
         "name": "Vliegtuigen met positie"
       },

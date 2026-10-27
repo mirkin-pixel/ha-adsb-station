@@ -23,6 +23,7 @@ from .const import (
     AIRCRAFT_TYPE_GROUPS,
     APPROACH_HORIZON,
     APPROACH_POLLS,
+    CATEGORY_ROTORCRAFT,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
@@ -54,6 +55,10 @@ from .const import (
     RECEIVER_READ_ATTEMPTS,
     RECEIVER_SILENT_AFTER,
     SECTORS,
+    TRAFFIC_AIRLINE,
+    TRAFFIC_HELICOPTER,
+    TRAFFIC_MILITARY,
+    TRAFFIC_OTHER,
     UNSET_RECEIVER_VERSION,
     WATCHLIST_HEX,
     WATCHLIST_SQUAWK,
@@ -662,6 +667,31 @@ def aircraft_attributes(
     attributes.update(route_attributes(summary.route))
     attributes.update(photo_attributes(summary.photo))
     return attributes
+
+
+def traffic_kind(summary: AircraftSummary) -> str:
+    """Return which of the four traffic counters an aircraft counts under.
+
+    Nothing is guessed. Military comes off the aircraft database or the
+    address block, a helicopter off the category the aircraft itself
+    broadcasts, and an airline off the designator its callsign opens with,
+    against the table we ship: KLM123 is an airline flight, PHBXA is not.
+    Whatever none of the three recognises is other, which is private flying,
+    business aviation under a registration, and anything with no callsign at
+    all.
+    """
+    if summary.military:
+        return TRAFFIC_MILITARY
+    if summary.category == CATEGORY_ROTORCRAFT:
+        return TRAFFIC_HELICOPTER
+    if summary.airline is not None:
+        return TRAFFIC_AIRLINE
+    return TRAFFIC_OTHER
+
+
+def count_of(stats: AircraftStats, kind: str) -> int:
+    """Return how many of the aircraft heard this poll are of one kind."""
+    return sum(1 for summary in stats.heard if traffic_kind(summary) == kind)
 
 
 def watchlist_signal(entry_id: str) -> str:

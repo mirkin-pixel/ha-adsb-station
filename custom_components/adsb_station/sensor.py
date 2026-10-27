@@ -40,6 +40,10 @@ from .const import (
     FEEDER_PLANEFINDER,
     PASSAGE_BOARD_LENGTH,
     SECTORS,
+    TRAFFIC_AIRLINE,
+    TRAFFIC_HELICOPTER,
+    TRAFFIC_MILITARY,
+    TRAFFIC_OTHER,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -49,6 +53,7 @@ from .coordinator import (
     Passage,
     ReceiverStats,
     aircraft_attributes,
+    count_of,
 )
 from .entity import (
     AdsbStationAircraftEntity,
@@ -456,12 +461,33 @@ FEEDER_SENSORS: dict[str, tuple[AdsbStationSensorEntityDescription, ...]] = {
 }
 
 
+def _counter(kind: str) -> Callable[[AircraftStats], int]:
+    """Return what counts the aircraft of one kind of traffic."""
+    return lambda stats: count_of(stats, kind)
+
+
 AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
     AdsbStationAircraftSensorEntityDescription(
         key="aircraft_received",
         translation_key="aircraft_received",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda stats: stats.total,
+    ),
+    # Everything received, split four ways. Each aircraft counts under exactly
+    # one, so the four add up to the aircraft received; see traffic_kind.
+    *(
+        AdsbStationAircraftSensorEntityDescription(
+            key=f"aircraft_{kind}",
+            translation_key=f"aircraft_{kind}",
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=_counter(kind),
+        )
+        for kind in (
+            TRAFFIC_MILITARY,
+            TRAFFIC_HELICOPTER,
+            TRAFFIC_AIRLINE,
+            TRAFFIC_OTHER,
+        )
     ),
     AdsbStationAircraftSensorEntityDescription(
         key="aircraft_with_position",
