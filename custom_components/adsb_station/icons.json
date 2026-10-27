@@ -212,6 +212,22 @@
       "reset_range": {
         "default": "mdi:backup-restore"
       }
+    },
+    "text": {
+      "watch": {
+        "default": "mdi:eye-plus"
+      },
+      "unwatch": {
+        "default": "mdi:eye-minus"
+      }
+    }
+  },
+  "services": {
+    "watch": {
+      "service": "mdi:eye-plus"
+    },
+    "unwatch": {
+      "service": "mdi:eye-minus"
     }
   }
 }

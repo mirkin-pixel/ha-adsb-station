@@ -1,14 +1,18 @@
-"""Services that answer, for the ADS-B Station integration.
+"""Services for the ADS-B Station integration.
 
-Everything these two return is already on an entity somewhere, in the
-attributes of the nearby list or the closest aircraft. What they add is being
-able to ask a question rather than having to know where the answer is kept:
-which aircraft is that, and what is up there right now that matches this.
+Most of them answer. Everything the two that look aircraft up return is
+already on an entity somewhere, in the attributes of the nearby list or the
+closest aircraft. What they add is being able to ask a question rather than
+having to know where the answer is kept: which aircraft is that, and what is
+up there right now that matches this.
 
 Both answer out of the last poll rather than going back to the decoder. A
 poll is fifteen seconds old at worst, an aircraft moves four kilometres in
 that time at cruising speed, and a service that fetched on demand would let an
 automation hammer a decoder that is already being read on a schedule.
+
+Two change something instead: watch and unwatch keep the watchlist, which is
+otherwise only edited under Configure.
 """
 
 from __future__ import annotations
@@ -48,11 +52,14 @@ from .coordinator import (
 )
 from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
 from .speech import language_of
+from .watchlist import add_line, remove_line
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
 SERVICE_LIST_AIRCRAFT: Final = "list_aircraft"
 SERVICE_INSTALL_SENTENCES: Final = "install_sentences"
 SERVICE_SPEAK: Final = "speak"
+SERVICE_WATCH: Final = "watch"
+SERVICE_UNWATCH: Final = "unwatch"
 
 # Where the sentences ship, and where Home Assistant reads them from. It
 # reads custom sentences out of the configuration directory and nowhere else,
@@ -96,6 +103,12 @@ LIST_SCHEMA: Final = vol.Schema(
     }
 )
 
+
+# The line exactly as the watchlist takes it: a hex code, a registration or
+# callsign, an aircraft type or a squawk.
+WATCH_SCHEMA: Final = vol.Schema(
+    {**_STATION_FIELD, vol.Required(ATTR_AIRCRAFT): cv.string}
+)
 
 SPEAK_SCHEMA: Final = vol.Schema(
     {
@@ -246,6 +259,65 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     return {"aircraft": [_describe(coordinator, summary) for summary in matching]}
 
 
+def _watching_station(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
+    """Return the entry whose watchlist to change.
+
+    The entry that carries the receiver, which is the only one with a
+    watchlist. Unlike a question, this does not need the receiver to have
+    answered: a list can be kept while the decoder is down for a reboot.
+    """
+    entries: list[ConfigEntry] = hass.config_entries.async_loaded_entries(DOMAIN)
+
+    if (entry_id := call.data.get(ATTR_CONFIG_ENTRY)) is not None:
+        for entry in entries:
+            if entry.entry_id != entry_id:
+                continue
+            if not _has_receiver(entry):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="station_without_aircraft",
+                    translation_placeholders={"station": entry.title},
+                )
+            return entry
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="station_not_loaded"
+        )
+
+    with_receiver = [entry for entry in entries if _has_receiver(entry)]
+    if not with_receiver:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="no_watchlist_station"
+        )
+    if len(with_receiver) > 1:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="several_receivers",
+            translation_placeholders={
+                "stations": ", ".join(sorted(entry.title for entry in with_receiver))
+            },
+        )
+    return with_receiver[0]
+
+
+def _has_receiver(entry: ConfigEntry) -> bool:
+    """Return whether this entry reads a decoder, answering or not."""
+    coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+    return bool(coordinator.client.aircraft_url)
+
+
+async def _async_watch(call: ServiceCall) -> None:
+    """Put one line on the watchlist."""
+    entry = _watching_station(call.hass, call)
+    coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+    add_line(call.hass, entry, call.data[ATTR_AIRCRAFT], coordinator.reference.models)
+
+
+async def _async_unwatch(call: ServiceCall) -> None:
+    """Take one line off the watchlist."""
+    entry = _watching_station(call.hass, call)
+    remove_line(call.hass, entry, call.data[ATTR_AIRCRAFT])
+
+
 def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
     """Copy the shipped sentences into the configuration. Blocking."""
     installed: JsonArrayType = []
@@ -317,8 +389,15 @@ async def _async_speak(call: ServiceCall) -> ServiceResponse:
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
-    # The one that writes into the configuration is for administrators only;
-    # the other three only read the last poll, so anyone may ask them.
+    # The ones that write into the configuration, or into the options, are
+    # for administrators only, as the options form is; the other three only
+    # read the last poll, so anyone may ask them.
+    async_register_admin_service(
+        hass, DOMAIN, SERVICE_WATCH, _async_watch, schema=WATCH_SCHEMA
+    )
+    async_register_admin_service(
+        hass, DOMAIN, SERVICE_UNWATCH, _async_unwatch, schema=WATCH_SCHEMA
+    )
     async_register_admin_service(
         hass,
         DOMAIN,

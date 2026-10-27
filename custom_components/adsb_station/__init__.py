@@ -33,6 +33,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.GEO_LOCATION,
     Platform.SENSOR,
+    Platform.TEXT,
 ]
 
 
