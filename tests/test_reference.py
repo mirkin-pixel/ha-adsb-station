@@ -148,6 +148,13 @@ async def test_shipped_tables(hass: HomeAssistant) -> None:
     assert tables.airline_of("KLM123") == "KLM"
     assert tables.airline_of("TRA45") == "Transavia"
     assert tables.model_of("A20N") == "Airbus A-320neo"
+    # Codes whose manufacturer the letters do not spell out, which went to
+    # whichever licence builder or air force sorted first until the model
+    # being named after the code counted for something.
+    assert tables.model_of("TB20") == "SOCATA TB-20 Trinidad"
+    assert tables.model_of("P3") == "Lockheed P-3 Orion"
+    assert tables.model_of("MI8") == "Mil Mi-8"
+    assert tables.model_of("F15") == "McDonnell Douglas F-15 Eagle"
     # A code no aircraft carries stays unknown rather than guessing, and ZZZZ,
     # which is the code for having no type designator, is left out on purpose
     assert tables.model_of("QQQQ") is None

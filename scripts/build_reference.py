@@ -113,6 +113,16 @@ def _score(code: str, manufacturer: str, model: str, active: bool) -> int:
     # the 200 in BE20 and an "A-320neo" is not mistaken for one.
     if digits and model.replace("-", "").upper().startswith(digits):
         score += 2
+    # A model named after the code itself, as the TB-20 Trinidad is for TB20
+    # and the C-130H for C130, is the aircraft the code was made for. Without
+    # this, a code whose manufacturer the letters do not spell out goes to
+    # whichever licence builder sorts first: SOCATA does not start with TB,
+    # and neither does Shijiazhuang, which builds the TB-20 as the LE-500. A
+    # model that only repeats the manufacturer, AMX for AMX, says nothing.
+    elif _named_after(code, model) and not model.upper().startswith(
+        manufacturer.upper()
+    ):
+        score += 3
 
     # Two variants that share their code with an airliner and are far rarer
     # than it: the corporate conversions, and the military ones that carry
@@ -130,10 +140,36 @@ def _score(code: str, manufacturer: str, model: str, active: bool) -> int:
     return score
 
 
+def _named_after(code: str, model: str) -> bool:
+    """Return whether a model name opens with the type code it is filed under.
+
+    The code may carry one more letter for the variant, as C-130H does under
+    C130, but not one more digit: an AS-555 is a different helicopter from the
+    AS-355 that AS55 stands for, and only the first is spelled that way.
+    And only a code with a digit in it: DOVE and PUMA are names rather than
+    designations, and a Riley Dove 400 is a conversion of the de Havilland
+    one the code was made for.
+    """
+    words = model.split()
+    if not words or not any(char.isdigit() for char in code):
+        return False
+    first = words[0].replace("-", "").upper()
+    return first == code or (
+        len(first) == len(code) + 1 and first.startswith(code) and first[-1].isalpha()
+    )
+
+
+def _name_of(model: str) -> str:
+    """Return what a model is called, without the designation in front of it."""
+    return " ".join(model.split()[1:]).upper()
+
+
 def build_models() -> dict[str, str]:
     """Return the ICAO type codes, mapped to a name you can read."""
-    models: dict[str, str] = {}
-    best: dict[str, int] = {}
+    rows: dict[str, list[tuple[int, str, str]]] = {}
+    # Every model each manufacturer has, under any code, for telling a name the
+    # world uses from the one a single air force gave it.
+    catalogue: dict[str, list[tuple[str, str]]] = {}
     for url in MODEL_URLS:
         for row in _fetch(url):
             code = (row.get("ICAO") or "").strip().upper()
@@ -144,13 +180,45 @@ def build_models() -> dict[str, str]:
             score = _score(
                 code, manufacturer, model, (row.get("IsActive") or "").strip() == "1"
             )
-            # Strictly greater, so the first row of the best kind wins and the
-            # output does not depend on how the rows below it are ordered. A
-            # code is only ever missing when the source has no row for it, so
-            # an unseen code has to lose to any score, including a negative one.
-            if code not in best or score > best[code]:
-                best[code] = score
-                models[code] = f"{manufacturer} {model}".strip()
+            rows.setdefault(code, []).append((score, manufacturer, model))
+            catalogue.setdefault(manufacturer.upper(), []).append((code, model.upper()))
+
+    def standing(code: str, row: tuple[int, str, str]) -> tuple[int, ...]:
+        """Rank a row against the others under its code, best last.
+
+        The score first. Between rows that score the same and are named after
+        the code, which is the one kind of row that ties with another of its
+        kind, three things in turn. The manufacturer with the most variants
+        under the code, which is the one that designed it rather than one
+        licensed to build it. Then the name the rows under the code use most:
+        Hercules is in dozens of C130 rows and Karnaf, the Israeli air force's
+        name, in two. Then the name the manufacturer uses most across all its
+        codes, which is what tells the Trinidad from the Pashosh: two rows each
+        under TB20, but the Trinidad is the TB-21 as well. A model with no name
+        beyond the designation, A-320 or S-61A, is the plain one, and beats
+        any name added to it.
+
+        Every other row ranks on its score alone, so between those the first
+        in the source still wins, as it always has.
+        """
+        score, manufacturer, model = row
+        if not _named_after(code, model):
+            return (score, 0, 0, 0, 0)
+        builders = sum(1 for _, other, _ in rows[code] if other == manufacturer)
+        if not (name := _name_of(model)):
+            return (score, 1, builders, len(rows[code]) + 1, 0)
+        under_code = sum(1 for _, _, other in rows[code] if name in other.upper())
+        by_maker = sum(
+            1 for _, other in catalogue[manufacturer.upper()] if name in other
+        )
+        return (score, 1, builders, under_code, by_maker)
+
+    models: dict[str, str] = {}
+    for code, candidates in rows.items():
+        # max() keeps the first of equals, so the output depends on nothing
+        # but the order of the source.
+        _, manufacturer, model = max(candidates, key=lambda row: standing(code, row))
+        models[code] = f"{manufacturer} {model}".strip()
     return models
 
 
