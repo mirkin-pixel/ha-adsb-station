@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 
 import aiohttp
-from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_STATE_CHANGED, STATE_UNAVAILABLE
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.util import dt as dt_util
+import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -20,7 +22,7 @@ from custom_components.adsb_station.const import (
     MISSED_READS_TOLERATED,
 )
 
-from .conftest import set_responses, setup_integration
+from .conftest import AIRCRAFT_URL, set_responses, setup_integration
 
 OVERHEAD = "binary_sensor.t_ehxx23_aircraft_overhead"
 
@@ -73,3 +75,33 @@ async def test_a_hiccup_changes_nothing_an_automation_can_see(
     state = hass.states.get(OVERHEAD)
     assert state is not None
     assert state.state == "on"
+
+
+async def test_a_receiver_down_from_the_start_is_reported_at_once(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    caplog: pytest.LogCaptureFixture,
+    freezer,
+) -> None:
+    """Test that there is no grace without a last answer to keep.
+
+    The feeder answers, so the entry sets up, but the decoder never has. Its
+    entities are unavailable from the start, and the log says so then rather
+    than two polls later.
+    """
+    caplog.set_level(logging.INFO)
+    set_responses(mock_api, aircraft_kwargs={"exc": aiohttp.ClientError("boom")})
+    assert await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get(OVERHEAD)
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+    assert caplog.text.count(f"Could not read {AIRCRAFT_URL}") == 1
+
+    set_responses(mock_api)
+    freezer.tick(timedelta(seconds=DEFAULT_SCAN_INTERVAL + 5))
+    await _poll(hass)
+
+    assert hass.states.get(OVERHEAD).state == "on"
+    assert f"{AIRCRAFT_URL} can be read again" in caplog.text

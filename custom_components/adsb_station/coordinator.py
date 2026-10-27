@@ -843,6 +843,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._feeder_misses = 0
         self._aircraft_misses = 0
         self._stats_misses = 0
+        # Whether the aircraft and the statistics are unavailable right now,
+        # which is what the warning and the all-clear in the log are about.
+        # Not the same as having missed a read: a station that cannot reach
+        # its receiver at start has no last answer to keep, so it is out from
+        # the first miss.
+        self._aircraft_out = False
+        self._stats_out = False
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
         self.watchlist = watchlist_of(config_entry, reference.models)
@@ -1092,7 +1099,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 raise UpdateFailed(err) from err
             # The feeder keeps working without the decoder, so degrade instead
             # of taking every entity down. Report the outage only once.
-            if self._aircraft_misses == MISSED_READS_TOLERATED + 1:
+            if not self._aircraft_out:
+                self._aircraft_out = True
                 _LOGGER.warning(
                     "Could not read %s: %s. The aircraft entities become "
                     "unavailable until the receiver answers again",
@@ -1101,7 +1109,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
             return None
 
-        if self._aircraft_misses > MISSED_READS_TOLERATED:
+        if self._aircraft_out:
+            self._aircraft_out = False
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
         self._aircraft_misses = 0
 
@@ -1407,7 +1416,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     err,
                 )
                 return previous
-            if self._stats_misses == MISSED_READS_TOLERATED + 1:
+            if not self._stats_out:
+                self._stats_out = True
                 _LOGGER.warning(
                     "Could not read %s: %s. The reception statistics become "
                     "unavailable until the receiver answers again",
@@ -1416,7 +1426,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
             return None
 
-        if self._stats_misses > MISSED_READS_TOLERATED:
+        if self._stats_out:
+            self._stats_out = False
             _LOGGER.info("%s can be read again", self.client.stats_url)
         self._stats_misses = 0
 
