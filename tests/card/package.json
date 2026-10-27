@@ -7,6 +7,6 @@
     "test": "node card.test.mjs ../../custom_components/adsb_station/frontend/adsb-station-card.js"
   },
   "devDependencies": {
-    "jsdom": "24.1.3"
+    "jsdom": "30.1.3"
   }
 }
