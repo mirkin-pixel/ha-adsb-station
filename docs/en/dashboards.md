@@ -15,7 +15,7 @@ hours_to_show: 0
 
 `hours_to_show: 0` is worth having. Anything higher draws a trail from the recorder, and these entities are not kept there.
 
-By default a marker carries the first letters of the callsign. With `label_mode: icon` it shows what the aircraft is doing instead:
+By default a marker carries the first letter of each word of the name, so a callsign such as KLM123 is a single K. With `label_mode: icon` it shows what the aircraft is doing instead:
 
 ```yaml
 type: map

@@ -15,7 +15,7 @@ hours_to_show: 0
 
 Die `hours_to_show: 0` is het overwegen waard. Alles daarboven tekent een spoor uit de recorder, en deze entiteiten worden daar niet in bewaard.
 
-Standaard draagt een marker de eerste letters van de callsign. Met `label_mode: icon` laat hij in plaats daarvan zien wat het toestel doet:
+Standaard draagt een marker de eerste letter van elk woord van de naam, dus een callsign als KLM123 is één K. Met `label_mode: icon` laat hij in plaats daarvan zien wat het toestel doet:
 
 ```yaml
 type: map
