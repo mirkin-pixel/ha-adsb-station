@@ -61,7 +61,7 @@ Everything else lives in [`docs/en`](docs/en), a page at a time:
 
 ### Installation
 
-Requires Home Assistant 2026.3 or newer.
+Requires Home Assistant 2025.7 or newer. Before 2026.3, Home Assistant shows a generic icon in place of the integration's own; everything else is the same.
 
 #### Via HACS
 
@@ -155,7 +155,7 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 
 ### Installatie
 
-Vereist Home Assistant 2026.3 of nieuwer.
+Vereist Home Assistant 2025.7 of nieuwer. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
 
 #### Via HACS
 

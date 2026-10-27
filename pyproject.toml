@@ -24,6 +24,12 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
 
+[tool.ruff]
+# The oldest Home Assistant this integration supports, 2025.7, runs on Python
+# 3.13, so nothing newer than that may be written here. Ruff refuses syntax the
+# target does not have.
+target-version = "py313"
+
 [tool.ruff.lint]
 select = [
     "E",

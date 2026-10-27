@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
@@ -439,3 +440,22 @@ async def setup_integration(hass: HomeAssistant, entry: MockConfigEntry) -> bool
     result = await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return result
+
+
+def our_device(
+    hass: HomeAssistant, identifier: tuple[str, str], entry: MockConfigEntry
+) -> dr.DeviceEntry | None:
+    """Return the device an entry registered under an identifier.
+
+    Asked of the entry rather than of whatever device carries the identifier,
+    so a test cannot pass on a device another entry left behind. Home Assistant
+    2026.x asks that in one call; the oldest release this integration supports
+    does not have it yet, so there the entry is checked by hand.
+    """
+    registry = dr.async_get(hass)
+    if hasattr(registry, "async_get_device_by_identifier"):
+        return registry.async_get_device_by_identifier(identifier, entry.entry_id)
+    device = registry.async_get_device(identifiers={identifier})
+    if device is None or entry.entry_id not in device.config_entries:
+        return None
+    return device
