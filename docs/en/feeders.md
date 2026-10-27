@@ -55,6 +55,8 @@ pfclient publishes no multilateration flag of its own, but it does count what it
 
 With a feeder, the feeder and the receiver are read independently: if the decoder stops answering, only the aircraft entities become unavailable and the feed entities keep working. Without a feeder the decoder is the only source, so an outage takes everything with it.
 
+A single missed read is not an outage. A Wi-Fi hiccup or a decoder that answers a second too late costs one read, and turning every entity unavailable for that would leave a gap in every graph and set off an automation that waits for **Aircraft overhead** to turn on a second time. So each source may miss two reads in a row, and its entities keep the last answer meanwhile; the third missed read makes them unavailable. At the default intervals that is 45 seconds for the aircraft and three minutes for the feeder and the statistics. Only the missed read that makes them unavailable is logged as a warning; the two before it show up in the debug log.
+
 ## Where your antenna is blocked
 
 A single maximum range figure hides the shape of your coverage: 250 km to the south and 40 km to the north is a very different station from 145 km all round. Eight sensors keep the furthest an aircraft has ever been heard in each compass sector, spanning 45 degrees centred on their direction, so **Range record north** covers 337.5° to 22.5°.

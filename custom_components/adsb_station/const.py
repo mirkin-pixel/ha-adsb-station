@@ -195,6 +195,16 @@ PASSAGE_GAP = timedelta(minutes=10)
 # for twenty minutes on a quiet night.
 RECEIVER_SILENT_AFTER = timedelta(minutes=3)
 
+# How many reads in a row an endpoint may miss before its entities go
+# unavailable. A Wi-Fi hiccup or a decoder that took a second too long costs one
+# read, and showing that as unavailable for a poll does real harm: a gap in
+# every graph, and an automation waiting for "overhead" to turn on that sees
+# on, unavailable, on and runs a second time. So a missed read keeps the last
+# answer, and only a third one in a row says the endpoint is gone. At the
+# default intervals that is 45 seconds for the aircraft and three minutes for
+# the feeder and the statistics, both well short of a receiver gone silent.
+MISSED_READS_TOLERATED = 2
+
 # A standing list of aircraft worth knowing about, one to a line. Unlike a
 # passage this has no radius: the question is whether the aircraft is up
 # there at all, however far away, so it is matched against everything the

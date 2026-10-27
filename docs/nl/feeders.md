@@ -55,6 +55,8 @@ pfclient publiceert zelf geen multilateratie-vlag, maar telt wel wat het verstuu
 
 Met een feeder worden de feeder en de ontvanger los van elkaar uitgelezen: als de decoder niet meer antwoordt, worden alleen de vliegtuig-entiteiten onbeschikbaar en blijven de feed-entiteiten werken. Zonder feeder is de decoder de enige bron, en neemt een storing alles mee.
 
+Eén gemiste read is geen storing. Een wifi-hapering of een decoder die een seconde te laat antwoordt kost één read, en alle entiteiten daarvoor onbeschikbaar maken zou een gat in elke grafiek slaan en een automatisering die wacht tot **Vliegtuig overhead** aangaat een tweede keer laten afgaan. Daarom mag elke bron twee reads op rij missen, en houden de entiteiten zolang het laatste antwoord vast; pas de derde gemiste read maakt ze onbeschikbaar. Bij de standaardtijden is dat 45 seconden voor de vliegtuigen en drie minuten voor de feeder en de statistieken. Alleen de gemiste read die ze onbeschikbaar maakt komt als waarschuwing in het log; de twee ervoor staan in het debuglog.
+
 ## Waar je antenne geblokkeerd zit
 
 Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden en 40 km naar het noorden is een heel ander station dan 145 km rondom. Acht sensoren houden per windrichting bij hoe ver een vliegtuig ooit gehoord is, elk over 45 graden gecentreerd op hun richting, dus **Bereikrecord noord** dekt 337,5° tot 22,5°.
