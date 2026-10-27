@@ -262,8 +262,8 @@ GROUND_ALTITUDE = "ground"
 # and permanent.
 RECEIVER_READ_ATTEMPTS = 5
 
-# Where a flight came from and where it is going. This is the one thing that
-# cannot come off your own network: no ADS-B message carries a route. An
+# Where a flight came from and where it is going. This cannot come off your
+# own network: no ADS-B message carries a route. An
 # aircraft broadcasts its callsign and nothing more, so the only way to know
 # is to ask someone who keeps a database of flight numbers. That is a request
 # leaving your network, which is why it is off unless you ask for it.
@@ -288,6 +288,23 @@ ROUTE_CACHE_MAX_ENTRIES = 512
 # A ceiling on what one poll may ask, so a wide radius over a busy airport
 # cannot turn into a burst of requests at somebody else's expense.
 ROUTE_MAX_LOOKUPS_PER_POLL = 25
+
+# What an aircraft looks like, which is not broadcast either. The other thing
+# that leaves your network, and off for the same reason.
+CONF_LOOK_UP_PHOTOS = "look_up_photos"
+DEFAULT_LOOK_UP_PHOTOS = False
+
+PHOTO_URL = "https://api.planespotters.net/pub/photos/hex/{hex}"
+# Planespotters refuses a request that does not say who is asking and how to
+# reach them.
+PHOTO_USER_AGENT = "ADS-B-Station (+https://github.com/mirkin-pixel/ha-adsb-station)"
+# An airframe keeps its photo far longer than a day, but a day is as long as
+# the terms let an answer be kept. A miss is kept as long, because a new photo
+# of an aircraft that had none is rare.
+PHOTO_CACHE_TTL = timedelta(hours=24)
+PHOTO_CACHE_MAX_ENTRIES = 512
+# One request per aircraft, so fewer per poll than routes, which come in one.
+PHOTO_MAX_LOOKUPS_PER_POLL = 3
 
 # Where aircraft.json lives on the common receiver images, in the order we
 # prefer them. fr24feed ships its own dump1090 on port 8080 under /dump1090;

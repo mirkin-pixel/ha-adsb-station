@@ -1,6 +1,6 @@
 # Waar een vlucht heen gaat
 
-Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit, `KLM1234`, en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, ook die van tar1090, vraagt het aan een database op de grond. Daarmee is dit het enige gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
+Je antenne hoort dit nooit. Een vliegtuig zendt een callsign uit, `KLM1234`, en verder niets over de vlucht erachter, dus waar het opgestegen is en waar het heen gaat staat niet in `aircraft.json` en kan daar ook niet staan. Elke kaart die je een route laat zien, ook die van tar1090, vraagt het aan een database op de grond. Daarmee is dit een gegeven dat deze integratie niet op je eigen netwerk kan ophalen, en daarom staat **Vluchtroutes opzoeken** onder **Configureren** uit tot je hem aanzet.
 
 De bron is **routeset**, via `adsb.im`, dezelfde bron die tar1090 zelf gebruikt. Hij vraagt niet om een account of een sleutel, en hij neemt alle callsigns van één meting in één verzoek.
 

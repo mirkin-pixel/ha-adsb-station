@@ -5,11 +5,12 @@ and nothing else about the flight, so `KLM1234` is all that reaches the
 antenna: the route behind that number lives in a database on the ground. Every
 map that shows you a route, tar1090 included, asks someone else for it.
 
-That makes this the one part of the integration that leaves your network, and
-it is why it stays off until you switch it on. The source is routeset, which
-is what tar1090 itself uses: it takes every callsign in one request, and
-because it is given the position as well it can say whether the route it found
-actually fits an aircraft seen there.
+That makes this one of the two parts of the integration that leave your
+network, the other being [photos](photo.py), and it is why it stays off until
+you switch it on. The source is routeset, which is what tar1090 itself uses:
+it takes every callsign in one request, and because it is given the position
+as well it can say whether the route it found actually fits an aircraft seen
+there.
 
 That last part is what makes it worth trusting. A modern airline callsign is
 reused over the legs of a day, so a database keyed on the flight number alone

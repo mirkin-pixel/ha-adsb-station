@@ -72,7 +72,7 @@ content: |
   {{ state_attr(toestel, 'airline') or state_attr(toestel, 'hex') }}
 ```
 
-De vlag wordt uit de code zelf opgebouwd en kost niets. **Een maatschappijlogo is een verzoek dat je netwerk verlaat**, precies het enige wat deze integratie verder nooit doet, dus dat is jouw keuze en geen standaard: richt een afbeelding op de logodienst die je vertrouwt, of zet de bestanden zelf in `www/airline_logos/`.
+De vlag wordt uit de code zelf opgebouwd en kost niets. **Een maatschappijlogo is een verzoek dat je netwerk verlaat**, iets wat deze integratie verder alleen doet als je het aanzet, dus dat is jouw keuze en geen standaard: richt een afbeelding op de logodienst die je vertrouwt, of zet de bestanden zelf in `www/airline_logos/`.
 
 ## Chips voor wat er hangt
 
