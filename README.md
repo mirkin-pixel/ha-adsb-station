@@ -9,7 +9,9 @@
 
 ## English
 
-Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**. Everything happens on your own network: the integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception, it is off unless you turn it on, and it has a section of its own: [where a flight is going](docs/en/routes.md) is the one thing your antenna cannot hear.
+Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**: what your antenna hears, on your own network. No cloud account, no API key, no rate limits, and it keeps working when the internet is down.
+
+The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception to staying on your own network, it is off unless you turn it on, and it has a section of its own: [where a flight is going](docs/en/routes.md) is the one thing your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
 
@@ -92,7 +94,9 @@ This is an unofficial integration and is not affiliated with Flightradar24, Flig
 
 ## Nederlands
 
-Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest. Alles gebeurt op je eigen netwerk: de integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering, die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) is het enige wat je antenne niet kan horen.
+Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest: wat je antenne hoort, op je eigen netwerk. Geen cloudaccount, geen API-sleutel, geen limieten, en hij blijft werken als het internet eruit ligt.
+
+De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering waarbij iets je netwerk verlaat. Die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) is het enige wat je antenne niet kan horen.
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
 
