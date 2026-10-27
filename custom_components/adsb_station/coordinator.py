@@ -49,6 +49,7 @@ from .const import (
     GROUND_ALTITUDE,
     KNOTS_TO_METRES_PER_SECOND,
     MAX_PLAUSIBLE_RANGE,
+    MISSED_READS_TOLERATED,
     PASSAGE_GAP,
     RADIO_HORIZON_ALLOWANCE,
     RADIO_HORIZON_METRES_PER_ROOT_FOOT,
@@ -838,8 +839,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._sampled_at = dt_util.utcnow()
         self._sampled_until: float | None = None
         self.receiver_silent = False
-        self._aircraft_failed = False
-        self._stats_failed = False
+        # Reads in a row each endpoint has missed; see MISSED_READS_TOLERATED.
+        self._feeder_misses = 0
+        self._aircraft_misses = 0
+        self._stats_misses = 0
+        # Whether the aircraft and the statistics are unavailable right now,
+        # which is what the warning and the all-clear in the log are about.
+        # Not the same as having missed a read: a station that cannot reach
+        # its receiver at start has no last answer to keep, so it is out from
+        # the first miss.
+        self._aircraft_out = False
+        self._stats_out = False
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
         self.watchlist = watchlist_of(config_entry, reference.models)
@@ -931,7 +941,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             try:
                 feeder = await self.client.async_get_feeder()
             except AdsbStationError as err:
-                raise UpdateFailed(err) from err
+                self._feeder_misses += 1
+                if self.data is None or self._feeder_misses > MISSED_READS_TOLERATED:
+                    raise UpdateFailed(err) from err
+                _LOGGER.debug("Missed a read of the feeder, keeping the last: %s", err)
+                feeder = self.data.feeder
+            else:
+                self._feeder_misses = 0
 
         aircraft = await self._async_get_aircraft(required=not self.client.has_feeder)
         data = AdsbStationData(
@@ -956,6 +972,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         if aircraft is None:
             return None
         previous = self.data.aircraft if self.data is not None else None
+        if aircraft is previous:
+            # A missed read standing in with the last answer, figures and all.
+            return aircraft
         if not sample and previous is not None:
             return replace(
                 aircraft,
@@ -1061,6 +1080,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_aircraft()
         except AdsbStationError as err:
+            self._aircraft_misses += 1
+            previous = self.data.aircraft if self.data is not None else None
+            if previous is not None and self._aircraft_misses <= MISSED_READS_TOLERATED:
+                # The last answer stands, and is handed back as it was: nothing
+                # in it is new, so nothing is announced or counted again.
+                _LOGGER.debug(
+                    "Missed a read of %s, keeping the last: %s",
+                    self.client.aircraft_url,
+                    err,
+                )
+                return previous
             if required:
                 # Nothing else will be read this poll, stats.json included, and
                 # a decoder that is not there delivers no samples either.
@@ -1069,8 +1099,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 raise UpdateFailed(err) from err
             # The feeder keeps working without the decoder, so degrade instead
             # of taking every entity down. Report the outage only once.
-            if not self._aircraft_failed:
-                self._aircraft_failed = True
+            if not self._aircraft_out:
+                self._aircraft_out = True
                 _LOGGER.warning(
                     "Could not read %s: %s. The aircraft entities become "
                     "unavailable until the receiver answers again",
@@ -1079,9 +1109,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
             return None
 
-        if self._aircraft_failed:
-            self._aircraft_failed = False
+        if self._aircraft_out:
+            self._aircraft_out = False
             _LOGGER.info("%s can be read again", self.client.aircraft_url)
+        self._aircraft_misses = 0
 
         await self._async_read_receiver()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
@@ -1373,9 +1404,20 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_stats()
         except AdsbStationError as err:
+            # Counted as nothing delivered either way: a receiver gone silent
+            # is measured over minutes, and a missed read is part of that.
             self._check_samples(None)
-            if not self._stats_failed:
-                self._stats_failed = True
+            self._stats_misses += 1
+            previous = self.data.stats if self.data is not None else None
+            if previous is not None and self._stats_misses <= MISSED_READS_TOLERATED:
+                _LOGGER.debug(
+                    "Missed a read of %s, keeping the last: %s",
+                    self.client.stats_url,
+                    err,
+                )
+                return previous
+            if not self._stats_out:
+                self._stats_out = True
                 _LOGGER.warning(
                     "Could not read %s: %s. The reception statistics become "
                     "unavailable until the receiver answers again",
@@ -1384,9 +1426,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
             return None
 
-        if self._stats_failed:
-            self._stats_failed = False
+        if self._stats_out:
+            self._stats_out = False
             _LOGGER.info("%s can be read again", self.client.stats_url)
+        self._stats_misses = 0
 
         self._check_samples(data)
         return self._build_receiver_stats(data)

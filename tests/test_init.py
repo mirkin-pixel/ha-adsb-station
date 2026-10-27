@@ -26,6 +26,7 @@ from custom_components.adsb_station.const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
+    MISSED_READS_TOLERATED,
     RECEIVER_READ_ATTEMPTS,
     ROUTESET_URL,
 )
@@ -159,6 +160,12 @@ async def test_receiver_outage_is_reported_once(
     assert _state(hass, "sensor", "aircraft_received") == "3"
 
     set_responses(mock_api, aircraft_kwargs={"exc": aiohttp.ClientError("boom")})
+    # A missed read or two is a hiccup: the last answer stands, and nobody is
+    # warned about it.
+    for _ in range(MISSED_READS_TOLERATED):
+        await _refresh(hass)
+        assert _state(hass, "sensor", "aircraft_received") == "3"
+    assert f"Could not read {AIRCRAFT_URL}" not in caplog.text
     await _refresh(hass)
 
     # The feeder keeps working, only the receiver entities drop out
@@ -177,7 +184,8 @@ async def test_receiver_outage_is_reported_once(
     assert f"{AIRCRAFT_URL} can be read again" in caplog.text
 
     set_responses(mock_api, aircraft_kwargs={"exc": aiohttp.ClientError("boom")})
-    await _refresh(hass)
+    for _ in range(MISSED_READS_TOLERATED + 1):
+        await _refresh(hass)
     assert caplog.text.count(f"Could not read {AIRCRAFT_URL}") == 2
 
 
@@ -192,6 +200,9 @@ async def test_feeder_outage_marks_everything_unavailable(
     assert _state(hass, "sensor", "aircraft_tracked") == "25"
 
     set_responses(mock_api, monitor_kwargs={"exc": aiohttp.ClientError("boom")})
+    for _ in range(MISSED_READS_TOLERATED):
+        await _refresh_statistics(hass, freezer)
+        assert _state(hass, "sensor", "aircraft_tracked") == "25"
     await _refresh_statistics(hass, freezer)
 
     assert _state(hass, "sensor", "aircraft_tracked") == STATE_UNAVAILABLE
@@ -428,6 +439,12 @@ async def test_receiver_outage_without_a_feeder_marks_unavailable(
     assert _receiver_state(hass, "sensor", "aircraft_received") == "3"
 
     set_responses(mock_api, aircraft_kwargs={"exc": aiohttp.ClientError("boom")})
+    # Without a feeder the receiver is everything, so a hiccup would otherwise
+    # take every entity down with it.
+    for _ in range(MISSED_READS_TOLERATED):
+        await _refresh(hass)
+        assert _receiver_state(hass, "sensor", "aircraft_received") == "3"
+        assert _receiver_state(hass, "sensor", "strong_signals") == "6"
     await _refresh(hass)
 
     assert _receiver_state(hass, "sensor", "aircraft_received") == STATE_UNAVAILABLE
@@ -451,6 +468,10 @@ async def test_statistics_outage_is_reported_once(
     assert _state(hass, "sensor", "strong_signals") == "6"
 
     set_responses(mock_api, stats_kwargs={"status": 500})
+    for _ in range(MISSED_READS_TOLERATED):
+        await _refresh_statistics(hass, freezer)
+        assert _state(hass, "sensor", "strong_signals") == "6"
+    assert f"Could not read {STATS_URL}" not in caplog.text
     await _refresh_statistics(hass, freezer)
 
     assert _state(hass, "sensor", "aircraft_received") == "3"
