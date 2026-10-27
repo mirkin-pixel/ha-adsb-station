@@ -91,6 +91,10 @@ pip install -r requirements_test.txt
 scripts/check.sh          # or scripts\check.ps1
 ```
 
+### Support
+
+If this integration is useful to you, you can [sponsor its development](https://github.com/sponsors/mirkin-pixel) on GitHub. It stays free and complete either way.
+
 ### Disclaimer
 
 This is an unofficial integration and is not affiliated with Flightradar24, FlightAware or Plane Finder. Use at your own risk.
@@ -180,6 +184,10 @@ Werken aan de integratie zelf staat in [CONTRIBUTING.md](CONTRIBUTING.md) (Engel
 pip install -r requirements_test.txt
 scripts/check.sh          # of scripts\check.ps1
 ```
+
+### Steunen
+
+Heb je iets aan deze integratie, dan kun je [de ontwikkeling sponsoren](https://github.com/sponsors/mirkin-pixel) via GitHub. Hij blijft hoe dan ook gratis en compleet.
 
 ### Disclaimer
 
