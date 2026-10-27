@@ -32,6 +32,8 @@ On top of the decoder it reads the feeders themselves, each of which serves a st
 
 A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too: set up the receiver on its own.
 
+<img src="docs/images/device.png" alt="The sensors of one station: range records per compass sector, message rate, closest, highest and fastest aircraft, feed status and passages today" width="260" align="right">
+
 What you get is a proper device with translated entity names and a config flow, and figures that are awkward to arrive at by hand: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
 
 ### Documentation
@@ -116,6 +118,8 @@ Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen st
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
 Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook: dan zet je alleen de ontvanger op.
+
+<img src="docs/images/device.png" alt="De sensoren van een station: bereikrecords per windrichting, berichten per seconde, dichtstbijzijnde, hoogste en snelste vliegtuig, feedstatus en passages vandaag" width="260" align="right">
 
 Wat je krijgt is een echt apparaat met vertaalde entiteitsnamen en een configuratieflow, en cijfers waar je met de hand lastig aan komt: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
 
