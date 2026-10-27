@@ -9,7 +9,7 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | Aircraft tracked | Sensor | Aircraft the feeder is currently tracking |
 | Aircraft tracked via ADS-B | Sensor | Of those, the number tracked via ADS-B |
 | Aircraft uploaded | Sensor | Aircraft in the last upload to Flightradar24 |
-| Feed status | Sensor | The raw status text of the feed |
+| Feed status | Sensor | The status of the feed as fr24feed puts it: `connected`, `connecting`, `reconnecting` or `disconnected`. Shown in words in your language; an automation compares against the value itself |
 | Receiver | Binary sensor (connectivity) | On while `fr24feed` sees the dongle |
 | Feed | Binary sensor (connectivity) | On while the feed reaches Flightradar24 |
 | MLAT | Binary sensor (connectivity, diagnostic) | On while multilateration works |

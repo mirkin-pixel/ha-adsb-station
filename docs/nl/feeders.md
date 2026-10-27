@@ -9,7 +9,7 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | Vliegtuigen gevolgd | Sensor | Vliegtuigen die de feeder op dit moment volgt |
 | Vliegtuigen gevolgd via ADS-B | Sensor | Daarvan het aantal dat via ADS-B gevolgd wordt |
 | Vliegtuigen doorgestuurd | Sensor | Vliegtuigen in de laatste upload naar Flightradar24 |
-| Feedstatus | Sensor | De ruwe statustekst van de feed |
+| Feedstatus | Sensor | De status van de feed zoals fr24feed hem geeft: `connected`, `connecting`, `reconnecting` of `disconnected`. Wordt in je eigen taal getoond (Verbonden, Verbinden, Opnieuw verbinden, Verbroken); een automatisering vergelijkt met de waarde zelf |
 | Ontvanger | Binary sensor (verbinding) | Aan zolang `fr24feed` de dongle ziet |
 | Feed | Binary sensor (verbinding) | Aan zolang de feed Flightradar24 bereikt |
 | MLAT | Binary sensor (verbinding, diagnostisch) | Aan zolang multilateratie werkt |
