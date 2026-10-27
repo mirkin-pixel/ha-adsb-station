@@ -9,7 +9,9 @@
 
 ## English
 
-Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**. Everything happens on your own network: the integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception, it is off unless you turn it on, and it has a section of its own: [where a flight is going](docs/en/routes.md) is the one thing your antenna cannot hear.
+Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**: what your antenna hears, on your own network. No cloud account, no API key, no rate limits, and it keeps working when the internet is down.
+
+The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception to staying on your own network, it is off unless you turn it on, and it has a section of its own: [where a flight is going](docs/en/routes.md) is the one thing your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
 
@@ -29,6 +31,10 @@ On top of the decoder it reads the feeders themselves, each of which serves a st
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
 A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too: set up the receiver on its own.
+
+<img src="docs/images/entries.png" alt="Three entries of one station: fr24feed with the decoder attached, PiAware and Plane Finder, each its own device" width="600">
+
+<img src="docs/images/device.png" alt="The sensors of one station: range records per compass sector, message rate, closest, highest and fastest aircraft, feed status and passages today" width="260" align="right">
 
 What you get is a proper device with translated entity names and a config flow, and figures that are awkward to arrive at by hand: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
 
@@ -92,7 +98,9 @@ This is an unofficial integration and is not affiliated with Flightradar24, Flig
 
 ## Nederlands
 
-Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest. Alles gebeurt op je eigen netwerk: de integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering, die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) is het enige wat je antenne niet kan horen.
+Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest: wat je antenne hoort, op je eigen netwerk. Geen cloudaccount, geen API-sleutel, geen limieten, en hij blijft werken als het internet eruit ligt.
+
+De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering waarbij iets je netwerk verlaat. Die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) is het enige wat je antenne niet kan horen.
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
 
@@ -112,6 +120,10 @@ Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen st
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
 Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook: dan zet je alleen de ontvanger op.
+
+<img src="docs/images/entries.png" alt="Drie entries van één station: fr24feed met de decoder eraan, PiAware en Plane Finder, elk een eigen apparaat" width="600">
+
+<img src="docs/images/device.png" alt="De sensoren van een station: bereikrecords per windrichting, berichten per seconde, dichtstbijzijnde, hoogste en snelste vliegtuig, feedstatus en passages vandaag" width="260" align="right">
 
 Wat je krijgt is een echt apparaat met vertaalde entiteitsnamen en een configuratieflow, en cijfers waar je met de hand lastig aan komt: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
 
