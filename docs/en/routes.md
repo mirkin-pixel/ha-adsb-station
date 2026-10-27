@@ -1,6 +1,6 @@
 # Where a flight is going
 
-Your antenna never hears this. An aircraft broadcasts a callsign, `KLM1234`, and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it the one figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
+Your antenna never hears this. An aircraft broadcasts a callsign, `KLM1234`, and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it a figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
 
 The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It asks for no account and no key, and it takes every callsign of a poll in one request.
 

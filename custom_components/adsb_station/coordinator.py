@@ -22,6 +22,7 @@ from .const import (
     AIRCRAFT_TYPE_GROUPS,
     APPROACH_HORIZON,
     APPROACH_POLLS,
+    CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
@@ -31,6 +32,7 @@ from .const import (
     DB_FLAG_LADD,
     DB_FLAG_MILITARY,
     DB_FLAG_PIA,
+    DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
@@ -56,6 +58,7 @@ from .const import (
     WATCHLIST_SQUAWK,
     WATCHLIST_TYPE,
 )
+from .photo import AircraftPhoto, build_photo_lookup, photo_attributes
 from .reference import (
     EMPTY as EMPTY_REFERENCE,
     ReferenceTables,
@@ -144,6 +147,9 @@ class AircraftSummary:
     # Filled in after the poll, and only for the aircraft near enough to
     # matter, when a route source is configured.
     route: FlightRoute | None = None
+    # The same, for a photo of the airframe, when photos are switched on. The
+    # aircraft on the watchlist get one too, near or not.
+    photo: AircraftPhoto | None = None
     # Where this aircraft is heading, if it holds its heading and its speed.
     # False for anything already going away, anything that reports too little
     # to say, and anything further ahead than a straight line is worth
@@ -653,6 +659,7 @@ def aircraft_attributes(
         attributes["airline"] = summary.airline
     # Empty unless a route source is configured and it recognised the flight.
     attributes.update(route_attributes(summary.route))
+    attributes.update(photo_attributes(summary.photo))
     return attributes
 
 
@@ -766,11 +773,16 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # could not be read, which costs a name and nothing else.
         self.reference = reference
         self.receiver_version: str | None = None
-        # None unless the user picked a source to look routes up with, which
-        # is the only thing here that talks to anything off your own network.
+        # None unless the user picked a source to look routes up with. This
+        # and the photos are all that talks to anything off your own network.
         self.route_lookup = build_route_lookup(
             async_get_clientsession(hass),
             config_entry.options.get(CONF_LOOK_UP_ROUTES, DEFAULT_LOOK_UP_ROUTES),
+        )
+        # The other thing that reaches off your network, and as optional.
+        self.photo_lookup = build_photo_lookup(
+            async_get_clientsession(hass),
+            config_entry.options.get(CONF_LOOK_UP_PHOTOS, DEFAULT_LOOK_UP_PHOTOS),
         )
         # Filled in by the sector sensors as they are added, so the reset
         # button can reach them without going through the entity platform.
@@ -1017,8 +1029,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         await self._async_read_receiver()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
-        # After the routes, so an automation is told where the aircraft it is
-        # being woken for is going.
+        stats = await self._async_add_photos(stats)
+        # After the routes and photos, so an automation is told where the
+        # aircraft it is being woken for is going, and what it looks like.
         self._track_passages(stats)
         self._announce_watched(stats)
         self._announce_approaching(stats)
@@ -1249,6 +1262,51 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 if (route := routes.get(summary.flight or "")) is None
                 else replace(summary, route=route)
                 for summary in stats.nearby
+            ),
+        )
+
+    async def _async_add_photos(self, stats: AircraftStats) -> AircraftStats:
+        """Look up what the aircraft near you, and the ones you watch, look like.
+
+        The same nearby ones a route is looked up for, and the watched ones
+        wherever they are: an aircraft worth a watchlist line is the one whose
+        photo is worth having when it turns up forty kilometres out.
+
+        Not for an aircraft flying under a PIA address. That address is lent
+        out for privacy and taken back, so its photo would be of whichever
+        airframe last flew under it.
+        """
+        if self.photo_lookup is None:
+            return stats
+
+        wanted = [
+            summary
+            for summary in (
+                *stats.nearby,
+                *(match.summary for match in stats.watched),
+            )
+            if not summary.pia
+        ]
+        if not wanted:
+            return stats
+
+        photos = await self.photo_lookup.async_resolve(
+            summary.hex for summary in wanted
+        )
+        if not photos:
+            return stats
+
+        def with_photo(summary: AircraftSummary) -> AircraftSummary:
+            if summary.pia or (photo := photos.get(summary.hex.lower())) is None:
+                return summary
+            return replace(summary, photo=photo)
+
+        return replace(
+            stats,
+            nearby=tuple(with_photo(summary) for summary in stats.nearby),
+            watched=tuple(
+                replace(match, summary=with_photo(match.summary))
+                for match in stats.watched
             ),
         )
 

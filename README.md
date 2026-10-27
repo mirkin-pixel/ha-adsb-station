@@ -11,7 +11,7 @@
 
 Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**: what your antenna hears, on your own network. No cloud account, no API key, no rate limits, and it keeps working when the internet is down.
 
-The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There is one exception to staying on your own network, it is off unless you turn it on, and it has a section of its own: [where a flight is going](docs/en/routes.md) is the one thing your antenna cannot hear.
+The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There are two exceptions to staying on your own network, both off unless you turn them on, and each has a section of its own: [where a flight is going](docs/en/routes.md) and [what it looks like](docs/en/photos.md) are the things your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
 
@@ -48,7 +48,8 @@ Everything else lives in [`docs/en`](docs/en), a page at a time:
 | [Feeders](docs/en/feeders.md) | What each feeder adds, and where your antenna is blocked |
 | [Which decoder](docs/en/decoders.md) | What each decoder can tell you, the aircraft database, and the names this integration ships |
 | [Configuration](docs/en/configuration.md) | Setting a station up, and what counts as overhead |
-| [Where a flight is going](docs/en/routes.md) | The one figure that cannot come off your own network |
+| [Where a flight is going](docs/en/routes.md) | A figure that cannot come off your own network |
+| [What it looks like](docs/en/photos.md) | A photo of each aircraft overhead, credited as the photographer asks |
 | [When something comes over](docs/en/passages.md) | Passages, the board, and seeing an aircraft coming before it is here |
 | [A list worth watching](docs/en/watchlist.md) | Aircraft worth knowing about whenever they turn up |
 | [Asking a question](docs/en/services.md) | The actions that answer, with response data |
@@ -100,7 +101,7 @@ This is an unofficial integration and is not affiliated with Flightradar24, Flig
 
 Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest: wat je antenne hoort, op je eigen netwerk. Geen cloudaccount, geen API-sleutel, geen limieten, en hij blijft werken als het internet eruit ligt.
 
-De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er is één uitzondering waarbij iets je netwerk verlaat. Die staat uit tenzij je hem aanzet, en die heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) is het enige wat je antenne niet kan horen.
+De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er zijn twee uitzonderingen waarbij iets je netwerk verlaat. Die staan allebei uit tenzij je ze aanzet, en elk heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) en [hoe hij eruitziet](docs/nl/photos.md) zijn wat je antenne niet kan horen.
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
 
@@ -137,7 +138,8 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 | [Feeders](docs/nl/feeders.md) | Wat elke feeder toevoegt, en waar je antenne geblokkeerd zit |
 | [Welke decoder](docs/nl/decoders.md) | Wat elke decoder kan vertellen, de vliegtuigdatabase, en de namen die meegeleverd worden |
 | [Configuratie](docs/nl/configuration.md) | Een station opzetten, en wat overhead precies betekent |
-| [Waar een vlucht heen gaat](docs/nl/routes.md) | Het enige cijfer dat niet van je eigen netwerk kan komen |
+| [Waar een vlucht heen gaat](docs/nl/routes.md) | Een gegeven dat niet van je eigen netwerk kan komen |
+| [Hoe hij eruitziet](docs/nl/photos.md) | Een foto van elk vliegtuig overhead, met de naam van de fotograaf erbij |
 | [Als er iets overkomt](docs/nl/passages.md) | Passages, het bord, en een toestel zien aankomen voordat het er is |
 | [Een lijst om in de gaten te houden](docs/nl/watchlist.md) | Toestellen die je wilt weten zodra ze opduiken |
 | [Iets vragen](docs/nl/services.md) | De acties die antwoorden, met antwoordgegevens |

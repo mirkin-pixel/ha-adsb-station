@@ -72,7 +72,7 @@ content: |
   {{ state_attr(aircraft, 'airline') or state_attr(aircraft, 'hex') }}
 ```
 
-The flag is built out of the code itself and costs nothing. **An airline logo is a request leaving your network**, which is the one thing this integration otherwise never does, so that is your call rather than a default: point an image at whichever logo service you are willing to talk to, or drop the files into `www/airline_logos/` and serve them yourself.
+The flag is built out of the code itself and costs nothing. **An airline logo is a request leaving your network**, which this integration otherwise only does when you switch it on, so that is your call rather than a default: point an image at whichever logo service you are willing to talk to, or drop the files into `www/airline_logos/` and serve them yourself.
 
 ## Chips for what is up there
 

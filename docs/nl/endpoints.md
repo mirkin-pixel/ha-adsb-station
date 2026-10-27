@@ -10,7 +10,7 @@ Alle endpoints zijn gewone HTTP-adressen zonder authenticatie op je lokale netwe
 
 Die laatste drie worden alleen gelezen door de entry die voor die feeder is ingericht.
 
-Verder wordt er niets benaderd tenzij je erom vraagt. De enige uitzondering is [een route opzoeken](routes.md), wat via HTTPS `adsb.im` aanspreekt en niets meegeeft behalve een callsign en de positie waar hij gehoord is. Laat je die instelling uit, dan verlaat de integratie je netwerk nooit.
+Verder wordt er niets benaderd tenzij je erom vraagt. Er zijn twee uitzonderingen, elk met een eigen instelling. [Een route opzoeken](routes.md) spreekt via HTTPS `adsb.im` aan en geeft niets mee behalve een callsign en de positie waar hij gehoord is. [Een foto opzoeken](photos.md) spreekt via HTTPS `api.planespotters.net` aan en geeft niets mee behalve het adres dat het vliegtuig uitzendt; de foto zelf laadt je browser of telefoon pas als hij hem toont. Laat je ze allebei uit, dan verlaat de integratie je netwerk nooit.
 
 De integratie leest ze alleen uit en schrijft nooit. Afstanden worden gemeten vanaf de antennepositie in `receiver.json`; publiceert de decoder die niet, dan wordt de thuislocatie van je Home Assistant-installatie gebruikt, dus zorg dat die locatie klopt.
 

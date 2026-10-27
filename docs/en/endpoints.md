@@ -10,7 +10,7 @@ Every endpoint is plain, unauthenticated HTTP on your local network:
 
 The last three are read only by the entry set up for that feeder.
 
-Nothing else is contacted unless you ask for it. The single exception is [looking up a route](routes.md), which reaches `adsb.im` over HTTPS and sends nothing but a callsign and the position it was heard at. Leave that setting off and the integration never leaves your network.
+Nothing else is contacted unless you ask for it. There are two exceptions, each a setting of its own. [Looking up a route](routes.md) reaches `adsb.im` over HTTPS and sends nothing but a callsign and the position it was heard at. [Looking up a photo](photos.md) reaches `api.planespotters.net` over HTTPS and sends nothing but the address the aircraft broadcasts; the photo itself is loaded by your browser or phone when it shows it. Leave both off and the integration never leaves your network.
 
 The integration reads them, it never writes. Ranges are measured from the antenna position in `receiver.json`; when the decoder publishes none, the home location of your Home Assistant installation is used, so make sure that location is correct.
 

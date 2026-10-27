@@ -18,6 +18,7 @@ from custom_components.adsb_station.api import build_candidate_urls
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_RADIUS,
@@ -27,6 +28,7 @@ from custom_components.adsb_station.const import (
     DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEEDER_FR24,
+    PHOTO_URL,
     ROUTESET_URL,
 )
 
@@ -542,14 +544,16 @@ async def test_options_flow(
         CONF_SCAN_INTERVAL: 45,
         CONF_STATISTICS_INTERVAL: DEFAULT_STATISTICS_INTERVAL,
         CONF_PROXIMITY_RADIUS: 25,
-        # Nothing asked for a route, so nothing looks one up, and nothing
-        # asked for a map, so no aircraft is drawn on one.
+        # Nothing asked for a route or a photo, so nothing looks one up, and
+        # nothing asked for a map, so no aircraft is drawn on one.
         CONF_MAP_AIRCRAFT: False,
         CONF_LOOK_UP_ROUTES: False,
+        CONF_LOOK_UP_PHOTOS: False,
     }
     # The coordinator works in metres
     assert mock_config_entry.runtime_data.proximity_radius == 25_000
     assert mock_config_entry.runtime_data.route_lookup is None
+    assert mock_config_entry.runtime_data.photo_lookup is None
 
 
 async def test_options_flow_turns_route_lookups_on(
@@ -577,3 +581,32 @@ async def test_options_flow_turns_route_lookups_on(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.runtime_data.route_lookup is not None
+
+
+async def test_options_flow_turns_photo_lookups_on(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that switching photos on gives the coordinator somewhere to ask."""
+    assert await setup_integration(hass, mock_config_entry)
+    assert mock_config_entry.runtime_data.photo_lookup is None
+
+    # Turning it on reloads the entry, and the poll that follows asks.
+    mock_api.get(PHOTO_URL.format(hex="484123"), json={"photos": []})
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SCAN_INTERVAL: 15,
+            CONF_PROXIMITY_RADIUS: 10,
+            CONF_LOOK_UP_PHOTOS: True,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options[CONF_LOOK_UP_PHOTOS] is True
+    assert mock_config_entry.options[CONF_LOOK_UP_ROUTES] is False
+    assert mock_config_entry.runtime_data.photo_lookup is not None

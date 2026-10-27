@@ -36,6 +36,7 @@ from .api import (
 from .const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_MAX_ALTITUDE,
@@ -44,6 +45,7 @@ from .const import (
     CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
     CONF_WATCHLIST,
+    DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_MAP_AIRCRAFT,
     DEFAULT_PROXIMITY_RADIUS,
@@ -146,6 +148,9 @@ OPTIONS_SCHEMA = vol.Schema(
         ): selector.BooleanSelector(),
         vol.Required(
             CONF_LOOK_UP_ROUTES, default=DEFAULT_LOOK_UP_ROUTES
+        ): selector.BooleanSelector(),
+        vol.Required(
+            CONF_LOOK_UP_PHOTOS, default=DEFAULT_LOOK_UP_PHOTOS
         ): selector.BooleanSelector(),
         vol.Optional(CONF_WATCHLIST): selector.TextSelector(
             selector.TextSelectorConfig(multiline=True)
@@ -469,6 +474,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
                 CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
                 CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
+                CONF_LOOK_UP_PHOTOS: user_input[CONF_LOOK_UP_PHOTOS],
             }
             # Left empty means no ceiling at all, so the option is absent
             # rather than nought: nought would be a ceiling on the ground.
