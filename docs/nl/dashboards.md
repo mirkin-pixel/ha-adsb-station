@@ -1,5 +1,27 @@
 # Dashboards
 
+## De stationskaart
+
+De integratie brengt een eigen kaart mee: het vliegtuig overhead met zijn foto, de andere dichtbij, en een regel over hoe het station ervoor staat. Hij komt en wordt bijgewerkt met de integratie, dus er is niets te downloaden en niets toe te voegen onder **Resources**. Herstart Home Assistant na het installeren of bijwerken en ververs de browser één keer; de kaart staat dan in de kaartkiezer als **ADS-B Station**.
+
+```yaml
+type: custom:adsb-station-card
+```
+
+Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zijn, niet aan hun ID's, dus het werkt in welke taal je entiteiten ook genoemd zijn. De rest kan ook in de kaarteditor:
+
+| Optie | Standaard | |
+|---|---|---|
+| `device_id` | het eerste station met een ontvanger | Welk station, als je meer dan één antenne uitleest |
+| `title` | geen | Een kop boven de kaart |
+| `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
+| `max_nearby` | `5` | Hoeveel daarvan maximaal |
+| `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde en maximaal bereik, en een bolletje per netwerk voor Flightradar24 en FlightAware |
+
+Het bovenste deel is **Vlucht overhead**: het toestel nu boven je, of het laatste, als zodanig gemarkeerd, als de lucht leeg is. Met [foto's](photos.md) aan staat zijn foto erbij met de naam van de fotograaf eronder, en allebei leiden ze naar de pagina van de foto, zoals Planespotters vraagt. Klik op het toestel, een regel van de lijst of de statusregel voor de details van de entiteit erachter.
+
+Plane Finder geeft zelf geen feedstatus, dus die heeft geen bolletje in de statusregel in plaats van een bolletje dat niets betekent.
+
 ## Vliegtuigen op de kaart
 
 Zet **Vliegtuigen op de kaart** aan onder **Configureren** en elk toestel binnen de nabijheidsstraal krijgt een eigen entiteit, getekend waar het is, zolang het er is. Er wordt niets extra's voor gelezen: de posities zitten al in elke poll, naast de afstanden waar de nabijheidssensoren op gebouwd zijn.

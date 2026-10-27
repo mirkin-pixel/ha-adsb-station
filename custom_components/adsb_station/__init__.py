@@ -9,6 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import AdsbStationClient
+from .card import async_register_card
 from .const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
@@ -45,9 +46,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     are registered once. Doing it per entry would register them again for the
     second feeder in front of the same decoder, and unregister them for both
     when either one is removed. The spoken questions are registered once too,
-    by the intent component through `intent.async_setup_intents`.
+    by the intent component through `intent.async_setup_intents`. So is the
+    dashboard card, which belongs to no station at all.
     """
     async_setup_services(hass)
+    await async_register_card(hass)
     return True
 
 

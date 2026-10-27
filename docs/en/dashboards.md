@@ -1,5 +1,27 @@
 # Dashboards
 
+## The station card
+
+The integration brings a card of its own: the aircraft overhead with its photo, the others nearby, and a line on how the station is doing. It comes and updates with the integration, so there is nothing to download and nothing to add under **Resources**. After installing or updating, restart Home Assistant and reload the browser once; the card is then in the card picker as **ADS-B Station**.
+
+```yaml
+type: custom:adsb-station-card
+```
+
+That is all it needs. It finds the station's entities by what they are, not by their IDs, so it works whatever language your entities were named in. Everything else can be set in the card editor as well:
+
+| Option | Default | |
+|---|---|---|
+| `device_id` | the first station with a receiver | Which station, if you read more than one antenna |
+| `title` | none | A header above the card |
+| `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
+| `max_nearby` | `5` | How many of those at most |
+| `show_status` | `true` | Aircraft received, message rate and maximum range, and a dot per network for Flightradar24 and FlightAware |
+
+The top part is **Overhead flight**: the aircraft above you now, or the last one, marked as such, once the sky is empty. With [photos](photos.md) switched on, its photo is shown with the photographer's name under it, and both lead to the photo's page, which is how Planespotters asks for them to be shown. Click the aircraft, a row of the list or the status line for the details of the entity behind it.
+
+Plane Finder reports no feed status of its own, so it has no dot in the status line rather than one that means nothing.
+
 ## Aircraft on the map
 
 Switch **Aircraft on the map** on under **Configure** and every aircraft inside the nearby radius gets an entity of its own, drawn where it is, for as long as it is there. Nothing extra is read to do it: the positions are in every poll already, next to the distances the proximity sensors are built on.

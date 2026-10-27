@@ -55,7 +55,7 @@ Everything else lives in [`docs/en`](docs/en), a page at a time:
 | [A list worth watching](docs/en/watchlist.md) | Aircraft worth knowing about whenever they turn up |
 | [Asking a question](docs/en/services.md) | The actions that answer, with response data |
 | [Asking out loud](docs/en/voice.md) | Five questions for Assist, answered from your own roof |
-| [Dashboards](docs/en/dashboards.md) | Cards to build out of all this, including the map |
+| [Dashboards](docs/en/dashboards.md) | The card that comes with the integration, and others to build, including the map |
 | [Example automations](docs/en/automations.md) | Notifications, announcements and what to trigger on |
 | [About the endpoints](docs/en/endpoints.md) | What is read, how often, and what it costs |
 | [Troubleshooting](docs/en/troubleshooting.md) | When something is not there |
@@ -149,7 +149,7 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 | [Een lijst om in de gaten te houden](docs/nl/watchlist.md) | Toestellen die je wilt weten zodra ze opduiken |
 | [Iets vragen](docs/nl/services.md) | De acties die antwoorden, met antwoordgegevens |
 | [Hardop vragen](docs/nl/voice.md) | Vijf vragen voor Assist, beantwoord vanaf je eigen dak |
-| [Dashboards](docs/nl/dashboards.md) | Kaarten om dit alles mee te bouwen, inclusief de kaart |
+| [Dashboards](docs/nl/dashboards.md) | De kaart die met de integratie meekomt, en andere om te bouwen, inclusief de kaart |
 | [Voorbeeldautomatiseringen](docs/nl/automations.md) | Meldingen, aankondigingen en waarop je triggert |
 | [Over de endpoints](docs/nl/endpoints.md) | Wat er gelezen wordt, hoe vaak, en wat het kost |
 | [Problemen oplossen](docs/nl/troubleshooting.md) | Als er iets niet is |

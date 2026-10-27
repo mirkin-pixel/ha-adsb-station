@@ -1,0 +1,12 @@
+{
+  "name": "adsb-station-card-tests",
+  "private": true,
+  "description": "Runs the dashboard card in a simulated browser. Only for the tests; nothing here ships.",
+  "type": "module",
+  "scripts": {
+    "test": "node card.test.mjs ../../custom_components/adsb_station/frontend/adsb-station-card.js"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

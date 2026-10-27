@@ -41,13 +41,15 @@ pytest --cov        # tests, and the coverage floor
 
 `hacs.json` says which Home Assistant this needs at least: 2025.7. CI runs the
 tests against that release too, on the Python 3.13 it runs on, from
-`requirements_test_oldest.txt`. Two things follow from it. The code may not use
+`tests/oldest/requirements.txt`. That file sits outside the root on purpose:
+Dependabot updates every requirements file in the root, and a pin it raised
+would quietly stop testing the oldest release at all. Two things follow from it. The code may not use
 anything newer than Python 3.13, which ruff enforces through `target-version`.
 And it may not lean on a Home Assistant API that 2025.7 lacks; the tests that
 need one, such as asking the device registry for an entry's own device, go
 through a helper in `tests/conftest.py` that falls back on what the old release
 has. Raising the minimum is allowed in a minor version: change `hacs.json`, the
-README and `requirements_test_oldest.txt` together.
+README and `tests/oldest/requirements.txt` together.
 
 That is everything CI can tell you about the code, so there is no need to push
 a branch to find out whether something is broken. Two workflow jobs are left
