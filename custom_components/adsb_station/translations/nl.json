@@ -134,7 +134,13 @@
         "name": "Vliegtuigen doorgestuurd"
       },
       "feed_status": {
-        "name": "Feedstatus"
+        "name": "Feedstatus",
+        "state": {
+          "connected": "Verbonden",
+          "connecting": "Verbinden",
+          "reconnecting": "Opnieuw verbinden",
+          "disconnected": "Verbroken"
+        }
       },
       "feed_mode": {
         "name": "Feedmodus"

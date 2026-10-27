@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
@@ -1297,3 +1298,31 @@ async def test_the_long_lists_are_kept_out_of_the_database(
     assert attribute in state.attributes
     # Beside the ones every sensor leaves out of the database already
     assert attribute in state.state_info["unrecorded_attributes"]
+
+
+# Every value fr24feed has been seen to put in feed_status.
+FEED_STATUSES = ("connected", "connecting", "reconnecting", "disconnected")
+
+
+@pytest.mark.parametrize("language", ["en", "nl"])
+async def test_feed_status_is_shown_in_words(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    language: str,
+) -> None:
+    """Test that the feed status reads as words, while its state stays as sent.
+
+    The state is what fr24feed says, so an automation on "connected" keeps
+    working; the frontend shows the translation of it. A value fr24feed adds
+    later is shown as it is rather than breaking the sensor.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+    assert _state(hass, "feed_status") == "connected"
+
+    translations = await async_get_translations(hass, language, "entity", [DOMAIN])
+    key = f"component.{DOMAIN}.entity.sensor.feed_status.state"
+    shown = {status: translations.get(f"{key}.{status}") for status in FEED_STATUSES}
+    assert all(shown.values()), shown
+    # Not the raw value with a capital: each one is a translation.
+    assert len(set(shown.values())) == len(FEED_STATUSES)
