@@ -301,6 +301,30 @@ const tests = {
     assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 2);
   },
 
+  "draws the trails the integration kept before the card opened"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const now = Date.now() / 1000;
+    link.send({
+      ...SKY([LOW]),
+      trails: {
+        [LOW.hex]: [
+          [52.0, 5.0, 1200, now - 120],
+          [52.01, 5.0, 1400, now - 60],
+          [52.02, 5.0, 1500, now - 5],
+        ],
+      },
+    });
+    const lines = [...card.shadowRoot.querySelectorAll(".trails line")];
+    assert.equal(lines.length, 2);
+    assert.ok(hue(lines[0].getAttribute("stroke")) < 40);
+    // And carries on from there with the next poll.
+    link.send(SKY([{ ...LOW, latitude: 52.03 }]));
+    assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 3);
+  },
+
   "shows what was tapped on the radar"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
@@ -390,6 +414,8 @@ const tests = {
     assert.ok(hue(map.entities[1].color) < 40);
     assert.equal(map.paths.length, 1);
     assert.equal(map.paths[0].points.length, 2);
+    // Faded only from three points on: the map divides by the points less two.
+    assert.equal(map.paths[0].gradualOpacity, undefined);
     // What there is to know about the aircraft, for when its trail is tapped.
     assert.equal(map.paths[0].name, "KLM1234 · Boeing 737-800 · 1,500 ft · 2.2 km");
     assert.equal(card.shadowRoot.querySelector(".radar"), null);

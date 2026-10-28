@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -74,6 +74,7 @@ from .reference import (
     normalise,
 )
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
+from .trails import SkyTrails
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -864,6 +865,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # when it was last warned about.
         self._approaching: dict[str, int] = {}
         self._warned: dict[str, datetime] = {}
+        # Where each aircraft has been lately, for the trails on the card.
+        self.trails = SkyTrails()
 
     @property
     def feeder_type(self) -> str | None:
@@ -920,6 +923,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         async_dispatcher_send(self.hass, watchlist_signal(self.config_entry.entry_id))
         # Matched against the new list now, rather than on the next poll.
         await self.async_request_refresh()
+
+    @callback
+    def async_update_listeners(self) -> None:
+        """Take in where the aircraft are, then tell everyone listening.
+
+        Here rather than in the update itself, which returns early along
+        several paths: every poll that succeeded passes through this.
+        """
+        if self.data is not None and self.data.aircraft is not None:
+            self.trails.follow(self.data.aircraft.heard, dt_util.utcnow().timestamp())
+        super().async_update_listeners()
 
     async def _async_update_data(self) -> AdsbStationData:
         """Fetch every endpoint; only the primary source is fatal.

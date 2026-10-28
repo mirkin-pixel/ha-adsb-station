@@ -111,4 +111,11 @@ def _subscribe_aircraft(
 
     connection.subscriptions[msg["id"]] = coordinator.async_add_listener(_send)
     connection.send_result(msg["id"])
-    _send()
+    # The trails so far go out once, with the first sky: after that the card
+    # extends them itself from every position it is sent, which keeps what
+    # goes over the websocket on every poll small.
+    connection.send_message(
+        websocket_api.event_message(
+            msg["id"], {**sky(coordinator), "trails": coordinator.trails.as_dict()}
+        )
+    )

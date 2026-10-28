@@ -471,6 +471,18 @@ class AdsbStationCard extends HTMLElement {
   _receive(sky) {
     this._sky = sky;
     const now = Date.now() / 1000;
+    // The first sky brings where every aircraft has been lately, kept by the
+    // integration, so a card that just opened does not start from nothing.
+    if (sky.trails) {
+      this._trails.clear();
+      for (const [hex, points] of Object.entries(sky.trails)) {
+        this._trails.set(
+          hex,
+          points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t }))
+        );
+        this._lastSent.set(hex, now);
+      }
+    }
     for (const plane of sky.aircraft || []) {
       this._lastSent.set(plane.hex, now);
       const trail = this._trails.get(plane.hex) || [];
@@ -775,7 +787,9 @@ class AdsbStationCard extends HTMLElement {
         name: this._describe(planes.get(hex) || { hex }, text),
         points: trail.map((point) => ({ point: [point.lat, point.lon], timestamp: new Date(point.t * 1000) })),
         color: trail[trail.length - 1].color,
-        gradualOpacity: 0.8,
+        // The map divides the fade by the points less two, so a trail of
+        // two would come out with no opacity at all and not be drawn.
+        gradualOpacity: trail.length > 2 ? 0.8 : undefined,
       }));
     this._fitMap(map);
   }
