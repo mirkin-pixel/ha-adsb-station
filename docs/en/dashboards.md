@@ -19,7 +19,7 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `device_id` | the first station with a receiver | Which station, if you read more than one antenna |
 | `title` | none | A header above the card |
 | `map` | `radar` | The sky around the station: `radar`, `map` for Home Assistant's own map with streets, or `none` |
-| `map_scale` | `aircraft` | How far out the radar reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
+| `map_scale` | `aircraft` | How far out the radar, or the map, reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
 | `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres |
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
@@ -35,7 +35,7 @@ The radar draws every aircraft the station has a position for, not only the ones
 
 The radar is drawn by the card itself, so it needs nothing from outside your network: no map tiles, no account. Its outer ring snaps to the furthest aircraft. With `map_scale: coverage` it takes the range records into account too, so the whole shape stays in view at the cost of smaller aircraft near the station; with `map_scale: fixed` it stays at `map_range`, so the picture never shifts. The aircraft reach the card over a subscription while it is open, and nothing of them is written to the database; the trails exist only in the open browser, and start over when the page is reloaded.
 
-With `map: map` the sky is drawn on Home Assistant's own map instead, with streets and places under it. That map only draws entities and lines, so it shows the trails of every aircraft, and a marker, coloured by height, for the aircraft that have an entity of their own: switch on [Aircraft on the map](#aircraft-on-the-map) for those, and they are the ones inside the nearby radius. Its map tiles come from the same place as those of Home Assistant's map card. Where that map cannot be loaded, the card says so and draws the radar instead.
+With `map: map` the sky is drawn on Home Assistant's own map instead, with streets and places under it. That map only draws entities and lines, so it shows the trails of every aircraft, and a marker, coloured by height, for the aircraft that have an entity of their own: switch on [Aircraft on the map](#aircraft-on-the-map) for those, and they are the ones inside the nearby radius. Tap a point of a trail for the aircraft's callsign, type, height and distance. The map is zoomed by the same `map_scale` as the radar, and only zoomed again when that scale changes, so you can pan and zoom by hand in between. Its map tiles come from the same place as those of Home Assistant's map card. Where that map cannot be loaded, the card says so and draws the radar instead.
 
 ### The station
 

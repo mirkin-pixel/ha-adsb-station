@@ -362,7 +362,15 @@ const tests = {
   async "draws on Home Assistant's own map when asked"() {
     const w = browser();
     // Stands in for Home Assistant's map element, which a real dashboard has.
-    w.customElements.define("ha-map", class extends w.HTMLElement {});
+    const fits = [];
+    w.customElements.define(
+      "ha-map",
+      class extends w.HTMLElement {
+        fitBounds(box, options) {
+          fits.push({ box, options });
+        }
+      }
+    );
     const hass = hassWith({
       overhead: overheadState(KLM),
       extraStates: {
@@ -382,7 +390,20 @@ const tests = {
     assert.ok(hue(map.entities[1].color) < 40);
     assert.equal(map.paths.length, 1);
     assert.equal(map.paths[0].points.length, 2);
+    // What there is to know about the aircraft, for when its trail is tapped.
+    assert.equal(map.paths[0].name, "KLM1234 · Boeing 737-800 · 1,500 ft · 2.2 km");
     assert.equal(card.shadowRoot.querySelector(".radar"), null);
+    // Zoomed by the card, to the same scale as the radar, and only once
+    // while that scale stays: LOW is inside the 10 km nearby radius.
+    assert.equal(map.autoFit, false);
+    assert.equal(fits.length, 1);
+    const [[south, west], [north, east]] = fits[0].box;
+    assert.ok(Math.abs(north - 52.0 - 10 / 110.574) < 1e-9);
+    assert.ok(south < 52.0 && west < 5.0 && east > 5.0);
+    link.send(SKY([{ ...LOW, latitude: 52.04 }, HIGH]));
+    assert.equal(fits.length, 2, "HIGH at 49 km widens the scale to 50 km");
+    link.send(SKY([{ ...LOW, latitude: 52.05 }, HIGH]));
+    assert.equal(fits.length, 2, "an unchanged scale leaves the view alone");
   },
 
   async "falls back on the radar when there is no map to draw on"() {
