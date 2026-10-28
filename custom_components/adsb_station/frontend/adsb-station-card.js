@@ -39,7 +39,6 @@ const STRINGS = {
     no_positions: "No aircraft with a position",
     compass: ["N", "E", "S", "W"],
     sky: "Aircraft around the station",
-    map_unavailable: "There is no map to draw on here, so this is the radar instead.",
     show_nearby: "Show the aircraft nearby",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
@@ -71,7 +70,6 @@ const STRINGS = {
     no_positions: "Geen toestellen met een positie",
     compass: ["N", "O", "Z", "W"],
     sky: "Toestellen rond het station",
-    map_unavailable: "Er is hier geen kaart om op te tekenen, dus dit is de radar.",
     show_nearby: "Toestellen dichtbij tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
@@ -217,6 +215,71 @@ function numeric(state) {
   return Number.isFinite(value) ? value : null;
 }
 
+// The map under the sky, in the projection web map tiles are drawn in. The
+// zoom is whatever puts the radar's range at its reach, between whole zoom
+// levels too: the tiles of the level below are drawn larger to make up the
+// difference.
+const TILE_SIZE = 256;
+const EQUATOR_METRES_PER_PIXEL = 156543.03392;
+// OpenStreetMap's raster tiles stop here.
+const MAX_TILE_ZOOM = 19;
+// Home Assistant serves OpenStreetMap's tiles itself since 2026.9, behind a
+// token that its frontend asks for over the websocket and that is good for
+// half an hour. Before that there is no proxy, and the tiles come from
+// OpenStreetMap directly, as Home Assistant's own demo has them.
+const PROXY_TILES = (z, x, y, token) => `/api/map_tiles/raster/${z}/${x}/${y}.png?token=${encodeURIComponent(token)}`;
+const UPSTREAM_TILES = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+const TOKEN_REFRESH = 20 * 60 * 1000;
+
+function mercatorView(origin, range, reach, centre, size) {
+  const [latitude, longitude] = origin;
+  const shrink = Math.cos((latitude * Math.PI) / 180);
+  const zoom = Math.min(
+    MAX_TILE_ZOOM,
+    Math.max(1, Math.log2((EQUATOR_METRES_PER_PIXEL * shrink * reach) / (range * 1000)))
+  );
+  const world = TILE_SIZE * 2 ** zoom;
+  const toWorld = (lat, lon) => {
+    const phi = (Math.max(-85, Math.min(85, lat)) * Math.PI) / 180;
+    return [
+      ((lon + 180) / 360) * world,
+      ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * world,
+    ];
+  };
+  const [cx, cy] = toWorld(latitude, longitude);
+  const project = (lat, lon) => {
+    const [x, y] = toWorld(lat, lon);
+    return [centre + x - cx, centre + y - cy];
+  };
+  const perKm = 1000 / ((EQUATOR_METRES_PER_PIXEL * shrink) / 2 ** zoom);
+
+  // One level deeper than the zoom, drawn smaller, so the map stays sharp on
+  // a screen with more pixels than points: there are no @2x tiles.
+  const tiles = (url) => {
+    const level = Math.min(MAX_TILE_ZOOM, Math.floor(zoom) + 1);
+    const side = TILE_SIZE * 2 ** (zoom - level);
+    const count = 2 ** level;
+    const left = cx - centre;
+    const top = cy - centre;
+    const found = [];
+    for (let ty = Math.floor(top / side); ty <= Math.floor((top + size) / side); ty++) {
+      if (ty < 0 || ty >= count) continue;
+      for (let tx = Math.floor(left / side); tx <= Math.floor((left + size) / side); tx++) {
+        const wrapped = ((tx % count) + count) % count;
+        found.push({
+          href: url(level, wrapped, ty),
+          // A hair larger than the tile, so no seam shows between two.
+          x: +(tx * side - left).toFixed(2),
+          y: +(ty * side - top).toFixed(2),
+          size: +(side + 0.5).toFixed(2),
+        });
+      }
+    }
+    return found;
+  };
+  return { perKm, project, tiles, key: `${zoom}|${cx}|${cy}` };
+}
+
 class AdsbStationCard extends HTMLElement {
   static getStubConfig() {
     return {};
@@ -284,10 +347,6 @@ class AdsbStationCard extends HTMLElement {
     if (!MAP_STYLES.includes(this._config.map)) this._config.map = "radar";
     this._signature = undefined;
     this._range = undefined;
-    // Drawn afresh in whichever style was picked, and the map given another
-    // chance to load.
-    this._map = null;
-    this._mapFailed = false;
     if (this._skyBox) this._skyBox.replaceChildren();
     if (this._hass) this._render();
   }
@@ -380,12 +439,7 @@ class AdsbStationCard extends HTMLElement {
         return state && [state.state, state.last_updated];
       }),
     ]);
-    if (signature === this._signature) {
-      // The map with streets draws Home Assistant's own entities, which move
-      // without anything this card watches changing.
-      if (this._config.map === "map") this._drawSky();
-      return;
-    }
+    if (signature === this._signature) return;
     this._signature = signature;
 
     const text = strings(this._hass);
@@ -511,18 +565,13 @@ class AdsbStationCard extends HTMLElement {
 
   _drawSky() {
     const text = strings(this._hass);
-    if (this._config.map === "map" && !this._mapFailed) {
-      this._drawMap(text);
-      return;
-    }
+    const streets = this._config.map === "map";
     this._skyBox.replaceChildren(
       ...[
-        this._radar(text),
+        this._radar(text, streets),
+        streets ? this._attribution() : null,
         this._legend(text),
         this._picked(text),
-        this._mapFailed && this._config.map === "map"
-          ? el("div", { class: "note" }, text.map_unavailable)
-          : null,
       ].filter(Boolean)
     );
   }
@@ -551,53 +600,86 @@ class AdsbStationCard extends HTMLElement {
     return this._range;
   }
 
-  _radar(text) {
+  // The same drawing either way: on the radar's own scope, or with map
+  // tiles under it. Home Assistant's map element can only draw entities and
+  // dotted lines, so the outlines, the labels and the coverage would all be
+  // lost on it; here the tiles are just the background of what is drawn
+  // anyway, and everything sits exactly where it belongs on them.
+  _radar(text, streets) {
     const sky = this._sky;
     const size = 400;
     const centre = size / 2;
     const reach = 184;
     const range = this._scale(sky);
     const origin = sky ? [sky.latitude, sky.longitude] : null;
-    const project = (lat, lon) => {
+
+    // Kilometres to pixels, and a position to a point in the drawing. On the
+    // radar a plain flat projection around the station; on the map the one
+    // the tiles are drawn in, so the two line up.
+    let perKm = reach / range;
+    let project = (lat, lon) => {
       const east = (lon - origin[1]) * 111.32 * Math.cos((origin[0] * Math.PI) / 180);
       const north = (lat - origin[0]) * 110.574;
-      return [centre + (east / range) * reach, centre - (north / range) * reach];
+      return [centre + east * perKm, centre - north * perKm];
     };
+    let tiles = null;
+    if (streets && origin) {
+      const view = mercatorView(origin, range, reach, centre, size);
+      perKm = view.perKm;
+      project = view.project;
+      tiles = this._tiles(view);
+    }
+    const inView = streets
+      ? ([x, y]) => x >= -2 && x <= size + 2 && y >= -2 && y <= size + 2
+      : ([x, y]) => Math.hypot(x - centre, y - centre) <= reach + 2;
 
     const scope = svg("svg", {
-      class: "radar",
+      class: streets ? "radar streets" : "radar",
       viewBox: `0 0 ${size} ${size}`,
       role: "img",
       "aria-label": text.sky,
     });
+    const shape = streets
+      ? svg("rect", { x: 0, y: 0, width: size, height: size, rx: 12 })
+      : svg("circle", { cx: centre, cy: centre, r: reach });
+    scope.append(svg("defs", {}, svg("clipPath", { id: "scope" }, shape)));
+    if (streets) {
+      scope.append(svg("rect", { class: "land", x: 0, y: 0, width: size, height: size, "clip-path": "url(#scope)" }));
+      if (tiles) scope.append(tiles);
+    } else {
+      scope.append(svg("circle", { class: "scope", cx: centre, cy: centre, r: reach }));
+    }
     scope.append(
-      svg("defs", {}, svg("clipPath", { id: "scope" }, svg("circle", { cx: centre, cy: centre, r: reach }))),
-      svg("circle", { class: "scope", cx: centre, cy: centre, r: reach }),
-      svg("circle", { class: "ring", cx: centre, cy: centre, r: reach / 2 }),
-      svg("line", { class: "ring", x1: centre - reach, y1: centre, x2: centre + reach, y2: centre }),
-      svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach }),
-      svg("text", { class: "distance", x: centre + 4, y: centre - reach / 2 - 4 }, `${this._number(range / 2, 1)} km`),
-      svg("text", { class: "distance", x: centre + 4, y: centre - reach + 14 }, `${this._number(range, 1)} km`)
+      svg("g", { "clip-path": "url(#scope)" },
+        svg("circle", { class: "ring", cx: centre, cy: centre, r: (range / 2) * perKm }),
+        svg("circle", { class: "ring", cx: centre, cy: centre, r: range * perKm }),
+        streets ? null : svg("line", { class: "ring", x1: centre - reach, y1: centre, x2: centre + reach, y2: centre }),
+        streets ? null : svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach })
+      ),
+      svg("text", { class: "distance", x: centre + 4, y: centre - (range / 2) * perKm - 4 }, `${this._number(range / 2, 1)} km`),
+      svg("text", { class: "distance", x: centre + 4, y: centre - range * perKm + 14 }, `${this._number(range, 1)} km`)
     );
     const coverage = this._coverage();
     if (coverage) {
       const corners = coverage.map((km, i) => {
         const bearing = (i * 45 * Math.PI) / 180;
-        const out = (km / range) * reach;
+        const out = km * perKm;
         return `${(centre + Math.sin(bearing) * out).toFixed(1)},${(centre - Math.cos(bearing) * out).toFixed(1)}`;
       });
       scope.append(svg("polygon", { class: "coverage", points: corners.join(" "), "clip-path": "url(#scope)" }));
     }
     if (sky && sky.radius && sky.radius < range) {
-      scope.append(svg("circle", { class: "near", cx: centre, cy: centre, r: (sky.radius / range) * reach }));
+      scope.append(svg("circle", { class: "near", cx: centre, cy: centre, r: sky.radius * perKm }));
     }
-    const [north, east, south, west] = text.compass;
-    scope.append(
-      svg("text", { class: "compass", x: centre, y: centre - reach - 4 }, north),
-      svg("text", { class: "compass", x: centre + reach + 9, y: centre + 4 }, east),
-      svg("text", { class: "compass", x: centre, y: centre + reach + 13 }, south),
-      svg("text", { class: "compass", x: centre - reach - 9, y: centre + 4 }, west)
-    );
+    if (!streets) {
+      const [north, east, south, west] = text.compass;
+      scope.append(
+        svg("text", { class: "compass", x: centre, y: centre - reach - 4 }, north),
+        svg("text", { class: "compass", x: centre + reach + 9, y: centre + 4 }, east),
+        svg("text", { class: "compass", x: centre, y: centre + reach + 13 }, south),
+        svg("text", { class: "compass", x: centre - reach - 9, y: centre + 4 }, west)
+      );
+    }
 
     if (origin) {
       const trails = svg("g", { class: "trails", "clip-path": "url(#scope)" });
@@ -614,7 +696,7 @@ class AdsbStationCard extends HTMLElement {
 
     const planes = ((sky && sky.aircraft) || [])
       .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
-      .filter(({ at: [x, y] }) => Math.hypot(x - centre, y - centre) <= reach + 2);
+      .filter(({ at }) => inView(at));
 
     // Around the station the aircraft crowd together, and callsigns written
     // over each other read as none at all. The picked one is labelled first,
@@ -651,6 +733,7 @@ class AdsbStationCard extends HTMLElement {
           "data-hex": plane.hex,
           onclick: () => this._select(plane.hex),
         },
+        svg("title", {}, this._describe(plane, text)),
         selected ? svg("circle", { class: "halo", r: 15 }) : null,
         svg("path", {
           d: path,
@@ -665,6 +748,72 @@ class AdsbStationCard extends HTMLElement {
       scope.append(svg("text", { class: "quiet", x: centre, y: centre + 30 }, text.no_positions));
     }
     return scope;
+  }
+
+  // The map tiles for a view, as one group that is kept while the view, the
+  // token and the theme stay the same: drawn afresh on every poll, they would
+  // load again every time. Nothing until it is known where they come from.
+  _tiles(view) {
+    const token = this._tileToken();
+    if (token === undefined) return null;
+    const dark = Boolean(this._hass.themes && this._hass.themes.darkMode);
+    const key = `${view.key}|${token}|${dark}`;
+    if (this._tileLayer && this._tileLayer.key === key) return this._tileLayer.node;
+    const url = token ? (z, x, y) => PROXY_TILES(z, x, y, token) : UPSTREAM_TILES;
+    const node = svg(
+      "g",
+      { class: dark ? "tiles dark" : "tiles", "clip-path": "url(#scope)" },
+      view.tiles(url).map((tile) =>
+        svg("image", { href: tile.href, x: tile.x, y: tile.y, width: tile.size, height: tile.size, preserveAspectRatio: "none" })
+      )
+    );
+    this._tileLayer = { key, node };
+    return node;
+  }
+
+  // The token for Home Assistant's tile proxy: a string, null where there is
+  // no proxy to ask, or undefined while that is still being found out.
+  _tileToken() {
+    const fresh = this._token && Date.now() - this._token.at < TOKEN_REFRESH;
+    if (!fresh && !this._askingToken && this._hass.connection && this._hass.connection.sendMessagePromise) {
+      this._askingToken = true;
+      this._hass.connection
+        .sendMessagePromise({ type: "map_tiles/access_token" })
+        .then((result) => (result && result.token ? result.token : null))
+        .catch(() => null)
+        .then((token) => {
+          this._token = { value: token, at: Date.now() };
+          this._askingToken = false;
+          if (this._skyBox && !this._skyBox.hidden && this._config.map === "map") this._drawSky();
+        });
+    }
+    if (this._token) return this._token.value;
+    // No websocket at all to ask over: straight to OpenStreetMap.
+    return this._hass.connection && this._hass.connection.sendMessagePromise ? undefined : null;
+  }
+
+  // The tiles are OpenStreetMap's, which asks to be credited where they are
+  // shown.
+  _attribution() {
+    return el(
+      "div",
+      { class: "attribution" },
+      "© ",
+      el("a", { href: "https://www.openstreetmap.org/copyright", target: "_blank", rel: "noopener" }, "OpenStreetMap"),
+      " contributors"
+    );
+  }
+
+  // One line on an aircraft, for where only text can go.
+  _describe(plane, text) {
+    return [
+      [plane.flight || plane.hex, plane.airline].filter(Boolean).join(" · "),
+      plane.description || plane.aircraft_type,
+      this._height(plane, text),
+      this._distance(plane.distance),
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   // The furthest the station has ever heard an aircraft in each of the eight
@@ -749,116 +898,6 @@ class AdsbStationCard extends HTMLElement {
           .join("   ")
       )
     );
-  }
-
-  // Home Assistant's own map, which draws entities and lines and nothing
-  // else, so what it can show is what the integration puts on the map as
-  // entities, coloured by height, with the trails as its lines.
-  _drawMap(text) {
-    if (!this._map) {
-      this._map = el("div", { class: "streets" });
-      this._skyBox.replaceChildren(this._map, this._legend(text));
-      this._loadMap();
-      return;
-    }
-    const map = this._map.firstElementChild;
-    if (!map) return;
-    const ours = Object.keys(this._hass.states).filter(
-      (id) => id.startsWith("geo_location.") && this._hass.states[id].attributes.source === DOMAIN
-    );
-    map.hass = this._hass;
-    map.entities = [
-      { entity_id: "zone.home", color: "var(--primary-color)" },
-      ...ours.map((id) => {
-        const attributes = this._hass.states[id].attributes;
-        return {
-          entity_id: id,
-          color: altitudeColor(attributes.altitude, attributes.on_ground),
-          label_mode: "icon",
-        };
-      }),
-    ];
-    // Tapping a point of a trail shows its name above the time, and the
-    // name is what there is to know about the aircraft.
-    const planes = new Map(((this._sky && this._sky.aircraft) || []).map((plane) => [plane.hex, plane]));
-    map.paths = [...this._trails.entries()]
-      .filter(([, trail]) => trail.length > 1)
-      .map(([hex, trail]) => ({
-        name: this._describe(planes.get(hex) || { hex }, text),
-        points: trail.map((point) => ({ point: [point.lat, point.lon], timestamp: new Date(point.t * 1000) })),
-        color: trail[trail.length - 1].color,
-        // The map divides the fade by the points less two, so a trail of
-        // two would come out with no opacity at all and not be drawn.
-        gradualOpacity: trail.length > 2 ? 0.8 : undefined,
-      }));
-    this._fitMap(map);
-  }
-
-  // The map is zoomed by the same scale as the radar, and only when that
-  // scale changes: not on every poll, so it can be panned and zoomed by hand
-  // in between without being pulled back.
-  _fitMap(map) {
-    if (!this._sky || typeof map.fitBounds !== "function") return;
-    const range = this._scale(this._sky);
-    const { latitude, longitude } = this._sky;
-    const fit = `${range}|${latitude}|${longitude}`;
-    if (fit === this._fitted) return;
-    this._fitted = fit;
-    const north = range / 110.574;
-    const east = range / (111.32 * Math.cos((latitude * Math.PI) / 180));
-    map.fitBounds(
-      [
-        [latitude - north, longitude - east],
-        [latitude + north, longitude + east],
-      ],
-      { pad: 0 }
-    );
-  }
-
-  // One line on an aircraft, for where only text can go.
-  _describe(plane, text) {
-    return [
-      [plane.flight || plane.hex, plane.airline].filter(Boolean).join(" · "),
-      plane.description || plane.aircraft_type,
-      this._height(plane, text),
-      this._distance(plane.distance),
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  }
-
-  async _loadMap() {
-    // ha-map is loaded with the map card, so a dashboard without one has to
-    // ask for it first. It is Home Assistant's own element rather than a
-    // documented one; if it is not there, the radar takes its place.
-    const holder = this._map;
-    try {
-      if (!customElements.get("ha-map") && window.loadCardHelpers) {
-        const helpers = await window.loadCardHelpers();
-        helpers.createCardElement({ type: "map", entities: ["zone.home"] });
-      }
-      await Promise.race([
-        customElements.whenDefined("ha-map"),
-        new Promise((_, reject) => setTimeout(reject, 5000)),
-      ]);
-    } catch (error) {
-      if (this._map !== holder) return;
-      this._mapFailed = true;
-      this._map = null;
-      this._drawSky();
-      return;
-    }
-    // Set up again in the meantime, in another style or with another map.
-    if (this._map !== holder) return;
-    const map = document.createElement("ha-map");
-    // Zoomed by the card rather than by the map, which would only fit the
-    // entities and leave out every aircraft that has none.
-    map.autoFit = false;
-    map.zoom = 13;
-    map.style.height = "100%";
-    this._fitted = null;
-    holder.append(map);
-    this._drawSky();
   }
 
   // --- Overhead and nearby -------------------------------------------------
@@ -1042,7 +1081,14 @@ const STYLE = `
   .radar .plane path { stroke: var(--card-background-color, #000); stroke-width: 0.8; }
   .radar .callsign { fill: var(--primary-text-color); font-size: 10.5px; font-weight: 500; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
   .radar .halo { fill: none; stroke: var(--primary-text-color); stroke-width: 1.5; opacity: 0.6; }
-  .streets { height: 400px; border-radius: var(--ha-card-border-radius, 12px); overflow: hidden; }
+  .radar .land { fill: var(--secondary-background-color, #eee); }
+  /* OpenStreetMap has no dark tiles; Home Assistant inverts them the same way. */
+  .radar .tiles.dark { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
+  .radar.streets .ring { stroke: rgba(0, 0, 0, 0.3); }
+  .radar.streets .distance { fill: var(--primary-text-color); paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
+  .radar.streets .trails line { opacity: 0.85; stroke-width: 2.5; }
+  .attribution { text-align: right; font-size: 0.7em; color: var(--secondary-text-color); margin-top: 2px; }
+  .attribution a { color: inherit; }
   .radar .coverage { fill: var(--primary-color); fill-opacity: 0.1; stroke: var(--primary-color); stroke-opacity: 0.45; stroke-linejoin: round; }
   .legend { display: flex; align-items: flex-end; gap: 16px; margin-top: 8px; font-size: 0.75em; color: var(--secondary-text-color); }
   .legend .keys { display: flex; flex-direction: column; gap: 2px; }
@@ -1052,7 +1098,6 @@ const STYLE = `
   .legend .scale { flex: 1; min-width: 0; }
   .legend .bar { height: 6px; border-radius: 3px; }
   .legend .ticks { display: flex; justify-content: space-between; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .note { margin-top: 8px; font-size: 0.85em; color: var(--secondary-text-color); }
   .picked { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); }
   .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
   .empty { display: flex; align-items: center; gap: 12px; padding: 16px; color: var(--secondary-text-color); }
