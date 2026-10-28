@@ -22,6 +22,7 @@ from .const import (
 from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
 from .reference import async_load_reference
 from .services import async_setup_services
+from .websocket import async_setup_websocket
 
 # What the option was called while it named a source rather than a yes or no.
 LEGACY_ROUTE_SOURCE = "route_source"
@@ -50,6 +51,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     dashboard card, which belongs to no station at all.
     """
     async_setup_services(hass)
+    async_setup_websocket(hass)
     await async_register_card(hass)
     return True
 

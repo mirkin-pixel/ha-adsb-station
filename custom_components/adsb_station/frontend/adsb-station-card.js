@@ -7,18 +7,25 @@
  * Assistant was set to when they were made: every entity of this integration
  * carries a fixed translation key, and hass.entities says which is which.
  *
+ * The sky on top is not an entity. The integration sends every aircraft with a
+ * position over a websocket subscription while the card is open, and the card
+ * remembers where each one has been for the trail behind it. Nothing of either
+ * is recorded.
+ *
  * Plain JavaScript on purpose. There is no build step, so what is in the
  * repository is exactly what runs, and it ships in the integration's zip.
  */
 
 const DOMAIN = "adsb_station";
 const CARD = "adsb-station-card";
+const SUBSCRIBE = `${DOMAIN}/subscribe_aircraft`;
+const SVG = "http://www.w3.org/2000/svg";
 
 const STRINGS = {
   en: {
     name: "ADS-B Station",
     description:
-      "The aircraft overhead with its photo, the others nearby, and how the station is doing.",
+      "The sky around the station, the aircraft overhead with its photo, the others nearby, and how the station is doing.",
     overhead: "Overhead now",
     last_overhead: "Last overhead",
     nothing: "Nothing overhead right now",
@@ -28,15 +35,29 @@ const STRINGS = {
     photo: "Photo",
     received: "received",
     station: "Station",
+    coverage: "furthest heard",
+    no_positions: "No aircraft with a position",
+    compass: ["N", "E", "S", "W"],
+    sky: "Aircraft around the station",
+    map_unavailable: "There is no map to draw on here, so this is the radar instead.",
     show_nearby: "Show the aircraft nearby",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
     title: "Title",
+    map: "Map",
+    map_radar: "Radar",
+    map_streets: "Map with streets",
+    map_none: "No map",
+    map_scale: "Radar scale",
+    scale_aircraft: "Automatic, to fit the aircraft",
+    scale_coverage: "Automatic, to fit the range records",
+    scale_fixed: "Fixed",
+    map_range: "Fixed range in km",
   },
   nl: {
     name: "ADS-B Station",
     description:
-      "Het vliegtuig overhead met foto, de andere dichtbij, en hoe het station ervoor staat.",
+      "De lucht rond het station, het vliegtuig overhead met foto, de andere dichtbij, en hoe het station ervoor staat.",
     overhead: "Nu overhead",
     last_overhead: "Laatst overhead",
     nothing: "Er is nu niets overhead",
@@ -46,10 +67,24 @@ const STRINGS = {
     photo: "Foto",
     received: "ontvangen",
     station: "Station",
+    coverage: "verst gehoord",
+    no_positions: "Geen toestellen met een positie",
+    compass: ["N", "O", "Z", "W"],
+    sky: "Toestellen rond het station",
+    map_unavailable: "Er is hier geen kaart om op te tekenen, dus dit is de radar.",
     show_nearby: "Toestellen dichtbij tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
     title: "Titel",
+    map: "Kaart",
+    map_radar: "Radar",
+    map_streets: "Landkaart",
+    map_none: "Geen kaart",
+    map_scale: "Schaal van de radar",
+    scale_aircraft: "Automatisch, passend bij de toestellen",
+    scale_coverage: "Automatisch, passend bij de bereikrecords",
+    scale_fixed: "Vast",
+    map_range: "Vast bereik in km",
   },
 };
 
@@ -57,6 +92,54 @@ const STRINGS = {
 // The same line the map icons draw.
 const CLIMB_RATE_SHOWN = 500;
 const DEFAULT_MAX_NEARBY = 5;
+const MAP_STYLES = ["radar", "map", "none"];
+
+// How long a trail is, and how long an aircraft that stopped being sent is
+// remembered before its trail goes as well.
+const TRAIL_SECONDS = 300;
+const FORGET_SECONDS = 60;
+// The radar's outer ring snaps to one of these, in kilometres, unless it is
+// fixed: to the aircraft in the sky now, or to the range records as well.
+const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
+const SCALES = ["aircraft", "coverage", "fixed"];
+const DEFAULT_FIXED_RANGE = 100;
+// The compass sectors the station keeps a range record for, clockwise from
+// north, each centred on its direction.
+const SECTORS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+const KILOMETRES = { km: 1, m: 0.001, mi: 1.609344, ft: 0.0003048, nmi: 1.852 };
+
+// From the ground up: warm and low, cool and high, so a glance tells an
+// approach from an overflight. Hue by altitude in feet, in between linear,
+// in steps that follow the phases of a flight: the circuit, the approach,
+// the climb, and cruise.
+const ALTITUDE_TOP = 45000;
+const ALTITUDE_HUES = [
+  [0, 8],
+  [1500, 28],
+  [4000, 48],
+  [8000, 95],
+  [15000, 160],
+  [25000, 210],
+  [35000, 262],
+  [45000, 305],
+];
+const GROUND_COLOR = "#8c8c8c";
+
+// Drawn pointing north in a box of 24 around the origin, and turned to the
+// track. Three outlines are enough to tell the sky apart: an airliner, a light
+// aircraft with straight wings, and a helicopter with its rotor.
+const SHAPES = {
+  jet:
+    "M0,-11 L1.5,-8 L1.5,-3 L10,2 L10,4 L1.5,1.5 L1,7 L4,9.5 L4,11 L0,10 " +
+    "L-4,11 L-4,9.5 L-1,7 L-1.5,1.5 L-10,4 L-10,2 L-1.5,-3 L-1.5,-8 Z",
+  light:
+    "M0,-10 L1.2,-7 L1.2,-4 L11,-3.5 L11,-1.5 L1.2,-1 L0.8,6 L4,7.5 L4,9 " +
+    "L0,8.5 L-4,9 L-4,7.5 L-0.8,6 L-1.2,-1 L-11,-1.5 L-11,-3.5 L-1.2,-4 L-1.2,-7 Z",
+  helicopter:
+    "M-11,-1.6 L11,1.6 L11,2.4 L-11,-0.8 Z M-1,-12 L1,-12 L1,9 L-1,9 Z " +
+    "M0,-6 C3,-6 3.5,-2 3.5,0 C3.5,3 2,5 1,6 L0.8,11 L3,12 L3,13 L-3,13 " +
+    "L-3,12 L-0.8,11 L-1,6 C-2,5 -3.5,3 -3.5,0 C-3.5,-2 -3,-6 0,-6 Z",
+};
 
 function strings(hass) {
   const language = (hass && hass.locale && hass.locale.language) || "en";
@@ -68,9 +151,17 @@ function el(tag, attributes, ...children) {
   // never through innerHTML: the attributes come from aircraft and from other
   // people's servers, and none of it is markup.
   const node = document.createElement(tag);
+  return fill(node, attributes, children);
+}
+
+function svg(tag, attributes, ...children) {
+  return fill(document.createElementNS(SVG, tag), attributes, children);
+}
+
+function fill(node, attributes, children) {
   for (const [key, value] of Object.entries(attributes || {})) {
     if (value === undefined || value === null || value === false) continue;
-    if (key === "class") node.className = value;
+    if (key === "class") node.setAttribute("class", value);
     else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
     else node.setAttribute(key, value === true ? "" : value);
   }
@@ -90,11 +181,40 @@ function aircraftIcon(aircraft) {
   return "mdi:airplane";
 }
 
+function altitudeColor(altitude, onGround) {
+  if (onGround || typeof altitude !== "number") return GROUND_COLOR;
+  let hue = ALTITUDE_HUES[ALTITUDE_HUES.length - 1][1];
+  for (let i = 1; i < ALTITUDE_HUES.length; i++) {
+    const [top, topHue] = ALTITUDE_HUES[i];
+    if (altitude <= top) {
+      const [bottom, bottomHue] = ALTITUDE_HUES[i - 1];
+      const share = Math.max(0, (altitude - bottom) / (top - bottom));
+      hue = bottomHue + share * (topHue - bottomHue);
+      break;
+    }
+  }
+  return `hsl(${Math.round(hue)}, 80%, 52%)`;
+}
+
+function shapeOf(aircraft) {
+  const category = aircraft.category || "";
+  if (category === "A7") return { path: SHAPES.helicopter, scale: 0.9 };
+  if (category === "A1" || category.startsWith("B")) return { path: SHAPES.light, scale: 0.85 };
+  if (category === "A5") return { path: SHAPES.jet, scale: 1.2 };
+  return { path: SHAPES.jet, scale: 1 };
+}
+
 // Only an https address is put on the page as a link or an image. Everything
 // the photo lookup hands over is, and anything else is left out rather than
 // followed.
 function safeUrl(value) {
   return typeof value === "string" && value.startsWith("https://") ? value : null;
+}
+
+function numeric(state) {
+  if (!state) return null;
+  const value = Number.parseFloat(state.state);
+  return Number.isFinite(value) ? value : null;
 }
 
 class AdsbStationCard extends HTMLElement {
@@ -103,10 +223,33 @@ class AdsbStationCard extends HTMLElement {
   }
 
   static getConfigForm() {
+    const text = strings(window.__adsbStationHass);
     return {
       schema: [
         { name: "device_id", selector: { device: { integration: DOMAIN } } },
         { name: "title", selector: { text: {} } },
+        {
+          name: "map",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: MAP_STYLES.map((value) => ({ value, label: text[`map_${value === "map" ? "streets" : value}`] })),
+            },
+          },
+        },
+        {
+          name: "map_scale",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: SCALES.map((value) => ({ value, label: text[`scale_${value}`] })),
+            },
+          },
+        },
+        {
+          name: "map_range",
+          selector: { number: { min: 5, max: 500, mode: "box", unit_of_measurement: "km" } },
+        },
         { name: "show_nearby", selector: { boolean: {} } },
         {
           name: "max_nearby",
@@ -121,14 +264,31 @@ class AdsbStationCard extends HTMLElement {
     };
   }
 
+  constructor() {
+    super();
+    // hex → the points it was seen at, oldest first, and when it was last sent.
+    this._trails = new Map();
+    this._lastSent = new Map();
+    this._sky = null;
+    this._selected = null;
+  }
+
   setConfig(config) {
     this._config = {
+      map: "radar",
       show_nearby: true,
       show_status: true,
       max_nearby: DEFAULT_MAX_NEARBY,
       ...(config || {}),
     };
+    if (!MAP_STYLES.includes(this._config.map)) this._config.map = "radar";
     this._signature = undefined;
+    this._range = undefined;
+    // Drawn afresh in whichever style was picked, and the map given another
+    // chance to load.
+    this._map = null;
+    this._mapFailed = false;
+    if (this._skyBox) this._skyBox.replaceChildren();
     if (this._hass) this._render();
   }
 
@@ -139,8 +299,19 @@ class AdsbStationCard extends HTMLElement {
     if (this._config) this._render();
   }
 
+  connectedCallback() {
+    if (this._hass && this._config) {
+      this._signature = undefined;
+      this._render();
+    }
+  }
+
+  disconnectedCallback() {
+    this._unsubscribe();
+  }
+
   getCardSize() {
-    return 6;
+    return this._config && this._config.map !== "none" ? 12 : 6;
   }
 
   getGridOptions() {
@@ -173,6 +344,8 @@ class AdsbStationCard extends HTMLElement {
       received: on("aircraft_received"),
       rate: on("message_rate"),
       range: on("max_range"),
+      snr: on("signal_to_noise"),
+      sectors: SECTORS.map((sector) => on(`max_range_${sector}`)),
       feeds,
     };
   }
@@ -183,8 +356,19 @@ class AdsbStationCard extends HTMLElement {
 
   _render() {
     const found = this._find();
+    this._found = found;
+    this._follow(found);
     const watched = found
-      ? [found.overhead, found.nearby, found.received, found.rate, found.range, ...found.feeds]
+      ? [
+          found.overhead,
+          found.nearby,
+          found.received,
+          found.rate,
+          found.range,
+          found.snr,
+          ...found.sectors,
+          ...found.feeds,
+        ]
       : [];
     // Only redraw when something this card shows has changed. Home Assistant
     // hands every card the whole state machine on every change anywhere.
@@ -196,23 +380,40 @@ class AdsbStationCard extends HTMLElement {
         return state && [state.state, state.last_updated];
       }),
     ]);
-    if (signature === this._signature) return;
+    if (signature === this._signature) {
+      // The map with streets draws Home Assistant's own entities, which move
+      // without anything this card watches changing.
+      if (this._config.map === "map") this._drawSky();
+      return;
+    }
     this._signature = signature;
 
-    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
     const text = strings(this._hass);
-    const card = el("ha-card", { header: this._config.title || undefined });
-    if (!found) {
-      card.append(el("div", { class: "empty" }, text.no_station));
-    } else {
-      card.append(this._overhead(found, text));
-      if (this._config.show_nearby) {
-        const nearby = this._nearby(found, text);
-        if (nearby) card.append(nearby);
-      }
-      if (this._config.show_status) card.append(this._status(found, text));
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: "open" });
+      this._card = el("ha-card");
+      this._skyBox = el("div", { class: "sky" });
+      this._body = el("div", { class: "body" });
+      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body));
+      this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
     }
-    this.shadowRoot.replaceChildren(el("style", {}, STYLE), card);
+    if (this._config.title) this._card.setAttribute("header", this._config.title);
+    else this._card.removeAttribute("header");
+
+    const showSky = Boolean(found) && this._config.map !== "none";
+    this._card.querySelector(".layout").classList.toggle("with-sky", showSky);
+    this._skyBox.hidden = !showSky;
+
+    const body = [];
+    if (!found) {
+      body.push(el("div", { class: "empty" }, text.no_station));
+    } else {
+      body.push(this._overhead(found, text));
+      if (this._config.show_nearby) body.push(this._nearby(found, text));
+      if (this._config.show_status) body.push(this._status(found, text));
+    }
+    this._body.replaceChildren(...body.filter(Boolean));
+    if (showSky) this._drawSky();
   }
 
   _moreInfo(entry) {
@@ -233,6 +434,379 @@ class AdsbStationCard extends HTMLElement {
       maximumFractionDigits: digits,
     }).format(value);
   }
+
+  // --- The subscription ---------------------------------------------------
+
+  _follow(found) {
+    const wanted =
+      found && this._config.map !== "none" && this.isConnected && this._hass.connection
+        ? found.device
+        : null;
+    if (wanted === this._following) return;
+    this._unsubscribe();
+    if (!wanted) return;
+    this._following = wanted;
+    this._sky = null;
+    this._trails.clear();
+    this._lastSent.clear();
+    const subscription = this._hass.connection.subscribeMessage((sky) => this._receive(sky), {
+      type: SUBSCRIBE,
+      device_id: wanted,
+    });
+    this._subscription = subscription;
+    // A subscription that is refused leaves the radar empty rather than
+    // breaking the rest of the card.
+    subscription.catch(() => {
+      if (this._subscription === subscription) this._subscription = null;
+    });
+  }
+
+  _unsubscribe() {
+    const subscription = this._subscription;
+    this._subscription = null;
+    this._following = null;
+    if (subscription) subscription.then((unsubscribe) => unsubscribe()).catch(() => {});
+  }
+
+  _receive(sky) {
+    this._sky = sky;
+    const now = Date.now() / 1000;
+    for (const plane of sky.aircraft || []) {
+      this._lastSent.set(plane.hex, now);
+      const trail = this._trails.get(plane.hex) || [];
+      const last = trail[trail.length - 1];
+      if (!last || last.lat !== plane.latitude || last.lon !== plane.longitude) {
+        trail.push({
+          lat: plane.latitude,
+          lon: plane.longitude,
+          color: altitudeColor(plane.altitude, plane.on_ground),
+          t: now,
+        });
+      }
+      while (trail.length && trail[0].t < now - TRAIL_SECONDS) trail.shift();
+      this._trails.set(plane.hex, trail);
+    }
+    for (const [hex, seen] of this._lastSent) {
+      if (seen < now - FORGET_SECONDS) {
+        this._lastSent.delete(hex);
+        this._trails.delete(hex);
+      }
+    }
+    if (this._skyBox && !this._skyBox.hidden) this._drawSky();
+  }
+
+  // --- The sky --------------------------------------------------------------
+
+  _drawSky() {
+    const text = strings(this._hass);
+    if (this._config.map === "map" && !this._mapFailed) {
+      this._drawMap(text);
+      return;
+    }
+    this._skyBox.replaceChildren(
+      ...[
+        this._radar(text),
+        this._legend(text),
+        this._picked(text),
+        this._mapFailed && this._config.map === "map"
+          ? el("div", { class: "note" }, text.map_unavailable)
+          : null,
+      ].filter(Boolean)
+    );
+  }
+
+  // Which scale the radar keeps. A range set without a scale is taken as a
+  // fixed one, which is what map_range meant before there was a choice.
+  _scaleMode() {
+    const mode = this._config.map_scale;
+    if (SCALES.includes(mode)) return mode;
+    return Number(this._config.map_range) > 0 ? "fixed" : "aircraft";
+  }
+
+  _scale(sky) {
+    const mode = this._scaleMode();
+    if (mode === "fixed") return Number(this._config.map_range) > 0 ? Number(this._config.map_range) : DEFAULT_FIXED_RANGE;
+    const furthest = Math.max(
+      sky ? sky.radius || 0 : 0,
+      ...((sky && sky.aircraft) || []).map((plane) => plane.distance || 0),
+      // The records as well, so the whole shape of the coverage fits.
+      ...(mode === "coverage" ? this._coverage() || [] : [])
+    );
+    // Held until the sky clearly fits a smaller ring, so one aircraft at the
+    // edge coming and going does not make the whole radar breathe.
+    if (this._range && furthest <= this._range && furthest > this._range * 0.6) return this._range;
+    this._range = RANGE_STEPS.find((step) => step >= furthest) || RANGE_STEPS[RANGE_STEPS.length - 1];
+    return this._range;
+  }
+
+  _radar(text) {
+    const sky = this._sky;
+    const size = 400;
+    const centre = size / 2;
+    const reach = 184;
+    const range = this._scale(sky);
+    const origin = sky ? [sky.latitude, sky.longitude] : null;
+    const project = (lat, lon) => {
+      const east = (lon - origin[1]) * 111.32 * Math.cos((origin[0] * Math.PI) / 180);
+      const north = (lat - origin[0]) * 110.574;
+      return [centre + (east / range) * reach, centre - (north / range) * reach];
+    };
+
+    const scope = svg("svg", {
+      class: "radar",
+      viewBox: `0 0 ${size} ${size}`,
+      role: "img",
+      "aria-label": text.sky,
+    });
+    scope.append(
+      svg("defs", {}, svg("clipPath", { id: "scope" }, svg("circle", { cx: centre, cy: centre, r: reach }))),
+      svg("circle", { class: "scope", cx: centre, cy: centre, r: reach }),
+      svg("circle", { class: "ring", cx: centre, cy: centre, r: reach / 2 }),
+      svg("line", { class: "ring", x1: centre - reach, y1: centre, x2: centre + reach, y2: centre }),
+      svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach }),
+      svg("text", { class: "distance", x: centre + 4, y: centre - reach / 2 - 4 }, `${this._number(range / 2, 1)} km`),
+      svg("text", { class: "distance", x: centre + 4, y: centre - reach + 14 }, `${this._number(range, 1)} km`)
+    );
+    const coverage = this._coverage();
+    if (coverage) {
+      const corners = coverage.map((km, i) => {
+        const bearing = (i * 45 * Math.PI) / 180;
+        const out = (km / range) * reach;
+        return `${(centre + Math.sin(bearing) * out).toFixed(1)},${(centre - Math.cos(bearing) * out).toFixed(1)}`;
+      });
+      scope.append(svg("polygon", { class: "coverage", points: corners.join(" "), "clip-path": "url(#scope)" }));
+    }
+    if (sky && sky.radius && sky.radius < range) {
+      scope.append(svg("circle", { class: "near", cx: centre, cy: centre, r: (sky.radius / range) * reach }));
+    }
+    const [north, east, south, west] = text.compass;
+    scope.append(
+      svg("text", { class: "compass", x: centre, y: centre - reach - 4 }, north),
+      svg("text", { class: "compass", x: centre + reach + 9, y: centre + 4 }, east),
+      svg("text", { class: "compass", x: centre, y: centre + reach + 13 }, south),
+      svg("text", { class: "compass", x: centre - reach - 9, y: centre + 4 }, west)
+    );
+
+    if (origin) {
+      const trails = svg("g", { class: "trails", "clip-path": "url(#scope)" });
+      for (const trail of this._trails.values()) {
+        for (let i = 1; i < trail.length; i++) {
+          const [x1, y1] = project(trail[i - 1].lat, trail[i - 1].lon);
+          const [x2, y2] = project(trail[i].lat, trail[i].lon);
+          trails.append(svg("line", { x1, y1, x2, y2, stroke: trail[i].color }));
+        }
+      }
+      scope.append(trails);
+    }
+    scope.append(svg("circle", { class: "home", cx: centre, cy: centre, r: 4 }));
+
+    const planes = ((sky && sky.aircraft) || [])
+      .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
+      .filter(({ at: [x, y] }) => Math.hypot(x - centre, y - centre) <= reach + 2);
+
+    // Around the station the aircraft crowd together, and callsigns written
+    // over each other read as none at all. The picked one is labelled first,
+    // then the nearest; a label that would cover one already placed is left
+    // off, and that aircraft can still be tapped for it.
+    const labelled = new Set();
+    const placed = [];
+    const ranked = [...planes].sort(
+      (a, b) =>
+        (b.plane.hex === this._selected) - (a.plane.hex === this._selected) ||
+        (a.plane.distance || 0) - (b.plane.distance || 0)
+    );
+    for (const { plane, at: [x, y] } of ranked) {
+      const box = [x + 11, y - 18, x + 13 + 6.4 * String(plane.flight || plane.hex).length, y - 5];
+      const covers = (other) => box[0] < other[2] && other[0] < box[2] && box[1] < other[3] && other[1] < box[3];
+      if (placed.some(covers)) continue;
+      placed.push(box);
+      labelled.add(plane.hex);
+    }
+
+    // The highest drawn last, so the one overhead at cruising height is not
+    // hidden under a trail far below it.
+    for (const { plane, at: [x, y] } of [...planes].sort((a, b) => (a.plane.altitude || 0) - (b.plane.altitude || 0))) {
+      const { path, scale } = shapeOf(plane);
+      const selected = plane.hex === this._selected;
+      const marker = svg(
+        "g",
+        {
+          class: selected ? "plane selected" : "plane",
+          transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})`,
+          role: "button",
+          tabindex: "0",
+          "aria-label": plane.flight || plane.hex,
+          "data-hex": plane.hex,
+          onclick: () => this._select(plane.hex),
+        },
+        selected ? svg("circle", { class: "halo", r: 15 }) : null,
+        svg("path", {
+          d: path,
+          fill: altitudeColor(plane.altitude, plane.on_ground),
+          transform: `rotate(${Math.round(plane.track || 0)}) scale(${scale})`,
+        }),
+        labelled.has(plane.hex) ? svg("text", { class: "callsign", x: 12, y: -8 }, plane.flight || plane.hex) : null
+      );
+      scope.append(marker);
+    }
+    if (sky && !planes.length) {
+      scope.append(svg("text", { class: "quiet", x: centre, y: centre + 30 }, text.no_positions));
+    }
+    return scope;
+  }
+
+  // The furthest the station has ever heard an aircraft in each of the eight
+  // sectors, in kilometres, clockwise from north: the shape of what the
+  // antenna can see, and where a roof or a hill is in the way. A sector
+  // without a record yet is drawn at the centre; with fewer than three
+  // records there is no shape to draw.
+  _coverage() {
+    const found = this._found;
+    if (!found) return null;
+    const records = found.sectors.map((entry) => {
+      const state = this._state(entry);
+      const value = numeric(state);
+      if (value === null) return null;
+      const unit = state.attributes.unit_of_measurement || "km";
+      return unit in KILOMETRES ? value * KILOMETRES[unit] : null;
+    });
+    if (records.filter((km) => km !== null).length < 3) return null;
+    return records.map((km) => km || 0);
+  }
+
+  _select(hex) {
+    this._selected = this._selected === hex ? null : hex;
+    this._drawSky();
+  }
+
+  _legend(text) {
+    const stops = ALTITUDE_HUES.map(
+      ([feet]) => `${altitudeColor(feet)} ${((feet / ALTITUDE_TOP) * 100).toFixed(1)}%`
+    );
+    return el(
+      "div",
+      { class: "legend" },
+      el(
+        "div",
+        { class: "keys" },
+        el("span", { class: "key" }, el("span", { class: "dot ground" }), text.on_ground),
+        this._coverage() ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage) : null
+      ),
+      el(
+        "div",
+        { class: "scale" },
+        el("div", { class: "bar", style: `background: linear-gradient(to right, ${stops.join(", ")})` }),
+        el(
+          "div",
+          { class: "ticks" },
+          [0, 15000, 30000].map((feet) => el("span", {}, this._number(feet, 0))),
+          el("span", {}, `${this._number(ALTITUDE_TOP, 0)} ft`)
+        )
+      )
+    );
+  }
+
+  _picked(text) {
+    const plane =
+      this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
+    if (!plane) return null;
+    return el(
+      "div",
+      { class: "picked" },
+      el(
+        "div",
+        { class: "primary" },
+        el("span", { class: "swatch", style: `background: ${altitudeColor(plane.altitude, plane.on_ground)}` }),
+        plane.flight || plane.hex,
+        plane.airline ? ` · ${plane.airline}` : ""
+      ),
+      el(
+        "div",
+        { class: "secondary" },
+        [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · ")
+      ),
+      el(
+        "div",
+        { class: "secondary" },
+        [
+          this._height(plane, text),
+          typeof plane.speed === "number" ? `${this._number(plane.speed, 0)} kt` : null,
+          this._distance(plane.distance),
+        ]
+          .filter(Boolean)
+          .join("   ")
+      )
+    );
+  }
+
+  // Home Assistant's own map, which draws entities and lines and nothing
+  // else, so what it can show is what the integration puts on the map as
+  // entities, coloured by height, with the trails as its lines.
+  _drawMap(text) {
+    if (!this._map) {
+      this._map = el("div", { class: "streets" });
+      this._skyBox.replaceChildren(this._map, this._legend(text));
+      this._loadMap();
+      return;
+    }
+    const map = this._map.firstElementChild;
+    if (!map) return;
+    const ours = Object.keys(this._hass.states).filter(
+      (id) => id.startsWith("geo_location.") && this._hass.states[id].attributes.source === DOMAIN
+    );
+    map.hass = this._hass;
+    map.entities = [
+      { entity_id: "zone.home", color: "var(--primary-color)" },
+      ...ours.map((id) => {
+        const attributes = this._hass.states[id].attributes;
+        return {
+          entity_id: id,
+          color: altitudeColor(attributes.altitude, attributes.on_ground),
+          label_mode: "icon",
+        };
+      }),
+    ];
+    map.paths = [...this._trails.values()]
+      .filter((trail) => trail.length > 1)
+      .map((trail) => ({
+        points: trail.map((point) => ({ point: [point.lat, point.lon], timestamp: new Date(point.t * 1000) })),
+        color: trail[trail.length - 1].color,
+        gradualOpacity: 0.8,
+      }));
+  }
+
+  async _loadMap() {
+    // ha-map is loaded with the map card, so a dashboard without one has to
+    // ask for it first. It is Home Assistant's own element rather than a
+    // documented one; if it is not there, the radar takes its place.
+    const holder = this._map;
+    try {
+      if (!customElements.get("ha-map") && window.loadCardHelpers) {
+        const helpers = await window.loadCardHelpers();
+        helpers.createCardElement({ type: "map", entities: ["zone.home"] });
+      }
+      await Promise.race([
+        customElements.whenDefined("ha-map"),
+        new Promise((_, reject) => setTimeout(reject, 5000)),
+      ]);
+    } catch (error) {
+      if (this._map !== holder) return;
+      this._mapFailed = true;
+      this._map = null;
+      this._drawSky();
+      return;
+    }
+    // Set up again in the meantime, in another style or with another map.
+    if (this._map !== holder) return;
+    const map = document.createElement("ha-map");
+    map.autoFit = true;
+    map.zoom = 11;
+    map.style.height = "100%";
+    holder.append(map);
+    this._drawSky();
+  }
+
+  // --- Overhead and nearby -------------------------------------------------
 
   _overhead(found, text) {
     const state = this._state(found.overhead);
@@ -272,7 +846,10 @@ class AdsbStationCard extends HTMLElement {
     const details = el(
       "div",
       { class: "details", role: "button", tabindex: "0", onclick: this._moreInfo(found.overhead) },
-      el("ha-icon", { icon: aircraftIcon(plane) }),
+      el("ha-icon", {
+        icon: aircraftIcon(plane),
+        style: `color: ${altitudeColor(plane.altitude, plane.on_ground)}`,
+      }),
       el(
         "div",
         { class: "lines" },
@@ -329,7 +906,10 @@ class AdsbStationCard extends HTMLElement {
         el(
           "div",
           { class: "row", role: "button", tabindex: "0", onclick: this._moreInfo(found.nearby) },
-          el("ha-icon", { icon: aircraftIcon(plane) }),
+          el("ha-icon", {
+            icon: aircraftIcon(plane),
+            style: `color: ${altitudeColor(plane.altitude, plane.on_ground)}`,
+          }),
           el("span", { class: "flight" }, plane.flight || plane.hex),
           el("span", { class: "what" }, plane.airline || plane.description || ""),
           el("span", { class: "figure" }, this._distance(plane.distance) || ""),
@@ -339,27 +919,27 @@ class AdsbStationCard extends HTMLElement {
     );
   }
 
+  // --- The station ----------------------------------------------------------
+
   _status(found, text) {
     const shown = (entry) => {
       const state = this._state(entry);
       if (!state || ["unknown", "unavailable"].includes(state.state)) return null;
       return this._hass.formatEntityState ? this._hass.formatEntityState(state) : state.state;
     };
-    const figures = [
-      found.received && shown(found.received) && `${shown(found.received)} ${text.received}`,
-      shown(found.rate),
-      shown(found.range),
-    ].filter(Boolean);
     const line = el("div", { class: "status" });
-    if (figures.length) {
-      line.append(
-        el(
-          "span",
-          { class: "figures", role: "button", tabindex: "0", onclick: this._moreInfo(found.received) },
-          figures.join(" · ")
-        )
-      );
-    }
+    const figures = [
+      [found.received, found.received && shown(found.received) && `${shown(found.received)} ${text.received}`],
+      [found.rate, shown(found.rate)],
+      [found.range, shown(found.range)],
+      // How far the aircraft stand above the noise, in one figure: what a
+      // change to the gain or the antenna is judged by.
+      [found.snr, found.snr && shown(found.snr) && `S/N ${shown(found.snr)}`],
+    ].filter(([, value]) => value);
+    figures.forEach(([entry, value], i) => {
+      if (i) line.append(el("span", { class: "sep" }, "·"));
+      line.append(el("span", { class: "figures", role: "button", tabindex: "0", onclick: this._moreInfo(entry) }, value));
+    });
     for (const entry of found.feeds) {
       const state = this._state(entry);
       if (!state) continue;
@@ -386,7 +966,40 @@ class AdsbStationCard extends HTMLElement {
 }
 
 const STYLE = `
-  ha-card { overflow: hidden; }
+  ha-card { display: block; overflow: hidden; container-type: inline-size; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); }
+  @container (min-width: 720px) {
+    .layout.with-sky { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+    .layout.with-sky .sky { border-right: 1px solid var(--divider-color); border-bottom: none; }
+  }
+  .sky { padding: 12px 12px 8px; border-bottom: 1px solid var(--divider-color); }
+  .sky[hidden] { display: none; }
+  .radar { display: block; width: 100%; max-height: 440px; margin: 0 auto; }
+  .radar .scope { fill: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); stroke: var(--divider-color); }
+  .radar .ring { fill: none; stroke: var(--divider-color); }
+  .radar .near { fill: none; stroke: var(--primary-color); stroke-dasharray: 4 4; opacity: 0.7; }
+  .radar text { fill: var(--secondary-text-color); font-size: 11px; font-family: inherit; }
+  .radar .compass { text-anchor: middle; font-weight: 500; }
+  .radar .quiet { text-anchor: middle; font-size: 13px; }
+  .radar .home { fill: var(--primary-color); stroke: var(--card-background-color, #fff); stroke-width: 2; }
+  .radar .trails line { stroke-width: 2; stroke-linecap: round; opacity: 0.65; }
+  .radar .plane { cursor: pointer; }
+  .radar .plane path { stroke: var(--card-background-color, #000); stroke-width: 0.8; }
+  .radar .callsign { fill: var(--primary-text-color); font-size: 10.5px; font-weight: 500; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
+  .radar .halo { fill: none; stroke: var(--primary-text-color); stroke-width: 1.5; opacity: 0.6; }
+  .streets { height: 400px; border-radius: var(--ha-card-border-radius, 12px); overflow: hidden; }
+  .radar .coverage { fill: var(--primary-color); fill-opacity: 0.1; stroke: var(--primary-color); stroke-opacity: 0.45; stroke-linejoin: round; }
+  .legend { display: flex; align-items: flex-end; gap: 16px; margin-top: 8px; font-size: 0.75em; color: var(--secondary-text-color); }
+  .legend .keys { display: flex; flex-direction: column; gap: 2px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend .dot.ground { background: ${GROUND_COLOR}; }
+  .legend .area { width: 10px; height: 8px; border: 1px solid var(--primary-color); background: rgba(3, 169, 244, 0.15); border-radius: 2px; }
+  .legend .scale { flex: 1; min-width: 0; }
+  .legend .bar { height: 6px; border-radius: 3px; }
+  .legend .ticks { display: flex; justify-content: space-between; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .note { margin-top: 8px; font-size: 0.85em; color: var(--secondary-text-color); }
+  .picked { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
   .empty { display: flex; align-items: center; gap: 12px; padding: 16px; color: var(--secondary-text-color); }
   .overhead { padding: 16px 16px 8px; }
   .label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-text-color); margin-bottom: 8px; }
@@ -394,20 +1007,21 @@ const STYLE = `
   .credit { font-size: 0.8em; color: var(--secondary-text-color); margin: 4px 0 12px; }
   .credit a { color: inherit; }
   .details { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
-  .details ha-icon { color: var(--state-icon-color, var(--primary-color)); margin-top: 2px; }
+  .details ha-icon { margin-top: 2px; }
   .lines { min-width: 0; }
   .primary { font-size: 1.1em; font-weight: 500; }
   .secondary { color: var(--secondary-text-color); white-space: pre-wrap; }
   .nearby { padding: 8px 16px; border-top: 1px solid var(--divider-color); }
   .row { display: grid; grid-template-columns: 24px auto 1fr auto auto; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
-  .row ha-icon { --mdc-icon-size: 20px; color: var(--secondary-text-color); }
+  .row ha-icon { --mdc-icon-size: 20px; }
   .flight { font-weight: 500; }
   .what { color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .figure { color: var(--secondary-text-color); text-align: right; font-variant-numeric: tabular-nums; }
-  .status { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 12px 16px; border-top: 1px solid var(--divider-color); color: var(--secondary-text-color); font-size: 0.9em; }
-  .figures, .feed { cursor: pointer; }
-  .feed { display: inline-flex; align-items: center; gap: 6px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error-color, #db4437); }
+  .status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; padding: 12px 16px; border-top: 1px solid var(--divider-color); color: var(--secondary-text-color); font-size: 0.9em; }
+  .figures { cursor: pointer; font-variant-numeric: tabular-nums; }
+  .feed { margin-left: 10px; }
+  .feed { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--error-color, #db4437); }
   .good .dot { background: var(--success-color, #43a047); }
   .warn .dot { background: var(--warning-color, #ffa600); }
 `;
