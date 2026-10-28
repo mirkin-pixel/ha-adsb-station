@@ -80,6 +80,23 @@ async def test_the_sky_is_sent_and_follows_every_poll(
 
     sky = (await client.receive_json())["event"]
     assert [plane["latitude"] for plane in sky["aircraft"]] == [52.02]
+    # The trails go out with the first sky only.
+    assert "trails" not in sky
+
+    # A card opened now gets where KLM123 has been, not just where it is.
+    await client.send_json_auto_id(
+        {
+            "type": SUBSCRIBE_AIRCRAFT,
+            "device_id": _station_device(hass, mock_config_entry),
+        }
+    )
+    assert (await client.receive_json())["success"]
+    trails = (await client.receive_json())["event"]["trails"]
+    assert [point[:3] for point in trails["484123"]] == [
+        [52.01, 5.0, 2000],
+        [52.02, 5.0, 2000],
+    ]
+    assert [point[:3] for point in trails["484124"]] == [[53.0, 5.0, 35000]]
 
 
 async def test_an_unknown_device_is_an_error(

@@ -471,6 +471,18 @@ class AdsbStationCard extends HTMLElement {
   _receive(sky) {
     this._sky = sky;
     const now = Date.now() / 1000;
+    // The first sky brings where every aircraft has been lately, kept by the
+    // integration, so a card that just opened does not start from nothing.
+    if (sky.trails) {
+      this._trails.clear();
+      for (const [hex, points] of Object.entries(sky.trails)) {
+        this._trails.set(
+          hex,
+          points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t }))
+        );
+        this._lastSent.set(hex, now);
+      }
+    }
     for (const plane of sky.aircraft || []) {
       this._lastSent.set(plane.hex, now);
       const trail = this._trails.get(plane.hex) || [];
@@ -766,13 +778,53 @@ class AdsbStationCard extends HTMLElement {
         };
       }),
     ];
-    map.paths = [...this._trails.values()]
-      .filter((trail) => trail.length > 1)
-      .map((trail) => ({
+    // Tapping a point of a trail shows its name above the time, and the
+    // name is what there is to know about the aircraft.
+    const planes = new Map(((this._sky && this._sky.aircraft) || []).map((plane) => [plane.hex, plane]));
+    map.paths = [...this._trails.entries()]
+      .filter(([, trail]) => trail.length > 1)
+      .map(([hex, trail]) => ({
+        name: this._describe(planes.get(hex) || { hex }, text),
         points: trail.map((point) => ({ point: [point.lat, point.lon], timestamp: new Date(point.t * 1000) })),
         color: trail[trail.length - 1].color,
-        gradualOpacity: 0.8,
+        // The map divides the fade by the points less two, so a trail of
+        // two would come out with no opacity at all and not be drawn.
+        gradualOpacity: trail.length > 2 ? 0.8 : undefined,
       }));
+    this._fitMap(map);
+  }
+
+  // The map is zoomed by the same scale as the radar, and only when that
+  // scale changes: not on every poll, so it can be panned and zoomed by hand
+  // in between without being pulled back.
+  _fitMap(map) {
+    if (!this._sky || typeof map.fitBounds !== "function") return;
+    const range = this._scale(this._sky);
+    const { latitude, longitude } = this._sky;
+    const fit = `${range}|${latitude}|${longitude}`;
+    if (fit === this._fitted) return;
+    this._fitted = fit;
+    const north = range / 110.574;
+    const east = range / (111.32 * Math.cos((latitude * Math.PI) / 180));
+    map.fitBounds(
+      [
+        [latitude - north, longitude - east],
+        [latitude + north, longitude + east],
+      ],
+      { pad: 0 }
+    );
+  }
+
+  // One line on an aircraft, for where only text can go.
+  _describe(plane, text) {
+    return [
+      [plane.flight || plane.hex, plane.airline].filter(Boolean).join(" · "),
+      plane.description || plane.aircraft_type,
+      this._height(plane, text),
+      this._distance(plane.distance),
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   async _loadMap() {
@@ -799,9 +851,12 @@ class AdsbStationCard extends HTMLElement {
     // Set up again in the meantime, in another style or with another map.
     if (this._map !== holder) return;
     const map = document.createElement("ha-map");
-    map.autoFit = true;
-    map.zoom = 11;
+    // Zoomed by the card rather than by the map, which would only fit the
+    // entities and leave out every aircraft that has none.
+    map.autoFit = false;
+    map.zoom = 13;
     map.style.height = "100%";
+    this._fitted = null;
     holder.append(map);
     this._drawSky();
   }
