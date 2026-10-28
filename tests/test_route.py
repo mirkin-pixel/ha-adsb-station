@@ -23,7 +23,9 @@ from custom_components.adsb_station.const import (
     FEEDER_FR24,
     ROUTE_CACHE_TTL,
     ROUTE_MISS_CACHE_TTL,
+    ROUTESET_MIN_INTERVAL,
     ROUTESET_URL,
+    USER_AGENT,
 )
 from custom_components.adsb_station.route import (
     Airport,
@@ -32,6 +34,7 @@ from custom_components.adsb_station.route import (
     RouteLookup,
     build_route_lookup,
     route_attributes,
+    route_points,
 )
 
 from .conftest import (
@@ -57,12 +60,16 @@ ROUTESET_ANSWER: list[dict[str, Any]] = [
                 "icao": "ESGG",
                 "location": "Gothenburg",
                 "name": "Gothenburg-Landvetter Airport",
+                "lat": 57.662799,
+                "lon": 12.2798,
             },
             {
                 "iata": "AMS",
                 "icao": "EHAM",
                 "location": "Amsterdam",
                 "name": "Amsterdam Airport Schiphol",
+                "lat": 52.308601,
+                "lon": 4.76389,
             },
         ],
         "airline_code": "KLM",
@@ -130,6 +137,8 @@ async def test_resolves_a_callsign(
         icao="ESGG",
         name="Gothenburg-Landvetter Airport",
         location="Gothenburg",
+        latitude=57.662799,
+        longitude=12.2798,
     )
     assert route.destination is not None
     assert route.destination.location == "Amsterdam"
@@ -203,7 +212,7 @@ async def test_without_a_usable_route(
 
 
 async def test_a_failing_source_costs_nothing_but_the_route(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
     """Test that the source being down is not remembered as "no route"."""
     aioclient_mock.post(ROUTESET_URL, status=502)
@@ -213,6 +222,7 @@ async def test_a_failing_source_costs_nothing_but_the_route(
     assert not lookup._cache
 
     # Nothing was learned, so the next poll is free to try again.
+    freezer.tick(ROUTESET_MIN_INTERVAL)
     aioclient_mock.clear_requests()
     aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
     assert (await lookup.async_resolve([HERE]))[NEARBY_CALLSIGN].label == "GOT-AMS"
@@ -256,7 +266,7 @@ async def test_a_callsign_with_no_route_is_retried_sooner(
 
 
 async def test_the_cache_does_not_grow_without_bound(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
     """Test that a stream of unknown callsigns cannot fill memory."""
     aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
@@ -267,12 +277,13 @@ async def test_the_cache_does_not_grow_without_bound(
             await lookup.async_resolve(
                 [FlightPosition(callsign=f"TEST{number}", latitude=52.0, longitude=5.0)]
             )
+            freezer.tick(ROUTESET_MIN_INTERVAL)
 
     assert len(lookup._cache) == 2
 
 
 async def test_only_so_many_callsigns_are_asked_about_per_poll(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
     """Test that a busy sky cannot turn into one enormous request."""
     aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
@@ -289,6 +300,7 @@ async def test_only_so_many_callsigns_are_asked_about_per_poll(
             "TEST1",
         ]
         # The rest are still unknown, so the next poll picks them up.
+        freezer.tick(ROUTESET_MIN_INTERVAL)
         await lookup.async_resolve(flights)
         assert [p["callsign"] for p in aioclient_mock.mock_calls[1][2]["planes"]] == [
             "TEST2",
@@ -441,3 +453,96 @@ async def test_nothing_is_asked_when_routes_are_off(
     assert state is not None
     assert "route" not in state.attributes["aircraft"][0]
     assert mock_config_entry.runtime_data.route_lookup is None
+
+
+async def test_routeset_is_asked_the_way_it_allows(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that the request says who is asking, over plain http.
+
+    adsb.im refuses anything else from a client it has not approved.
+    """
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+
+    await build_lookup(hass).async_resolve([HERE])
+
+    assert ROUTESET_URL.startswith("http://")
+    assert aioclient_mock.mock_calls[0][3]["User-Agent"] == USER_AGENT
+
+
+async def test_no_more_than_one_question_every_thirty_seconds(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
+) -> None:
+    """Test that a new callsign within thirty seconds waits for its turn."""
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
+    lookup = build_lookup(hass)
+    other = FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)
+
+    await lookup.async_resolve([HERE])
+    freezer.tick(timedelta(seconds=15))
+    # The next poll, fifteen seconds on: not yet.
+    assert await lookup.async_resolve([other]) == {}
+    assert aioclient_mock.call_count == 1
+
+    freezer.tick(timedelta(seconds=15))
+    await lookup.async_resolve([other])
+    assert aioclient_mock.call_count == 2
+
+
+async def test_a_tapped_aircraft_waits_for_its_turn_rather_than_going_without(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that asking with wait sleeps out the thirty seconds, then asks."""
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+    lookup = build_lookup(hass)
+    await lookup.async_resolve(
+        [FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)]
+    )
+    slept: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        slept.append(seconds)
+        # As though the time had passed.
+        lookup._asked_at = None
+
+    with patch("custom_components.adsb_station.route.asyncio.sleep", _sleep):
+        routes = await lookup.async_resolve([HERE], wait=True)
+
+    assert slept and 0 < slept[0] <= ROUTESET_MIN_INTERVAL.total_seconds()
+    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
+    assert aioclient_mock.call_count == 2
+
+
+async def test_where_the_airports_are(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that both ends come with their position, for drawing the route."""
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+
+    route = (await build_lookup(hass).async_resolve([HERE]))[NEARBY_CALLSIGN]
+
+    assert route_points(route) == {
+        "origin": {
+            "code": "GOT",
+            "location": "Gothenburg",
+            "latitude": 57.662799,
+            "longitude": 12.2798,
+        },
+        "destination": {
+            "code": "AMS",
+            "location": "Amsterdam",
+            "latitude": 52.308601,
+            "longitude": 4.76389,
+        },
+    }
+    # Not drawn without both ends placed.
+    assert route_points(None) is None
+    assert (
+        route_points(
+            FlightRoute(
+                origin=Airport(iata="GOT", icao=None, name=None, location=None),
+                destination=route.destination,
+            )
+        )
+        is None
+    )

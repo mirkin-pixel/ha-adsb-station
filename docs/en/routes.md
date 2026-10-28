@@ -2,11 +2,11 @@
 
 Your antenna never hears this. An aircraft broadcasts a callsign, `KLM1234`, and nothing about the flight behind it, so where it took off and where it is heading is not in `aircraft.json` and cannot be. Every map that shows you a route, tar1090 included, asks a database on the ground. That makes it a figure this integration cannot get on your own network, which is why **Look up flight routes** under **Configure** is off until you switch it on.
 
-The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It asks for no account and no key, and it takes every callsign of a poll in one request.
+The source is **routeset**, reached through `adsb.im`, which is what tar1090 itself uses. It asks for no account and no key, and it takes every callsign of a poll in one request. It does ask every client it has not approved to say who it is, to use plain http, and to ask no more than once every thirty seconds, and the integration keeps to all three: a callsign that comes up in between waits for the next turn.
 
 It is also told where each aircraft was heard, which is what lets it judge. A modern airline callsign is reused across the legs of a day, so knowing the flight number is not the same as knowing where that aircraft is going; routeset drops a route that does not fit the position rather than showing it, because a wrong route in a notification is worse than none.
 
-Only the aircraft inside your nearby radius are ever looked up. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
+Only the aircraft inside your nearby radius are looked up on their own, plus one you tap on the [station card](dashboards.md#the-sky), whose route is then drawn on its map. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
 
 When a route is found it appears on each aircraft in the **Aircraft nearby** and **Aircraft overhead** attributes:
 

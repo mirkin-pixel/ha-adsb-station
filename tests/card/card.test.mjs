@@ -345,6 +345,75 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".picked"), null);
   },
 
+  "draws the route of a tapped aircraft it was sent"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.callWS = () => assert.fail("a route that came with the sky is not asked for");
+    const card = render(w, hass);
+    const route_points = {
+      origin: { code: "GOT", location: "Gothenburg", latitude: 57.66, longitude: 12.28 },
+      destination: { code: "AMS", location: "Amsterdam", latitude: 52.31, longitude: 4.76 },
+    };
+    link.send(SKY([{ ...LOW, route_points }, HIGH]));
+    // Nothing until it is tapped.
+    assert.equal(card.shadowRoot.querySelector(".radar .route"), null);
+    card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    const route = card.shadowRoot.querySelector(".radar .route");
+    assert.ok(route.querySelector(".flown").getAttribute("points").split(" ").length > 10);
+    assert.ok(route.querySelector(".ahead"));
+    const codes = [...route.querySelectorAll(".airport text")].map((t) => t.textContent);
+    assert.equal(JSON.stringify(codes), JSON.stringify(["GOT", "AMS"]));
+    assert.match(card.shadowRoot.querySelector(".picked").textContent, /GOT Gothenburg → AMS Amsterdam/);
+    // The way ahead ends on Schiphol: north-west of the station, so left of
+    // and above the centre.
+    const last = route.querySelector(".ahead").getAttribute("points").split(" ").pop().split(",").map(Number);
+    assert.ok(last[0] < 200 && last[1] < 200, String(last));
+  },
+
+  async "asks for the route of a tapped aircraft further out"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const asked = [];
+    hass.callWS = (message) => {
+      asked.push(message);
+      return Promise.resolve({
+        route_points: {
+          origin: { code: "DUB", location: "Dublin", latitude: 53.42, longitude: -6.27 },
+          destination: { code: "BUD", location: "Budapest", latitude: 47.43, longitude: 19.26 },
+        },
+      });
+    };
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    const tap = () => card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
+    tap();
+    assert.equal(JSON.stringify(asked), JSON.stringify([{ type: "adsb_station/look_up_route", device_id: DEVICE, hex: "4ca123" }]));
+    await tick();
+    await tick();
+    assert.ok(card.shadowRoot.querySelector(".radar .route"));
+    assert.match(card.shadowRoot.querySelector(".picked").textContent, /DUB Dublin → BUD Budapest/);
+    // Asked once: tapped again, it is remembered.
+    tap();
+    tap();
+    assert.equal(asked.length, 1);
+  },
+
+  async "draws no route where nobody knows it"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.callWS = () => Promise.resolve({ route_points: null });
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    await tick();
+    await tick();
+    assert.equal(card.shadowRoot.querySelector(".radar .route"), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .route-line"), null);
+  },
+
   "keeps to the range it was given"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

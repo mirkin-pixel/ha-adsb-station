@@ -299,8 +299,12 @@ CONF_LOOK_UP_ROUTES = "look_up_routes"
 DEFAULT_LOOK_UP_ROUTES = False
 
 # adsb.lol serves the same API but currently answers empty, so the default
-# points at the host tar1090 itself defaults to.
-ROUTESET_URL = "https://adsb.im/api/0/routeset"
+# points at the host tar1090 itself defaults to. Over http, not https: since
+# October 2026 adsb.im refuses anything else from a client it has not
+# approved, and allows non-commercial use that says who is asking and asks
+# no more than once every thirty seconds.
+ROUTESET_URL = "http://adsb.im/api/0/routeset"
+ROUTESET_MIN_INTERVAL = timedelta(seconds=30)
 # What that endpoint accepts in one request.
 ROUTESET_MAX_PLANES = 100
 
@@ -323,9 +327,10 @@ CONF_LOOK_UP_PHOTOS = "look_up_photos"
 DEFAULT_LOOK_UP_PHOTOS = False
 
 PHOTO_URL = "https://api.planespotters.net/pub/photos/hex/{hex}"
-# Planespotters refuses a request that does not say who is asking and how to
-# reach them.
-PHOTO_USER_AGENT = "ADS-B-Station (+https://github.com/mirkin-pixel/ha-adsb-station)"
+# Planespotters and routeset both refuse a request that does not say who is
+# asking and how to reach them.
+USER_AGENT = "ADS-B-Station (+https://github.com/mirkin-pixel/ha-adsb-station)"
+PHOTO_USER_AGENT = USER_AGENT
 # An airframe keeps its photo far longer than a day, but a day is as long as
 # the terms let an answer be kept. A miss is kept as long, because a new photo
 # of an aircraft that had none is rare.

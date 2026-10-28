@@ -22,9 +22,11 @@ The answer names the airline as well and it is not read. That name follows
 from the callsign, which means a table on your own disk can give it for every
 flight rather than for the ones a source happens to know.
 
-Only the aircraft inside your radius are ever looked up, and answers are kept
-for the day, so a station watching a busy sky still asks a handful of
-questions an hour rather than one per aircraft per poll.
+Only the aircraft inside your radius are looked up on their own, plus one
+you tap on the dashboard card, and answers are kept for the day, so a station
+watching a busy sky still asks a handful of questions an hour rather than one
+per aircraft per poll. Never more than one every thirty seconds, which is
+what routeset asks of anyone it has not approved.
 """
 
 from __future__ import annotations
@@ -45,7 +47,9 @@ from .const import (
     ROUTE_MAX_LOOKUPS_PER_POLL,
     ROUTE_MISS_CACHE_TTL,
     ROUTESET_MAX_PLANES,
+    ROUTESET_MIN_INTERVAL,
     ROUTESET_URL,
+    USER_AGENT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +68,9 @@ class Airport:
     name: str | None
     # The city the airport serves, which is what a notification wants to say.
     location: str | None
+    # Where it is, for drawing the route on a map.
+    latitude: float | None = None
+    longitude: float | None = None
 
     @property
     def code(self) -> str | None:
@@ -124,11 +131,16 @@ class RouteLookup:
         """Initialize the lookup."""
         self._session = session
         self._cache: dict[str, _CachedRoute] = {}
+        self._asked_at: datetime | None = None
 
     async def async_resolve(
-        self, flights: Sequence[FlightPosition]
+        self, flights: Sequence[FlightPosition], *, wait: bool = False
     ) -> dict[str, FlightRoute]:
         """Return the route of every callsign we know, asking about the rest.
+
+        Within thirty seconds of the last question, the rest wait: for the
+        next poll, or with `wait`, for those thirty seconds to pass. Someone
+        who tapped an aircraft is still looking at it then; a poll is not.
 
         Never raises: a route is a nicety, and losing it must not cost you the
         aircraft entities that do come off your own receiver.
@@ -148,6 +160,14 @@ class RouteLookup:
         if not pending:
             return known
 
+        if self._asked_at is not None:
+            remaining = (self._asked_at + ROUTESET_MIN_INTERVAL - now).total_seconds()
+            if remaining > 0:
+                if not wait:
+                    return known
+                await asyncio.sleep(remaining)
+                return {**known, **await self.async_resolve(flights)}
+
         asking = list(pending.values())[:ROUTE_MAX_LOOKUPS_PER_POLL]
         if len(asking) < len(pending):
             _LOGGER.debug(
@@ -157,6 +177,7 @@ class RouteLookup:
                 len(pending),
             )
 
+        self._asked_at = now
         try:
             answers = await self._async_fetch(asking)
         except (TimeoutError, aiohttp.ClientError, ValueError) as err:
@@ -222,7 +243,11 @@ class RouteLookup:
             for flight in flights
         ]
         async with asyncio.timeout(TIMEOUT):
-            response = await self._session.post(ROUTESET_URL, json={"planes": planes})
+            response = await self._session.post(
+                ROUTESET_URL,
+                json={"planes": planes},
+                headers={"User-Agent": USER_AGENT},
+            )
             response.raise_for_status()
             payload = await response.json(content_type=None)
 
@@ -282,7 +307,39 @@ def _routeset_airport(payload: dict[str, Any]) -> Airport:
         icao=_text(payload.get("icao")),
         name=_text(payload.get("name")),
         location=_text(payload.get("location")),
+        latitude=_coordinate(payload.get("lat")),
+        longitude=_coordinate(payload.get("lon")),
     )
+
+
+def _coordinate(value: Any) -> float | None:
+    """Return a latitude or longitude, or None."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+def route_points(route: FlightRoute | None) -> dict[str, Any] | None:
+    """Describe a route for a map: both ends, each with where it is.
+
+    None unless both ends are known and placed, because a line from nowhere
+    is not a route.
+    """
+    if route is None or route.origin is None or route.destination is None:
+        return None
+    ends = []
+    for airport in (route.origin, route.destination):
+        if airport.latitude is None or airport.longitude is None:
+            return None
+        ends.append(
+            {
+                "code": airport.code,
+                "location": airport.location,
+                "latitude": airport.latitude,
+                "longitude": airport.longitude,
+            }
+        )
+    return {"origin": ends[0], "destination": ends[1]}
 
 
 def build_route_lookup(
