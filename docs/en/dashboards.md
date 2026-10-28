@@ -2,7 +2,7 @@
 
 ## The station card
 
-The integration brings a card of its own: the aircraft overhead with its photo, the others nearby, and a line on how the station is doing. It comes and updates with the integration, so there is nothing to download and nothing to add under **Resources**. After installing or updating, restart Home Assistant and reload the browser once; the card is then in the card picker as **ADS-B Station**.
+The integration brings a card of its own: the sky around the station, the aircraft overhead with its photo, the others nearby, and how the station is doing. It comes and updates with the integration, so there is nothing to download and nothing to add under **Resources**. After installing or updating, restart Home Assistant and reload the browser once; the card is then in the card picker as **ADS-B Station**.
 
 ```yaml
 type: custom:adsb-station-card
@@ -18,13 +18,30 @@ That is all it needs. It finds the station's entities by what they are, not by t
 |---|---|---|
 | `device_id` | the first station with a receiver | Which station, if you read more than one antenna |
 | `title` | none | A header above the card |
+| `map` | `radar` | The sky around the station: `radar`, `map` for Home Assistant's own map with streets, or `none` |
+| `map_scale` | `aircraft` | How far out the radar reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
+| `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres |
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
-| `show_status` | `true` | Aircraft received, message rate and maximum range, and a dot per network for Flightradar24 and FlightAware |
+| `show_status` | `true` | Aircraft received, message rate, maximum range and signal to noise, and a dot per network for Flightradar24 and FlightAware |
 
-The top part is **Overhead flight**: the aircraft above you now, or the last one, marked as such, once the sky is empty. With [photos](photos.md) switched on, its photo is shown with the photographer's name under it, and both lead to the photo's page, which is how Planespotters asks for them to be shown. Click the aircraft, a row of the list or the status line for the details of the entity behind it.
+On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 
-Plane Finder reports no feed status of its own, so it has no dot in the status line rather than one that means nothing.
+The **Overhead flight** part is the aircraft above you now, or the last one, marked as such, once the sky is empty. With [photos](photos.md) switched on, its photo is shown with the photographer's name under it, and both lead to the photo's page, which is how Planespotters asks for them to be shown. Click the aircraft, a row of the list or a figure of the station for the details of the entity behind it.
+
+### The sky
+
+The radar draws every aircraft the station has a position for, not only the ones nearby: each as the outline of what it is, an airliner, a light aircraft or a helicopter, turned the way it flies, in the colour of its height, with the trail of the last five minutes behind it. Low is warm and high is cool, so an approach stands out from an overflight at a glance; the bar under the radar is the key. The dashed ring is the nearby radius, and the shaded shape is the furthest the station has ever heard an aircraft in each of the eight compass directions: the shape of what your antenna can see, with a dent wherever a roof, a tree or a hill is in the way. It fills out as records are set. Tap an aircraft for its type, registration, height, speed and distance.
+
+The radar is drawn by the card itself, so it needs nothing from outside your network: no map tiles, no account. Its outer ring snaps to the furthest aircraft. With `map_scale: coverage` it takes the range records into account too, so the whole shape stays in view at the cost of smaller aircraft near the station; with `map_scale: fixed` it stays at `map_range`, so the picture never shifts. The aircraft reach the card over a subscription while it is open, and nothing of them is written to the database; the trails exist only in the open browser, and start over when the page is reloaded.
+
+With `map: map` the sky is drawn on Home Assistant's own map instead, with streets and places under it. That map only draws entities and lines, so it shows the trails of every aircraft, and a marker, coloured by height, for the aircraft that have an entity of their own: switch on [Aircraft on the map](#aircraft-on-the-map) for those, and they are the ones inside the nearby radius. Its map tiles come from the same place as those of Home Assistant's map card. Where that map cannot be loaded, the card says so and draws the radar instead.
+
+### The station
+
+One line: aircraft received, messages per second, the maximum range, and S/N, how far the signal stands above the noise, which is the figure to watch after changing the gain or the antenna. Click any of them for the entity behind it.
+
+Plane Finder reports no feed status of its own, so it has no dot rather than one that means nothing.
 
 ## Aircraft on the map
 

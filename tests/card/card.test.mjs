@@ -31,6 +31,7 @@ function hassWith({ overhead, nearby = [], language = "en", extraStates = {} } =
     "sensor.t_etur47_vliegtuigen_ontvangen": entity("sensor.t_etur47_vliegtuigen_ontvangen", "aircraft_received"),
     "sensor.t_etur47_berichten_per_seconde": entity("sensor.t_etur47_berichten_per_seconde", "message_rate"),
     "sensor.t_etur47_maximaal_bereik": entity("sensor.t_etur47_maximaal_bereik", "max_range"),
+    "sensor.t_etur47_signaal_ruis": entity("sensor.t_etur47_signaal_ruis", "signal_to_noise"),
     "binary_sensor.t_etur47_feed": entity("binary_sensor.t_etur47_feed", "feed"),
     "sensor.piaware_feeder_feed": entity("sensor.piaware_feeder_feed", "piaware_feed", PIAWARE),
     "sensor.unrelated": { entity_id: "sensor.unrelated", platform: "other" },
@@ -42,6 +43,7 @@ function hassWith({ overhead, nearby = [], language = "en", extraStates = {} } =
     "sensor.t_etur47_vliegtuigen_ontvangen": st("468"),
     "sensor.t_etur47_berichten_per_seconde": st("75.0", { unit_of_measurement: "msg/s" }),
     "sensor.t_etur47_maximaal_bereik": st("67.9", { unit_of_measurement: "km" }),
+    "sensor.t_etur47_signaal_ruis": st("18.7", { unit_of_measurement: "dB" }),
     "binary_sensor.t_etur47_feed": st("on"),
     "sensor.piaware_feeder_feed": st("amber"),
     "sensor.unrelated": st("1"),
@@ -73,6 +75,33 @@ const KLM = {
   photographer: "Jan Seler",
 };
 const overheadState = (attributes, state = attributes.flight) => ({ state, attributes, last_updated: "t" });
+
+// A websocket that hands the card's subscription to the test, which then
+// plays the integration and sends it the sky.
+function connect(hass) {
+  const link = { subscriptions: [], unsubscribed: 0 };
+  hass.connection = {
+    subscribeMessage(callback, message) {
+      link.subscriptions.push({ callback, message });
+      return Promise.resolve(() => {
+        link.unsubscribed += 1;
+      });
+    },
+  };
+  link.send = (sky) => link.subscriptions[link.subscriptions.length - 1].callback(sky);
+  return link;
+}
+
+const SKY = (aircraft) => ({ latitude: 52.0, longitude: 5.0, radius: 10, aircraft });
+const LOW = {
+  hex: "484506", flight: "KLM1234", latitude: 52.02, longitude: 5.0, altitude: 1500, track: 90,
+  distance: 2.2, speed: 160, description: "Boeing 737-800", registration: "PH-BXA",
+};
+const HIGH = { hex: "4ca123", flight: "RYR5", latitude: 52.4, longitude: 5.3, altitude: 37000, track: 270, distance: 49.0 };
+const ROTOR = { hex: "4851a7", flight: "LIFE01", latitude: 51.98, longitude: 4.98, altitude: 900, category: "A7", distance: 2.6 };
+
+const hue = (color) => Number(/hsl\((\d+)/.exec(color)[1]);
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const tests = {
   "registers itself for the card picker"() {
@@ -109,7 +138,8 @@ const tests = {
     assert.deepEqual(rows.map((r) => r.querySelector(".flight").textContent), ["TRA45", "LIFE01"]);
     assert.equal(rows[1].querySelector("ha-icon").getAttribute("icon"), "mdi:helicopter");
     // The status line, with a dot per network.
-    assert.match(root.querySelector(".status").textContent, /468 received · 75\.0 msg\/s · 67\.9 km/);
+    const figures = [...root.querySelectorAll(".status .figures")].map((f) => f.textContent);
+    assert.equal(JSON.stringify(figures), JSON.stringify(["468 received", "75.0 msg/s", "67.9 km", "S/N 18.7 dB"]));
     const feeds = [...root.querySelectorAll(".feed")].map((f) => [f.textContent, f.className]);
     assert.deepEqual(feeds, [["Flightradar24", "feed good"], ["FlightAware", "feed warn"]]);
   },
@@ -199,11 +229,11 @@ const tests = {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const card = render(w, hass);
-    const before = card.shadowRoot.querySelector("ha-card");
+    const before = card.shadowRoot.querySelector(".body").firstElementChild;
     card.hass = { ...hass, states: { ...hass.states, "sensor.unrelated": { state: "2", attributes: {}, last_updated: "u" } } };
-    assert.equal(card.shadowRoot.querySelector("ha-card"), before);
+    assert.equal(card.shadowRoot.querySelector(".body").firstElementChild, before);
     card.hass = { ...hass, states: { ...hass.states, "sensor.t_etur47_vliegtuigen_ontvangen": { state: "470", attributes: {}, last_updated: "u" } } };
-    assert.notEqual(card.shadowRoot.querySelector("ha-card"), before);
+    assert.notEqual(card.shadowRoot.querySelector(".body").firstElementChild, before);
     assert.match(card.shadowRoot.textContent, /470 received/);
   },
 
@@ -221,18 +251,229 @@ const tests = {
     const w = browser();
     const Card = w.customElements.get("adsb-station-card");
     const form = Card.getConfigForm();
-    assert.equal(JSON.stringify(form.schema.map((s) => s.name)), JSON.stringify(["device_id", "title", "show_nearby", "max_nearby", "show_status"]));
+    assert.equal(JSON.stringify(form.schema.map((s) => s.name)), JSON.stringify(["device_id", "title", "map", "map_scale", "map_range", "show_nearby", "max_nearby", "show_status"]));
     w.__adsbStationHass = { locale: { language: "nl" } };
     assert.equal(form.computeLabel({ name: "device_id" }), "Station");
     assert.equal(form.computeLabel({ name: "show_nearby" }), "Toestellen dichtbij tonen");
     assert.equal(JSON.stringify(Card.getStubConfig()), "{}");
+    const styles = Card.getConfigForm().schema.find((s) => s.name === "map").selector.select.options;
+    assert.equal(JSON.stringify(styles.map((o) => o.label)), JSON.stringify(["Radar", "Landkaart", "Geen kaart"]));
+  },
+
+  "draws every aircraft the integration sends on the radar"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    assert.equal(link.subscriptions.length, 1);
+    assert.equal(
+      JSON.stringify(link.subscriptions[0].message),
+      JSON.stringify({ type: "adsb_station/subscribe_aircraft", device_id: DEVICE })
+    );
+
+    link.send(SKY([LOW, HIGH, ROTOR]));
+    const root = card.shadowRoot;
+    const planes = [...root.querySelectorAll(".radar .plane")];
+    // Low ones first, so the one at cruising height is drawn on top.
+    assert.deepEqual(planes.map((p) => p.querySelector(".callsign").textContent), ["LIFE01", "KLM1234", "RYR5"]);
+    const shape = (hex) => root.querySelector(`.plane[data-hex="${hex}"] path`);
+    // Warm and low, cool and high.
+    assert.ok(hue(shape("484506").getAttribute("fill")) < 40);
+    assert.ok(hue(shape("4ca123").getAttribute("fill")) > 200);
+    assert.match(shape("484506").getAttribute("transform"), /rotate\(90\)/);
+    // A helicopter is drawn as one, not as an airliner.
+    assert.notEqual(shape("4851a7").getAttribute("d"), shape("484506").getAttribute("d"));
+    // The outer ring fits the furthest aircraft; the nearby radius is dashed.
+    assert.match(root.querySelector(".radar").textContent, /50 km/);
+    assert.ok(root.querySelector(".radar .near"));
+    assert.match(root.querySelector(".legend").textContent, /on the ground/);
+  },
+
+  "draws a trail behind an aircraft that moves"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 0);
+    link.send(SKY([{ ...LOW, latitude: 52.03 }]));
+    link.send(SKY([{ ...LOW, latitude: 52.04 }]));
+    assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 2);
+  },
+
+  "shows what was tapped on the radar"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    const tap = () => card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    tap();
+    const picked = card.shadowRoot.querySelector(".picked").textContent;
+    assert.match(picked, /KLM1234/);
+    assert.match(picked, /Boeing 737-800 · PH-BXA/);
+    assert.match(picked, /1,500 ft/);
+    assert.match(picked, /160 kt/);
+    // Still picked after the next poll, and let go of by a second tap.
+    link.send(SKY([LOW, HIGH]));
+    assert.ok(card.shadowRoot.querySelector(".picked"));
+    tap();
+    assert.equal(card.shadowRoot.querySelector(".picked"), null);
+  },
+
+  "keeps to the range it was given"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_range: 25 });
+    link.send(SKY([LOW, HIGH]));
+    const shown = [...card.shadowRoot.querySelectorAll(".radar .plane")].map((p) => p.getAttribute("data-hex"));
+    assert.deepEqual(shown, ["484506"]);
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /25 km/);
+  },
+
+  "says when no aircraft has a position"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([]));
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /No aircraft with a position/);
+  },
+
+  async "subscribes only with a map, and lets go when removed"() {
+    const w = browser();
+    let hass = hassWith({ overhead: overheadState(KLM) });
+    let link = connect(hass);
+    let card = render(w, hass, { map: "none" });
+    assert.equal(link.subscriptions.length, 0);
+    assert.ok(card.shadowRoot.querySelector(".sky").hidden);
+
+    hass = hassWith({ overhead: overheadState(KLM) });
+    link = connect(hass);
+    card = render(w, hass);
+    card.hass = { ...hass };
+    assert.equal(link.subscriptions.length, 1, "a new hass is not a new subscription");
+    card.remove();
+    await tick();
+    assert.equal(link.unsubscribed, 1);
+  },
+
+  async "draws on Home Assistant's own map when asked"() {
+    const w = browser();
+    // Stands in for Home Assistant's map element, which a real dashboard has.
+    w.customElements.define("ha-map", class extends w.HTMLElement {});
+    const hass = hassWith({
+      overhead: overheadState(KLM),
+      extraStates: {
+        "geo_location.klm1234": { state: "2.2", attributes: { source: "adsb_station", altitude: 1500 }, last_updated: "t" },
+        "geo_location.quake": { state: "40", attributes: { source: "usgs_earthquakes_feed" }, last_updated: "t" },
+      },
+    });
+    const link = connect(hass);
+    const card = render(w, hass, { map: "map" });
+    await tick();
+    await tick();
+    link.send(SKY([LOW]));
+    link.send(SKY([{ ...LOW, latitude: 52.03 }]));
+    const map = card.shadowRoot.querySelector("ha-map");
+    assert.ok(map);
+    assert.equal(JSON.stringify(map.entities.map((e) => e.entity_id)), JSON.stringify(["zone.home", "geo_location.klm1234"]));
+    assert.ok(hue(map.entities[1].color) < 40);
+    assert.equal(map.paths.length, 1);
+    assert.equal(map.paths[0].points.length, 2);
+    assert.equal(card.shadowRoot.querySelector(".radar"), null);
+  },
+
+  async "falls back on the radar when there is no map to draw on"() {
+    const w = browser();
+    w.loadCardHelpers = () => Promise.reject(new Error("no helpers here"));
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map: "map" });
+    await tick();
+    await tick();
+    link.send(SKY([LOW]));
+    assert.ok(card.shadowRoot.querySelector(".radar .plane"));
+    assert.match(card.shadowRoot.querySelector(".note").textContent, /radar instead/);
+  },
+
+  "draws the furthest heard in each direction on the radar"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    // The record sensors, in metres as one of them was set to, and one sector
+    // without a record yet.
+    const records = { n: 80, ne: 60, e: 40, se: null, s: 20, sw: 30, w: 50, nw: 70 };
+    for (const [sector, km] of Object.entries(records)) {
+      const id = `sensor.t_etur47_bereik_${sector}`;
+      hass.entities[id] = entity(id, `max_range_${sector}`);
+      hass.states[id] =
+        km === null
+          ? { state: "unknown", attributes: {}, last_updated: "t" }
+          : sector === "e"
+            ? { state: String(km * 1000), attributes: { unit_of_measurement: "m" }, last_updated: "t" }
+            : { state: String(km), attributes: { unit_of_measurement: "km" }, last_updated: "t" };
+    }
+    const link = connect(hass);
+    const card = render(w, hass, { map_range: 100 });
+    link.send(SKY([LOW]));
+    const corners = card.shadowRoot
+      .querySelector(".radar .coverage")
+      .getAttribute("points")
+      .split(" ")
+      .map((p) => p.split(",").map(Number));
+    assert.equal(corners.length, 8);
+    // North is straight up from the centre, at 80 of the 100 km.
+    assert.deepEqual(corners[0], [200, 52.8]);
+    // East, in metres, is as far out as 40 km.
+    assert.deepEqual(corners[2], [273.6, 200]);
+    // No record yet: drawn at the centre.
+    assert.deepEqual(corners[3], [200, 200]);
+    assert.match(card.shadowRoot.querySelector(".legend").textContent, /furthest heard/);
+  },
+
+  "scales to the aircraft, to the records, or not at all, as chosen"() {
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    for (const [sector, km] of [["n", 140], ["e", 60], ["s", 40], ["w", 90]]) {
+      const id = `sensor.t_etur47_bereik_${sector}`;
+      hass.entities[id] = entity(id, `max_range_${sector}`);
+      hass.states[id] = { state: String(km), attributes: { unit_of_measurement: "km" }, last_updated: "t" };
+    }
+    const outer = (config) => {
+      const w = browser();
+      const copy = { ...hass };
+      const link = connect(copy);
+      const card = render(w, copy, config);
+      link.send(SKY([LOW, HIGH]));
+      return [...card.shadowRoot.querySelectorAll(".radar .distance")].pop().textContent;
+    };
+    // HIGH is 49 km out, the record to the north 140 km.
+    assert.equal(outer({}), "50 km");
+    assert.equal(outer({ map_scale: "aircraft" }), "50 km");
+    assert.equal(outer({ map_scale: "coverage" }), "150 km");
+    assert.equal(outer({ map_scale: "fixed", map_range: 75 }), "75 km");
+    assert.equal(outer({ map_scale: "fixed" }), "100 km");
+    // A range without a scale, as before there was a choice, is a fixed one.
+    assert.equal(outer({ map_range: 25 }), "25 km");
+    // And a range is ignored while the scale is automatic.
+    assert.equal(outer({ map_scale: "aircraft", map_range: 25 }), "50 km");
+  },
+
+  "leaves the shape off until there is one to draw"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.querySelector(".radar .coverage"), null);
+    assert.doesNotMatch(card.shadowRoot.querySelector(".legend").textContent, /furthest heard/);
   },
 };
 
 let failed = 0;
 for (const [name, test] of Object.entries(tests)) {
   try {
-    test();
+    await test();
     console.log(`ok   ${name}`);
   } catch (error) {
     failed += 1;

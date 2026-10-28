@@ -2,7 +2,7 @@
 
 ## De stationskaart
 
-De integratie brengt een eigen kaart mee: het vliegtuig overhead met zijn foto, de andere dichtbij, en een regel over hoe het station ervoor staat. Hij komt en wordt bijgewerkt met de integratie, dus er is niets te downloaden en niets toe te voegen onder **Resources**. Herstart Home Assistant na het installeren of bijwerken en ververs de browser één keer; de kaart staat dan in de kaartkiezer als **ADS-B Station**.
+De integratie brengt een eigen kaart mee: de lucht rond het station, het vliegtuig overhead met zijn foto, de andere dichtbij, en hoe het station ervoor staat. Hij komt en wordt bijgewerkt met de integratie, dus er is niets te downloaden en niets toe te voegen onder **Resources**. Herstart Home Assistant na het installeren of bijwerken en ververs de browser één keer; de kaart staat dan in de kaartkiezer als **ADS-B Station**.
 
 ```yaml
 type: custom:adsb-station-card
@@ -18,13 +18,30 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 |---|---|---|
 | `device_id` | het eerste station met een ontvanger | Welk station, als je meer dan één antenne uitleest |
 | `title` | geen | Een kop boven de kaart |
+| `map` | `radar` | De lucht rond het station: `radar`, `map` voor de eigen kaart van Home Assistant met straten, of `none` |
+| `map_scale` | `aircraft` | Hoe ver de radar reikt: `aircraft` passend bij de toestellen in de lucht, `coverage` ook passend bij de bereikrecords, of `fixed` |
+| `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in kilometers |
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
 | `max_nearby` | `5` | Hoeveel daarvan maximaal |
-| `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde en maximaal bereik, en een bolletje per netwerk voor Flightradar24 en FlightAware |
+| `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde, maximaal bereik en signaal-ruisverhouding, en een bolletje per netwerk voor Flightradar24 en FlightAware |
 
-Het bovenste deel is **Vlucht overhead**: het toestel nu boven je, of het laatste, als zodanig gemarkeerd, als de lucht leeg is. Met [foto's](photos.md) aan staat zijn foto erbij met de naam van de fotograaf eronder, en allebei leiden ze naar de pagina van de foto, zoals Planespotters vraagt. Klik op het toestel, een regel van de lijst of de statusregel voor de details van de entiteit erachter.
+Op een breed dashboard staat de lucht links en de rest ernaast; op een telefoon staan ze onder elkaar.
 
-Plane Finder geeft zelf geen feedstatus, dus die heeft geen bolletje in de statusregel in plaats van een bolletje dat niets betekent.
+Het deel **Vlucht overhead** is het toestel nu boven je, of het laatste, als zodanig gemarkeerd, als de lucht leeg is. Met [foto's](photos.md) aan staat zijn foto erbij met de naam van de fotograaf eronder, en allebei leiden ze naar de pagina van de foto, zoals Planespotters vraagt. Klik op het toestel, een regel van de lijst of een cijfer van het station voor de details van de entiteit erachter.
+
+### De lucht
+
+De radar tekent elk toestel waarvan het station een positie heeft, niet alleen die dichtbij: elk als de omtrek van wat het is, een verkeersvliegtuig, een klein vliegtuig of een helikopter, gedraaid in de richting waarin het vliegt, in de kleur van zijn hoogte, met het spoor van de laatste vijf minuten erachter. Laag is warm en hoog is koel, zodat een nadering in één oogopslag te onderscheiden is van een overvlucht; de balk onder de radar is de legenda. De gestippelde ring is de straal "dichtbij", en de gekleurde vorm is het verste dat het station ooit een toestel hoorde in elk van de acht windrichtingen: de vorm van wat je antenne kan zien, met een deuk waar een dak, een boom of een heuvel in de weg zit. Hij groeit mee met nieuwe records. Tik op een toestel voor type, registratie, hoogte, snelheid en afstand.
+
+De radar wordt door de kaart zelf getekend, dus hij heeft niets van buiten je netwerk nodig: geen kaarttegels, geen account. De buitenste ring past zich aan het verste toestel aan. Met `map_scale: coverage` telt hij ook de bereikrecords mee, zodat de hele vorm in beeld blijft, ten koste van kleinere toestellen rond het station; met `map_scale: fixed` blijft hij op `map_range` staan, zodat het beeld nooit verspringt. De toestellen bereiken de kaart via een abonnement zolang hij open is, en niets ervan wordt in de database geschreven; de sporen bestaan alleen in de open browser en beginnen opnieuw als de pagina herladen wordt.
+
+Met `map: map` wordt de lucht op de eigen kaart van Home Assistant getekend, met straten en plaatsen eronder. Die kaart tekent alleen entiteiten en lijnen, dus hij toont de sporen van elk toestel, en een marker, gekleurd naar hoogte, voor de toestellen met een eigen entiteit: zet daarvoor [Vliegtuigen op de kaart](#vliegtuigen-op-de-kaart) aan, en dat zijn de toestellen binnen de straal "dichtbij". De kaarttegels komen van dezelfde plek als die van de kaartkaart van Home Assistant. Waar die kaart niet geladen kan worden, zegt de kaart dat en tekent hij de radar.
+
+### Het station
+
+Eén regel: vliegtuigen ontvangen, berichten per seconde, het maximale bereik en S/N, hoe ver het signaal boven de ruis uitkomt; dat is het cijfer om op te letten na het wijzigen van de gain of de antenne. Klik op een ervan voor de entiteit erachter.
+
+Plane Finder geeft zelf geen feedstatus, dus die heeft geen bolletje in plaats van een bolletje dat niets betekent.
 
 ## Vliegtuigen op de kaart
 
