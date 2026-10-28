@@ -23,14 +23,17 @@ import voluptuous as vol
 
 from .const import DOMAIN
 from .coordinator import AdsbStationDataUpdateCoordinator, aircraft_attributes
+from .route import FlightPosition, route_points
 
 SUBSCRIBE_AIRCRAFT = f"{DOMAIN}/subscribe_aircraft"
+LOOK_UP_ROUTE = f"{DOMAIN}/look_up_route"
 
 
 @callback
 def async_setup_websocket(hass: HomeAssistant) -> None:
     """Register the commands, once for the integration."""
     websocket_api.async_register_command(hass, _subscribe_aircraft)
+    websocket_api.async_register_command(hass, _look_up_route)
 
 
 def _receiver_entry(hass: HomeAssistant, device_id: str) -> ConfigEntry | None:
@@ -61,19 +64,29 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
     latitude, longitude = coordinator.origin
     aircraft = coordinator.data.aircraft
     heard = () if aircraft is None else aircraft.heard
+    # Routes are looked up for the nearby ones only, and live on those.
+    routes = (
+        {}
+        if aircraft is None
+        else {summary.hex: summary.route for summary in aircraft.nearby}
+    )
+    planes = []
+    for summary in heard:
+        if summary.position is None:
+            continue
+        plane = {
+            **aircraft_attributes(summary, include_distance=True),
+            "latitude": summary.position[0],
+            "longitude": summary.position[1],
+        }
+        if (points := route_points(routes.get(summary.hex))) is not None:
+            plane["route_points"] = points
+        planes.append(plane)
     return {
         "latitude": latitude,
         "longitude": longitude,
         "radius": coordinator.proximity_radius / 1000,
-        "aircraft": [
-            {
-                **aircraft_attributes(summary, include_distance=True),
-                "latitude": summary.position[0],
-                "longitude": summary.position[1],
-            }
-            for summary in heard
-            if summary.position is not None
-        ],
+        "aircraft": planes,
     }
 
 
@@ -118,4 +131,57 @@ def _subscribe_aircraft(
         websocket_api.event_message(
             msg["id"], {**sky(coordinator), "trails": coordinator.trails.as_dict()}
         )
+    )
+
+
+# Untyped for the same reason as the subscription's schema.
+_LOOK_UP_ROUTE_SCHEMA: Any = {
+    vol.Required("type"): LOOK_UP_ROUTE,
+    vol.Required("device_id"): str,
+    vol.Required("hex"): str,
+}
+
+
+@websocket_api.websocket_command(_LOOK_UP_ROUTE_SCHEMA)
+@websocket_api.async_response
+async def _look_up_route(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Answer where an aircraft tapped on the card is flying from and to.
+
+    The nearby ones already carry their route; this is for one further out.
+    It goes through the same lookup, so its cache and its pace hold, and an
+    answer can take up to thirty seconds when another question went just
+    before it. Null when routes are switched off or nobody knows the route.
+    """
+    if (entry := _receiver_entry(hass, msg["device_id"])) is None:
+        connection.send_error(
+            msg["id"],
+            websocket_api.ERR_NOT_FOUND,
+            "No loaded ADS-B station with a receiver has this device",
+        )
+        return
+    coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+    aircraft = coordinator.data.aircraft
+    summary = next(
+        (
+            summary
+            for summary in (() if aircraft is None else aircraft.heard)
+            if summary.hex == msg["hex"]
+        ),
+        None,
+    )
+    if coordinator.route_lookup is None or summary is None or summary.flight is None:
+        connection.send_result(msg["id"], {"route_points": None})
+        return
+    flight = FlightPosition(
+        callsign=summary.flight,
+        latitude=None if summary.position is None else summary.position[0],
+        longitude=None if summary.position is None else summary.position[1],
+    )
+    routes = await coordinator.route_lookup.async_resolve([flight], wait=True)
+    connection.send_result(
+        msg["id"], {"route_points": route_points(routes.get(summary.flight))}
     )

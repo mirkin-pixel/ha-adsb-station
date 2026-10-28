@@ -19,6 +19,7 @@
 const DOMAIN = "adsb_station";
 const CARD = "adsb-station-card";
 const SUBSCRIBE = `${DOMAIN}/subscribe_aircraft`;
+const LOOK_UP_ROUTE = `${DOMAIN}/look_up_route`;
 const SVG = "http://www.w3.org/2000/svg";
 
 const STRINGS = {
@@ -194,6 +195,31 @@ function altitudeColor(altitude, onGround) {
   return `hsl(${Math.round(hue)}, 80%, 52%)`;
 }
 
+// The points along the shortest way over the earth between two places, which
+// is the way an airliner flies: on a map a long route bows towards the pole.
+function greatCircle(from, to, steps = 48) {
+  const radians = (degrees) => (degrees * Math.PI) / 180;
+  const degrees = (value) => (value * 180) / Math.PI;
+  const toVector = ([lat, lon]) => [
+    Math.cos(radians(lat)) * Math.cos(radians(lon)),
+    Math.cos(radians(lat)) * Math.sin(radians(lon)),
+    Math.sin(radians(lat)),
+  ];
+  const a = toVector(from);
+  const b = toVector(to);
+  const angle = Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+  if (angle < 1e-9) return [from, to];
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const k1 = Math.sin((1 - t) * angle) / Math.sin(angle);
+    const k2 = Math.sin(t * angle) / Math.sin(angle);
+    const [x, y, z] = [0, 1, 2].map((axis) => k1 * a[axis] + k2 * b[axis]);
+    points.push([degrees(Math.atan2(z, Math.hypot(x, y))), degrees(Math.atan2(y, x))]);
+  }
+  return points;
+}
+
 function shapeOf(aircraft) {
   const category = aircraft.category || "";
   if (category === "A7") return { path: SHAPES.helicopter, scale: 0.9 };
@@ -334,6 +360,9 @@ class AdsbStationCard extends HTMLElement {
     this._lastSent = new Map();
     this._sky = null;
     this._selected = null;
+    // hex → the route asked for when it was tapped: its points, or null when
+    // there is none, or pending while the answer is on its way.
+    this._routes = new Map();
   }
 
   setConfig(config) {
@@ -694,6 +723,36 @@ class AdsbStationCard extends HTMLElement {
     }
     scope.append(svg("circle", { class: "home", cx: centre, cy: centre, r: 4 }));
 
+    // The way the picked aircraft came and is going: flown from where it left
+    // to where it is now, and dashed on to where it lands.
+    const chosen = this._selected && sky && (sky.aircraft || []).find((plane) => plane.hex === this._selected);
+    const route = chosen && this._routeOf(chosen);
+    if (route) {
+      const here = [chosen.latitude, chosen.longitude];
+      const line = (from, to) =>
+        greatCircle(from, to)
+          .map(([lat, lon]) => project(lat, lon).map((value) => value.toFixed(1)).join(","))
+          .join(" ");
+      const ends = [route.origin, route.destination];
+      scope.append(
+        svg(
+          "g",
+          { class: "route", "clip-path": "url(#scope)" },
+          svg("polyline", { class: "flown", points: line([route.origin.latitude, route.origin.longitude], here) }),
+          svg("polyline", { class: "ahead", points: line(here, [route.destination.latitude, route.destination.longitude]) }),
+          ends.map((airport) => {
+            const [x, y] = project(airport.latitude, airport.longitude);
+            return svg(
+              "g",
+              { class: "airport", transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` },
+              svg("circle", { r: 4 }),
+              svg("text", { x: 7, y: 4 }, airport.code || "")
+            );
+          })
+        )
+      );
+    }
+
     const planes = ((sky && sky.aircraft) || [])
       .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
       .filter(({ at }) => inView(at));
@@ -837,7 +896,29 @@ class AdsbStationCard extends HTMLElement {
 
   _select(hex) {
     this._selected = this._selected === hex ? null : hex;
+    if (this._selected) this._lookUpRoute(this._selected);
     this._drawSky();
+  }
+
+  // Both ends of an aircraft's route with where they are, if known: sent
+  // along for the nearby ones, asked for on a tap for the rest.
+  _routeOf(plane) {
+    if (plane.route_points) return plane.route_points;
+    const asked = this._routes.get(plane.hex);
+    return asked && asked !== "pending" ? asked : null;
+  }
+
+  _lookUpRoute(hex) {
+    const plane = this._sky && (this._sky.aircraft || []).find((p) => p.hex === hex);
+    if (!plane || plane.route_points || this._routes.has(hex) || !this._following || !this._hass.callWS) return;
+    this._routes.set(hex, "pending");
+    this._hass
+      .callWS({ type: LOOK_UP_ROUTE, device_id: this._following, hex })
+      .then((answer) => this._routes.set(hex, (answer && answer.route_points) || null))
+      .catch(() => this._routes.set(hex, null))
+      .finally(() => {
+        if (this._selected === hex) this._drawSky();
+      });
   }
 
   _legend(text) {
@@ -886,6 +967,7 @@ class AdsbStationCard extends HTMLElement {
         { class: "secondary" },
         [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · ")
       ),
+      this._routeLine(plane),
       el(
         "div",
         { class: "secondary" },
@@ -898,6 +980,14 @@ class AdsbStationCard extends HTMLElement {
           .join("   ")
       )
     );
+  }
+
+  // Where it comes from and goes to, in words, under the aircraft's name.
+  _routeLine(plane) {
+    const route = this._routeOf(plane);
+    if (!route) return null;
+    const end = (airport) => [airport.code, airport.location].filter(Boolean).join(" ");
+    return el("div", { class: "secondary route-line" }, `${end(route.origin)} → ${end(route.destination)}`);
   }
 
   // --- Overhead and nearby -------------------------------------------------
@@ -1080,6 +1170,11 @@ const STYLE = `
   .radar .plane { cursor: pointer; }
   .radar .plane path { stroke: var(--card-background-color, #000); stroke-width: 0.8; }
   .radar .callsign { fill: var(--primary-text-color); font-size: 10.5px; font-weight: 500; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
+  .radar .route polyline { fill: none; stroke: var(--primary-text-color); stroke-width: 1.8; stroke-linejoin: round; }
+  .radar .route .flown { opacity: 0.55; }
+  .radar .route .ahead { stroke-dasharray: 5 4; opacity: 0.85; }
+  .radar .airport circle { fill: var(--card-background-color, #fff); stroke: var(--primary-text-color); stroke-width: 2; }
+  .radar .airport text { fill: var(--primary-text-color); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
   .radar .halo { fill: none; stroke: var(--primary-text-color); stroke-width: 1.5; opacity: 0.6; }
   .radar .land { fill: var(--secondary-background-color, #eee); }
   /* OpenStreetMap has no dark tiles; Home Assistant inverts them the same way. */
