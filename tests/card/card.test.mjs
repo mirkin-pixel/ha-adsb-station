@@ -383,66 +383,108 @@ const tests = {
     assert.equal(link.unsubscribed, 1);
   },
 
-  async "draws on Home Assistant's own map when asked"() {
+  "draws the same sky on map tiles when asked"() {
     const w = browser();
-    // Stands in for Home Assistant's map element, which a real dashboard has.
-    const fits = [];
-    w.customElements.define(
-      "ha-map",
-      class extends w.HTMLElement {
-        fitBounds(box, options) {
-          fits.push({ box, options });
-        }
-      }
-    );
-    const hass = hassWith({
-      overhead: overheadState(KLM),
-      extraStates: {
-        "geo_location.klm1234": { state: "2.2", attributes: { source: "adsb_station", altitude: 1500 }, last_updated: "t" },
-        "geo_location.quake": { state: "40", attributes: { source: "usgs_earthquakes_feed" }, last_updated: "t" },
-      },
-    });
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    for (const [sector, km] of [["n", 40], ["e", 30], ["s", 20], ["w", 25]]) {
+      const id = `sensor.t_etur47_bereik_${sector}`;
+      hass.entities[id] = entity(id, `max_range_${sector}`);
+      hass.states[id] = { state: String(km), attributes: { unit_of_measurement: "km" }, last_updated: "t" };
+    }
     const link = connect(hass);
     const card = render(w, hass, { map: "map" });
-    await tick();
-    await tick();
-    link.send(SKY([LOW]));
-    link.send(SKY([{ ...LOW, latitude: 52.03 }]));
-    const map = card.shadowRoot.querySelector("ha-map");
-    assert.ok(map);
-    assert.equal(JSON.stringify(map.entities.map((e) => e.entity_id)), JSON.stringify(["zone.home", "geo_location.klm1234"]));
-    assert.ok(hue(map.entities[1].color) < 40);
-    assert.equal(map.paths.length, 1);
-    assert.equal(map.paths[0].points.length, 2);
-    // Faded only from three points on: the map divides by the points less two.
-    assert.equal(map.paths[0].gradualOpacity, undefined);
-    // What there is to know about the aircraft, for when its trail is tapped.
-    assert.equal(map.paths[0].name, "KLM1234 · Boeing 737-800 · 1,500 ft · 2.2 km");
-    assert.equal(card.shadowRoot.querySelector(".radar"), null);
-    // Zoomed by the card, to the same scale as the radar, and only once
-    // while that scale stays: LOW is inside the 10 km nearby radius.
-    assert.equal(map.autoFit, false);
-    assert.equal(fits.length, 1);
-    const [[south, west], [north, east]] = fits[0].box;
-    assert.ok(Math.abs(north - 52.0 - 10 / 110.574) < 1e-9);
-    assert.ok(south < 52.0 && west < 5.0 && east > 5.0);
-    link.send(SKY([{ ...LOW, latitude: 52.04 }, HIGH]));
-    assert.equal(fits.length, 2, "HIGH at 49 km widens the scale to 50 km");
-    link.send(SKY([{ ...LOW, latitude: 52.05 }, HIGH]));
-    assert.equal(fits.length, 2, "an unchanged scale leaves the view alone");
+    link.send(SKY([LOW, HIGH, ROTOR]));
+    link.send(SKY([{ ...LOW, latitude: 52.03 }, HIGH, ROTOR]));
+    const root = card.shadowRoot;
+    const radar = root.querySelector(".radar.streets");
+    assert.ok(radar);
+    // The tiles under it, enough to fill it. This Home Assistant has no tile
+    // proxy to ask, so they come from OpenStreetMap itself.
+    const tiles = [...radar.querySelectorAll(".tiles image")].map((i) => i.getAttribute("href"));
+    assert.ok(tiles.length >= 2);
+    assert.ok(tiles.every((href) => /^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/.test(href)), tiles[0]);
+    // The same tiles again on the next poll, not loaded afresh.
+    const layer = radar.querySelector(".tiles");
+    link.send(SKY([{ ...LOW, latitude: 52.031 }, HIGH, ROTOR]));
+    assert.equal(root.querySelector(".radar .tiles"), layer);
+    // On them, everything the radar draws: the outlines with their labels,
+    // the trails, and the coverage.
+    assert.equal(radar.querySelectorAll(".plane").length, 3);
+    assert.ok(radar.querySelector('.plane[data-hex="484506"] .callsign'));
+    assert.equal(radar.querySelectorAll(".trails line").length, 1);
+    assert.ok(radar.querySelector(".coverage"));
+    // A tapped aircraft says what it is in its title as well.
+    assert.match(radar.querySelector('.plane[data-hex="484506"] title').textContent, /KLM1234 · Boeing 737-800 · 1,500 ft/);
+    // The compass letters belong to the scope, not to a map.
+    assert.equal(radar.querySelector(".compass"), null);
+    // Credited as the tiles ask.
+    const credit = root.querySelector(".attribution");
+    assert.match(credit.textContent, /© OpenStreetMap contributors/);
+    assert.equal(credit.querySelector("a").getAttribute("href"), "https://www.openstreetmap.org/copyright");
   },
 
-  async "falls back on the radar when there is no map to draw on"() {
+  "puts everything where it is on the tiles"() {
     const w = browser();
-    w.loadCardHelpers = () => Promise.reject(new Error("no helpers here"));
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
+    const card = render(w, hass, { map: "map", map_scale: "fixed", map_range: 50 });
+    // Due north and due east of the station, 0.2 degrees out.
+    link.send(SKY([
+      { ...LOW, hex: "n1", latitude: 52.2, longitude: 5.0, distance: 22.2 },
+      { ...LOW, hex: "e1", latitude: 52.0, longitude: 5.2, distance: 13.7 },
+    ]));
+    const at = (hex) =>
+      /translate\(([-\d.]+) ([-\d.]+)\)/.exec(card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).getAttribute("transform")).slice(1).map(Number);
+    const [nx, ny] = at("n1");
+    const [ex, ey] = at("e1");
+    assert.equal(nx, 200);
+    assert.ok(ny < 200);
+    assert.equal(ey, 200);
+    assert.ok(ex > 200);
+    // 50 km reaches 184 pixels out, as on the radar: 22.2 km north is about
+    // 82 of them, give or take what the map's projection stretches.
+    assert.ok(Math.abs(200 - ny - 22.2 * (184 / 50)) < 3, String(ny));
+    // The outer ring is at 50 km.
+    const rings = [...card.shadowRoot.querySelectorAll(".radar .ring")].map((r) => Number(r.getAttribute("r")));
+    assert.ok(Math.abs(rings[1] - 184) < 0.5, String(rings));
+  },
+
+  async "takes the tiles from Home Assistant's own proxy where it has one"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    hass.themes = { darkMode: true };
+    const link = connect(hass);
+    const asked = [];
+    hass.connection.sendMessagePromise = (message) => {
+      asked.push(message.type);
+      return Promise.resolve({ token: "t0k/en" });
+    };
     const card = render(w, hass, { map: "map" });
-    await tick();
-    await tick();
     link.send(SKY([LOW]));
-    assert.ok(card.shadowRoot.querySelector(".radar .plane"));
-    assert.match(card.shadowRoot.querySelector(".note").textContent, /radar instead/);
+    // Nothing until it is known where the tiles come from.
+    assert.equal(card.shadowRoot.querySelector(".tiles"), null);
+    await tick();
+    await tick();
+    const layer = card.shadowRoot.querySelector(".tiles");
+    assert.match(layer.querySelector("image").getAttribute("href"), /^\/api\/map_tiles\/raster\/\d+\/\d+\/\d+\.png\?token=t0k%2Fen$/);
+    // Asked once, not on every poll.
+    link.send(SKY([{ ...LOW, latitude: 52.03 }]));
+    assert.equal(JSON.stringify(asked), JSON.stringify(["map_tiles/access_token"]));
+    // OpenStreetMap has no dark tiles: they are inverted for a dark theme.
+    assert.equal(layer.getAttribute("class"), "tiles dark");
+  },
+
+  async "falls back on OpenStreetMap where there is no proxy"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.reject(new Error("unknown_command"));
+    const card = render(w, hass, { map: "map" });
+    link.send(SKY([LOW]));
+    await tick();
+    await tick();
+    assert.match(card.shadowRoot.querySelector(".tiles image").getAttribute("href"), /^https:\/\/tile\.openstreetmap\.org\//);
+    assert.equal(card.shadowRoot.querySelector(".tiles").getAttribute("class"), "tiles");
   },
 
   "draws the furthest heard in each direction on the radar"() {

@@ -18,7 +18,7 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 |---|---|---|
 | `device_id` | het eerste station met een ontvanger | Welk station, als je meer dan één antenne uitleest |
 | `title` | geen | Een kop boven de kaart |
-| `map` | `radar` | De lucht rond het station: `radar`, `map` voor de eigen kaart van Home Assistant met straten, of `none` |
+| `map` | `radar` | De lucht rond het station: `radar`, `map` voor dezelfde lucht op een kaart met straten, of `none` |
 | `map_scale` | `aircraft` | Hoe ver de radar, of de kaart, reikt: `aircraft` passend bij de toestellen in de lucht, `coverage` ook passend bij de bereikrecords, of `fixed` |
 | `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in kilometers |
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
@@ -35,7 +35,7 @@ De radar tekent elk toestel waarvan het station een positie heeft, niet alleen d
 
 De radar wordt door de kaart zelf getekend, dus hij heeft niets van buiten je netwerk nodig: geen kaarttegels, geen account. De buitenste ring past zich aan het verste toestel aan. Met `map_scale: coverage` telt hij ook de bereikrecords mee, zodat de hele vorm in beeld blijft, ten koste van kleinere toestellen rond het station; met `map_scale: fixed` blijft hij op `map_range` staan, zodat het beeld nooit verspringt. De toestellen bereiken de kaart via een abonnement zolang hij open is, en niets ervan wordt in de database geschreven. De integratie houdt de laatste vijf minuten van elk spoor in het geheugen bij, zodat een kaart die opengaat ze meteen tekent; een herstart van Home Assistant begint ze opnieuw.
 
-Met `map: map` wordt de lucht op de eigen kaart van Home Assistant getekend, met straten en plaatsen eronder. Die kaart tekent alleen entiteiten en lijnen, dus hij toont de sporen van elk toestel, en een marker, gekleurd naar hoogte, voor de toestellen met een eigen entiteit: zet daarvoor [Vliegtuigen op de kaart](#vliegtuigen-op-de-kaart) aan, en dat zijn de toestellen binnen de straal "dichtbij". Tik op een punt van een spoor voor de roepnaam, het type, de hoogte en de afstand van het toestel. De kaart zoomt met dezelfde `map_scale` als de radar, en zoomt pas opnieuw als die schaal verandert, zodat je er tussendoor zelf in kunt schuiven en zoomen. De kaarttegels komen van dezelfde plek als die van de kaartkaart van Home Assistant. Waar die kaart niet geladen kan worden, zegt de kaart dat en tekent hij de radar.
+Met `map: map` wordt dezelfde lucht op een kaart met straten en plaatsen getekend: de silhouetten, de labels, de sporen en de dekkingsvorm, alles wat de radar tekent, alleen op een kaart in plaats van het radarscherm. De zoom volgt `map_scale`, net als bij de radar. De kaarttegels zijn die van OpenStreetMap, sinds 2026.9 door Home Assistant zelf doorgegeven, net als voor zijn eigen kaartkaart; een oudere Home Assistant heeft die doorgifte niet, en dan komen de tegels rechtstreeks van OpenStreetMap. Bij een donker thema worden ze omgekeerd, zoals Home Assistant zelf ook doet. Anders dan de radar haalt dit wel iets van buiten je netwerk: de kaarttegels van de omgeving van je station.
 
 ### Het station
 
