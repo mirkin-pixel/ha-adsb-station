@@ -253,6 +253,203 @@ function numeric(state) {
   return Number.isFinite(value) ? value : null;
 }
 
+// OpenStreetMap's own data through Home Assistant's proxy since 2026.9, the
+// same tiles its own map draws. Drawn here in the theme's colours, and only
+// what helps place an aircraft: water, borders, main roads and towns.
+const PROXY_VECTOR = (z, x, y) => `/api/map_tiles/vector/${z}/${x}/${y}.mvt`;
+const MAX_VECTOR_ZOOM = 14;
+const VECTOR_RETRY = 60 * 1000;
+const VECTOR_CACHE = 64;
+const ROADS = new Set(["trunk", "primary"]);
+const RIVERS = new Set(["river", "canal"]);
+const PLACE_RANK = { capital: 0, state_capital: 1, city: 2, town: 3, village: 4 };
+const MAX_PLACE_NAMES = 30;
+// Layers of one tile come in different extents; all are drawn in this one.
+const BASEMAP_EXTENT = 4096;
+
+// A Mapbox vector tile, as far as drawing it needs: each layer's features with
+// their properties and geometry. Protocol Buffers by hand: no build step.
+function decodeTile(bytes) {
+  let pos = 0;
+  const varint = () => {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      byte = bytes[pos++];
+      result += (byte & 0x7f) * 2 ** shift;
+      shift += 7;
+    } while (byte & 0x80);
+    return result;
+  };
+  const skip = (wire) => {
+    if (wire === 0) varint();
+    else if (wire === 1) pos += 8;
+    else if (wire === 2) pos += varint();
+    else if (wire === 5) pos += 4;
+    else throw new Error(`wire type ${wire}`);
+  };
+  const string = () => {
+    const end = varint() + pos;
+    const value = new TextDecoder().decode(bytes.subarray(pos, end));
+    pos = end;
+    return value;
+  };
+  const packed = () => {
+    const end = varint() + pos;
+    const values = [];
+    while (pos < end) values.push(varint());
+    return values;
+  };
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const value = () => {
+    const end = varint() + pos;
+    let result = null;
+    while (pos < end) {
+      const tag = varint();
+      const field = tag >> 3;
+      if (field === 1) result = string();
+      else if (field === 2) {
+        result = view.getFloat32(pos, true);
+        pos += 4;
+      } else if (field === 3) {
+        result = view.getFloat64(pos, true);
+        pos += 8;
+      } else if (field === 4 || field === 5) result = varint();
+      else if (field === 6) result = zigzag(varint());
+      else if (field === 7) result = Boolean(varint());
+      else skip(tag & 7);
+    }
+    return result;
+  };
+  const layers = {};
+  while (pos < bytes.length) {
+    const tag = varint();
+    // Field 3, length-delimited: a layer. Nothing else is at the top.
+    if (tag !== 0x1a) {
+      skip(tag & 7);
+      continue;
+    }
+    const end = varint() + pos;
+    const layer = { extent: 4096, keys: [], values: [], features: [] };
+    let name = "";
+    while (pos < end) {
+      const inner = varint();
+      const field = inner >> 3;
+      if (field === 1) name = string();
+      else if (field === 2) {
+        const stop = varint() + pos;
+        const feature = { tags: [], geometry: [] };
+        while (pos < stop) {
+          const part = varint();
+          if (part >> 3 === 2) feature.tags = packed();
+          else if (part >> 3 === 4) feature.geometry = packed();
+          else skip(part & 7);
+        }
+        layer.features.push(feature);
+      } else if (field === 3) layer.keys.push(string());
+      else if (field === 4) layer.values.push(value());
+      else if (field === 5) layer.extent = varint();
+      else skip(inner & 7);
+    }
+    for (const feature of layer.features) {
+      feature.properties = {};
+      for (let i = 0; i + 1 < feature.tags.length; i += 2) {
+        feature.properties[layer.keys[feature.tags[i]]] = layer.values[feature.tags[i + 1]];
+      }
+    }
+    layers[name] = layer;
+  }
+  return layers;
+}
+
+function zigzag(n) {
+  return n % 2 ? -(n + 1) / 2 : n / 2;
+}
+
+// A feature's geometry as SVG path data, scaled to BASEMAP_EXTENT.
+function pathData(geometry, factor) {
+  let x = 0;
+  let y = 0;
+  let d = "";
+  for (let i = 0; i < geometry.length;) {
+    const command = geometry[i] & 7;
+    const count = geometry[i++] >> 3;
+    if (command === 7) {
+      d += "Z";
+      continue;
+    }
+    for (let n = 0; n < count && i + 1 < geometry.length; n++) {
+      x += zigzag(geometry[i++]);
+      y += zigzag(geometry[i++]);
+      d += `${command === 1 ? "M" : n === 0 ? "L" : " "}${x * factor} ${y * factor}`;
+    }
+  }
+  return d;
+}
+
+// What of a decoded tile gets drawn: one path per kind of line or area, so a
+// tile is a handful of elements, and the places that may get a name.
+function basemapTile(layers) {
+  const paths = { water: "", river: "", road: "", motorway: "", state: "", country: "" };
+  const each = (name, draw) => {
+    const layer = layers[name];
+    if (!layer) return;
+    const factor = BASEMAP_EXTENT / (layer.extent || BASEMAP_EXTENT);
+    for (const feature of layer.features) draw(feature, factor);
+  };
+  const water = (feature, factor) => (paths.water += pathData(feature.geometry, factor));
+  each("ocean", water);
+  each("water_polygons", water);
+  each("water_lines", (feature, factor) => {
+    if (RIVERS.has(feature.properties.kind)) paths.river += pathData(feature.geometry, factor);
+  });
+  each("streets", (feature, factor) => {
+    const kind = feature.properties.kind;
+    if (kind === "motorway") paths.motorway += pathData(feature.geometry, factor);
+    else if (ROADS.has(kind)) paths.road += pathData(feature.geometry, factor);
+  });
+  each("boundaries", (feature, factor) => {
+    if (feature.properties.maritime) return;
+    const level = Number(feature.properties.admin_level);
+    if (level === 2) paths.country += pathData(feature.geometry, factor);
+    else if (level === 4) paths.state += pathData(feature.geometry, factor);
+  });
+  const places = [];
+  each("place_labels", (feature, factor) => {
+    const { name, kind, population } = feature.properties;
+    if (!name || !(kind in PLACE_RANK) || feature.geometry.length < 3) return;
+    places.push({
+      name,
+      rank: PLACE_RANK[kind],
+      population: Number(population) || 0,
+      x: zigzag(feature.geometry[1]) * factor,
+      y: zigzag(feature.geometry[2]) * factor,
+    });
+  });
+  return { extent: BASEMAP_EXTENT, paths: Object.entries(paths).filter(([, d]) => d), places };
+}
+
+// The biggest places first; a name that would cover an aircraft, its
+// callsign or a name already placed, or run off the map, is left off.
+function placeNames(places, size, avoid) {
+  const taken = [...avoid];
+  const seen = new Set();
+  const names = [];
+  for (const place of places) {
+    if (names.length >= MAX_PLACE_NAMES || seen.has(place.name)) continue;
+    const half = (place.name.length * 5.6 + 6) / 2;
+    const box = [place.x - half, place.y - 7, place.x + half, place.y + 7];
+    if (box[0] < 0 || box[1] < 0 || box[2] > size || box[3] > size) continue;
+    if (taken.some((t) => box[0] < t[2] && box[2] > t[0] && box[1] < t[3] && box[3] > t[1])) continue;
+    seen.add(place.name);
+    taken.push(box);
+    const attributes = { class: place.rank <= 2 ? "place big" : "place", x: place.x.toFixed(1), y: place.y.toFixed(1) };
+    names.push(svg("text", attributes, place.name));
+  }
+  return names;
+}
+
 // Web Mercator, at a fractional zoom: tiles of the level below are scaled up.
 const TILE_SIZE = 256;
 const EQUATOR_METRES_PER_PIXEL = 156543.03392;
@@ -283,10 +480,8 @@ function mercatorView(origin, range, reach, centre, size) {
   };
   const perKm = 1000 / ((EQUATOR_METRES_PER_PIXEL * shrink) / 2 ** zoom);
 
-  // One level deeper than the zoom, drawn smaller, so the map stays sharp on
-  // a screen with more pixels than points: there are no @2x tiles.
-  const tiles = (url) => {
-    const level = Math.min(MAX_TILE_ZOOM, Math.floor(zoom) + 1);
+  // Every tile of a level that the view shows, with where it goes and how big.
+  const grid = (level) => {
     const side = TILE_SIZE * 2 ** (zoom - level);
     const count = 2 ** level;
     const left = cx - centre;
@@ -295,19 +490,26 @@ function mercatorView(origin, range, reach, centre, size) {
     for (let ty = Math.floor(top / side); ty <= Math.floor((top + size) / side); ty++) {
       if (ty < 0 || ty >= count) continue;
       for (let tx = Math.floor(left / side); tx <= Math.floor((left + size) / side); tx++) {
-        const wrapped = ((tx % count) + count) % count;
-        found.push({
-          href: url(level, wrapped, ty),
-          // A hair larger than the tile, so no seam shows between two.
-          x: +(tx * side - left).toFixed(2),
-          y: +(ty * side - top).toFixed(2),
-          size: +(side + 0.5).toFixed(2),
-        });
+        const x = ((tx % count) + count) % count;
+        found.push({ z: level, x, y: ty, left: tx * side - left, top: ty * side - top, side });
       }
     }
     return found;
   };
-  return { perKm, project, tiles, key: `${zoom}|${cx}|${cy}` };
+  // One level deeper than the zoom, drawn smaller, so the map stays sharp on
+  // a screen with more pixels than points: there are no @2x tiles.
+  const tiles = (url) =>
+    grid(Math.min(MAX_TILE_ZOOM, Math.floor(zoom) + 1)).map((tile) => ({
+      href: url(tile.z, tile.x, tile.y),
+      // A hair larger than the tile, so no seam shows between two.
+      x: +tile.left.toFixed(2),
+      y: +tile.top.toFixed(2),
+      size: +(tile.side + 0.5).toFixed(2),
+    }));
+  // A level above the zoom, as vector maps do: its tiles hold what fits that
+  // scale, and lines stay sharp however large they are drawn.
+  const vectorTiles = () => grid(Math.max(0, Math.min(MAX_VECTOR_ZOOM, Math.floor(zoom) - 1)));
+  return { perKm, project, tiles, vectorTiles, size, key: `${zoom}|${cx}|${cy}` };
 }
 
 class AdsbStationCard extends HTMLElement {
@@ -780,6 +982,14 @@ class AdsbStationCard extends HTMLElement {
       labelled.add(plane.hex);
     }
 
+    // Place names go where the aircraft and their callsigns leave room.
+    if (tiles && this._basemapLayer && tiles === this._basemapLayer.node) {
+      const marks = planes.map(({ at: [x, y] }) => [x - 12, y - 12, x + 12, y + 12]);
+      const station = [centre - 9, centre - 9, centre + 9, centre + 9];
+      const names = placeNames(this._basemapLayer.places, size, [...placed, ...marks, station]);
+      tiles.after(svg("g", { class: "basemap", "clip-path": "url(#scope)" }, names));
+    }
+
     // The highest drawn last, so the one overhead at cruising height is not
     // hidden under a trail far below it.
     for (const {
@@ -820,6 +1030,10 @@ class AdsbStationCard extends HTMLElement {
   _tiles(view) {
     const token = this._tileToken();
     if (token === undefined) return null;
+    if (token && this._vector !== false && typeof fetch === "function") {
+      const basemap = this._basemap(view, token);
+      if (basemap || this._vector === undefined) return basemap;
+    }
     const dark = Boolean(this._hass.themes && this._hass.themes.darkMode);
     const key = `${view.key}|${token}|${dark}`;
     if (this._tileLayer && this._tileLayer.key === key) return this._tileLayer.node;
@@ -839,6 +1053,78 @@ class AdsbStationCard extends HTMLElement {
       ),
     );
     this._tileLayer = { key, node };
+    return node;
+  }
+
+  // OpenStreetMap's data drawn in the theme's colours. Null until a first tile
+  // is in; a Home Assistant without vector tiles turns this off for the raster.
+  _basemap(view, token) {
+    const tiles = view.vectorTiles();
+    const cache = (this._vectorTiles ||= new Map());
+    const now = Date.now();
+    for (const tile of tiles) {
+      const id = `${tile.z}/${tile.x}/${tile.y}`;
+      const held = cache.get(id);
+      if (held && !(held.retryAt <= now)) continue;
+      cache.set(id, { pending: true });
+      // The token as a header keeps the address, and so the browser's cache,
+      // the same when the token changes. Home Assistant 2026.9 only takes it
+      // in the address, and refuses the header with a 403.
+      const inQuery = this._vectorTokenInQuery;
+      const url = PROXY_VECTOR(tile.z, tile.x, tile.y);
+      const asked = inQuery
+        ? fetch(`${url}?token=${encodeURIComponent(token)}`)
+        : fetch(url, { headers: { "X-Map-Tiles-Token": token } });
+      let retryAt = Date.now() + VECTOR_RETRY;
+      asked
+        .then((response) => {
+          if (response.status === 404) this._vector = false;
+          if (response.status === 403 && !inQuery) {
+            this._vectorTokenInQuery = true;
+            retryAt = 0;
+          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.arrayBuffer();
+        })
+        .then((buffer) => {
+          cache.set(id, basemapTile(decodeTile(new Uint8Array(buffer))));
+          this._vector = true;
+          while (cache.size > VECTOR_CACHE) cache.delete(cache.keys().next().value);
+        })
+        .catch(() => cache.set(id, { retryAt }))
+        .finally(() => {
+          if (this._skyBox && !this._skyBox.hidden && this._config.map === "map") this._drawSky();
+        });
+    }
+    const ready = tiles.filter((tile) => (cache.get(`${tile.z}/${tile.x}/${tile.y}`) || {}).paths);
+    if (!ready.length) return null;
+    const key = `${view.key}|${ready.map((tile) => `${tile.z}/${tile.x}/${tile.y}`).join(",")}`;
+    if (this._basemapLayer && this._basemapLayer.key === key) return this._basemapLayer.node;
+
+    const places = [];
+    const drawn = ready.map((tile) => {
+      const data = cache.get(`${tile.z}/${tile.x}/${tile.y}`);
+      const scale = tile.side / data.extent;
+      for (const place of data.places) {
+        places.push({ ...place, x: tile.left + place.x * scale, y: tile.top + place.y * scale });
+      }
+      // Each tile cut to its own square: tiles overlap at the edges, and what
+      // is there twice would show twice.
+      const clip = `tile-${tile.z}-${tile.x}-${tile.y}`;
+      return svg(
+        "g",
+        { transform: `translate(${tile.left.toFixed(2)} ${tile.top.toFixed(2)}) scale(${scale})` },
+        svg("clipPath", { id: clip }, svg("rect", { x: 0, y: 0, width: data.extent, height: data.extent })),
+        svg(
+          "g",
+          { "clip-path": `url(#${clip})` },
+          data.paths.map(([kind, d]) => svg("path", { class: kind, d })),
+        ),
+      );
+    });
+    places.sort((a, b) => a.rank - b.rank || b.population - a.population);
+    const node = svg("g", { class: "basemap", "clip-path": "url(#scope)" }, drawn);
+    this._basemapLayer = { key, node, places };
     return node;
   }
 
@@ -1299,7 +1585,55 @@ const STYLE = css`
     fill: var(--secondary-background-color, #eee);
   }
   .radar.streets .ring {
-    stroke: rgba(0, 0, 0, 0.3);
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.35;
+  }
+  .radar .basemap path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .radar .basemap .water {
+    fill: var(--primary-color);
+    fill-opacity: 0.24;
+  }
+  .radar .basemap .river {
+    stroke: var(--primary-color);
+    stroke-opacity: 0.45;
+  }
+  .radar .basemap .motorway {
+    stroke: var(--secondary-text-color);
+    stroke-opacity: 0.4;
+    stroke-width: 1.2;
+  }
+  .radar .basemap .road {
+    stroke: var(--secondary-text-color);
+    stroke-opacity: 0.25;
+    stroke-width: 0.8;
+  }
+  .radar .basemap .country {
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.45;
+    stroke-width: 1.2;
+  }
+  .radar .basemap .state {
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.18;
+  }
+  .radar .basemap .place {
+    font-size: 10px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    fill: var(--secondary-text-color);
+    paint-order: stroke;
+    stroke: var(--secondary-background-color, #eee);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .radar .basemap .place.big {
+    fill: var(--primary-text-color);
+    fill-opacity: 0.75;
   }
   .radar.streets .distance {
     fill: var(--primary-text-color);
