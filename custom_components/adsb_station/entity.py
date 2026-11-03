@@ -29,12 +29,7 @@ def _text(value: Any) -> str | None:
 def _device_info(
     coordinator: AdsbStationDataUpdateCoordinator, device_id: str
 ) -> DeviceInfo:
-    """Describe the station this entity belongs to.
-
-    With fr24feed the feeder identifies the device, down to the alias it feeds
-    under. Without it there is only the decoder, which is not a Flightradar24
-    product and gets no manufacturer.
-    """
+    """Describe the station this entity belongs to: the feeder, or the decoder."""
     client = coordinator.client
     # has_feeder is true only when there is a feeder type to look the kind up
     # by, but naming it here is what lets that be checked rather than trusted.
@@ -62,11 +57,7 @@ def _device_info(
 
 
 def _feeder_name(feeder_type: str, payload: dict[str, Any]) -> str | None:
-    """Return what this feeder calls itself, if it says.
-
-    Only fr24feed publishes a name of its own; the others are known by what
-    they are, so they fall back to the default for their kind.
-    """
+    """Return what this feeder calls itself; only fr24feed has a name."""
     if feeder_type == FEEDER_FR24:
         return _text(payload.get("feed_alias"))
     return None
@@ -95,12 +86,7 @@ class AdsbStationEntity(CoordinatorEntity[AdsbStationDataUpdateCoordinator]):
 
     @property
     def feeder(self) -> dict[str, Any]:
-        """Return the last status document the feeder served.
-
-        Only entities that exist alongside a feeder read this, so an empty
-        payload means the feeder has not answered yet rather than that there
-        is none.
-        """
+        """Return the last status document, empty until the feeder answers."""
         return self.coordinator.data.feeder or {}
 
 

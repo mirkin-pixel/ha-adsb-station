@@ -1,12 +1,7 @@
-"""Changing the watchlist without opening the options.
+"""Edit the watchlist option from actions and text entities.
 
-The list lives in the options of the entry that carries the receiver, one line
-to an aircraft, and the options form is where it was always edited. That is a
-long way round for "tell me when PH-BXA is up", so the actions and the two text
-entities edit the same option directly. They go through the same check the
-form does, so a line the form would refuse is refused here too. Saving takes
-the new list over in place, without a reload, whichever way it was edited;
-see `async_set_watchlist`.
+The same check as the options form applies, and the new list is taken over
+without a reload (see `async_set_watchlist`).
 """
 
 from __future__ import annotations
@@ -26,11 +21,7 @@ def watched_lines(entry: ConfigEntry) -> list[str]:
 
 
 def _save(hass: HomeAssistant, entry: ConfigEntry, lines: list[str]) -> None:
-    """Store the list, leaving the option out altogether once it is empty.
-
-    Absent rather than blank, as the options form leaves it, because an empty
-    list is what decides that there is no watchlist sensor at all.
-    """
+    """Store the list, leaving the option out once empty, as the form does."""
     options = {
         key: value for key, value in entry.options.items() if key != CONF_WATCHLIST
     }
@@ -42,11 +33,7 @@ def _save(hass: HomeAssistant, entry: ConfigEntry, lines: list[str]) -> None:
 def add_line(
     hass: HomeAssistant, entry: ConfigEntry, line: str, models: dict[str, str]
 ) -> bool:
-    """Put a line on the watchlist, and return whether it was not there yet.
-
-    A line already on the list, written however it was written, is left alone:
-    adding PHBXA beside PH-BXA would only announce the same aircraft twice.
-    """
+    """Put a line on the watchlist; return False if it was there in any spelling."""
     line = line.strip()
     if kind_of(line, models) is None:
         raise ServiceValidationError(
@@ -64,9 +51,7 @@ def add_line(
 def remove_line(hass: HomeAssistant, entry: ConfigEntry, line: str) -> None:
     """Take a line off the watchlist, however it is written.
 
-    A line that is not on the list is an error rather than nothing to do,
-    because the likeliest reason is a typo, and saying nothing would leave
-    the aircraft on the list while it looks as though it came off.
+    A line not on the list is an error, as it is most likely a typo.
     """
     lines = watched_lines(entry)
     kept = [existing for existing in lines if normalise(existing) != normalise(line)]

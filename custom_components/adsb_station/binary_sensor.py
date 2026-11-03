@@ -66,9 +66,8 @@ class AdsbStationBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a binary sensor that reads the feeder's status document."""
 
     value_fn: Callable[[dict[str, Any]], bool | None]
-    # Builds differ in what they report. When set, this decides from the first
-    # poll whether the field is there at all, so a feeder that never sends it
-    # does not get a sensor stuck on unknown for the life of the entry.
+    # Decided on the first poll, so a build that never sends the field gets
+    # no sensor stuck on unknown.
     supported_fn: Callable[[dict[str, Any]], bool] | None = None
 
 
@@ -102,9 +101,7 @@ PLANEFINDER_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...]
         key="pf_mlat",
         translation_key="pf_mlat",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
-        # pfclient publishes no multilateration flag, but it does count what it
-        # has sent, and a station whose clock is too unstable to multilaterate
-        # sends nothing at all.
+        # pfclient has no mlat flag, but sends no mlat data without one.
         value_fn=lambda payload: (
             (value := _as_int(payload.get("mlat_bytes_out"))) is not None and value > 0
         ),
@@ -173,11 +170,7 @@ async def async_setup_entry(
 def _forget_watchlist_sensor(
     hass: HomeAssistant, coordinator: AdsbStationDataUpdateCoordinator
 ) -> None:
-    """Remove the watchlist sensor of a list that has been emptied.
-
-    It is registered, so leaving it out is not enough: the registry would
-    keep it, and it would sit on the device as unavailable for good.
-    """
+    """Remove the watchlist sensor from the registry when the list is emptied."""
     registry = er.async_get(hass)
     entry = coordinator.config_entry
     unique_id = f"{entry.unique_id or entry.entry_id}_watchlist"
@@ -208,8 +201,8 @@ class AdsbStationBinarySensor(AdsbStationEntity, BinarySensorEntity):
 class AdsbStationReceiverSilentBinarySensor(AdsbStationEntity, BinarySensorEntity):
     """On while the dongle has delivered nothing for a few minutes.
 
-    Not a reception entity: it has to stay available while stats.json cannot
-    be read, because that is one of the ways a receiver goes silent.
+    Stays available when stats.json cannot be read, as that is one way to go
+    silent.
     """
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -262,12 +255,9 @@ class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
 
 
 class AdsbStationWatchlistBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):
-    """On while an aircraft from your watchlist is in the air near you.
+    """On while an aircraft from your watchlist is in range.
 
-    One sensor for the whole list rather than one per line. A list of fifty
-    tails would otherwise be fifty entities, of which forty-nine are always
-    off, and what an automation wants to know is that something on the list
-    turned up — which the event says, with the line that matched.
+    One sensor for the whole list; the event says which line matched.
     """
 
     _attr_translation_key = "watchlist"

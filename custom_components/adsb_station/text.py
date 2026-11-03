@@ -1,9 +1,6 @@
-"""Text platform for the ADS-B Station integration.
+"""Two text boxes to add a line to the watchlist or remove one.
 
-Two boxes on the station's device, one to put a line on the watchlist and one
-to take it off again, so the list can be kept from a dashboard. They hold
-nothing themselves: what was typed goes straight into the options, and the box
-stays empty.
+What is typed goes straight into the options; the boxes stay empty.
 """
 
 from __future__ import annotations

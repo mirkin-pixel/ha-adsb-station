@@ -1,20 +1,7 @@
-"""Geolocation platform for the ADS-B Station integration.
+"""Geolocation platform: one entity per aircraft inside the nearby radius.
 
-An aircraft overhead is not a state that changes, it is a thing that comes
-past, and `geo_location` is the platform Home Assistant has for exactly that:
-the same one the earthquake and wildfire integrations use. One entity appears
-when an aircraft comes inside the nearby radius and disappears when it leaves.
-
-Nothing new is read to do it. The positions are already in every poll, next to
-the distance the proximity sensors are built on.
-
-**These entities have no unique ID, on purpose.** With one, every aircraft
-that ever passed would leave an entry in the entity registry, come back as
-`unavailable` after a restart, and fill every entity picker for good. Without
-one they live only in the state machine, from arrival to departure, and there
-is nothing left to clean up. The cost is real and worth knowing: they cannot
-be renamed, hidden or assigned to an area from the interface, and they are not
-listed under the station's device. A map layer is what they are for.
+No unique ID on purpose, so passing aircraft leave nothing in the entity
+registry; the cost is that they cannot be renamed or hidden in the UI.
 """
 
 from __future__ import annotations
@@ -43,12 +30,7 @@ PARALLEL_UPDATES = 0
 
 
 def aircraft_icon(summary: AircraftSummary) -> str:
-    """Return the icon that says at a glance what an aircraft is doing.
-
-    What it is before what it is doing: a helicopter is drawn as one whether it
-    climbs or not, and military as the same shield the counter of military
-    traffic uses. A map card shows this as the marker with `label_mode: icon`.
-    """
+    """Return the icon for what an aircraft is, then what it is doing."""
     if summary.category == CATEGORY_ROTORCRAFT:
         return "mdi:helicopter"
     if summary.military:
@@ -83,10 +65,7 @@ async def async_setup_entry(
         arrived: list[AdsbStationAircraftLocation] = []
         in_range: set[str] = set()
         for summary in nearby:
-            # Everything in range has a position that was believed, because
-            # the coordinator drops an aircraft it cannot place before it ever
-            # reaches this list. Narrowing it here is for the type checker,
-            # which cannot know that.
+            # Always set for nearby aircraft; this is for the type checker.
             if (position := summary.position) is None:
                 continue
             in_range.add(summary.hex)
@@ -113,9 +92,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     _attr_should_poll = False
     _attr_source = DOMAIN
     _attr_unit_of_measurement = UnitOfLength.KILOMETERS
-    # The map reads these off the live state; writing a row per aircraft per
-    # poll would fill the database with a track nobody asked to keep. What is
-    # worth keeping is the passage board, which is built for it.
+    # The map reads the live state; recording every position is not worth it.
     _attr_unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(
@@ -125,10 +102,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         position: tuple[float, float],
     ) -> None:
         """Initialize the aircraft at the position it arrived on."""
-        # Fixed at arrival and never changed afterwards. A callsign often
-        # turns up a few polls after the aircraft does, and renaming then
-        # would move the entity ID out from under a dashboard halfway
-        # through a passage.
+        # Fixed at arrival, so a late callsign does not change the entity ID.
         self._attr_name = summary.flight or summary.hex
         self._apply(summary, position)
 
@@ -150,10 +124,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     def leave(self) -> None:
         """Take the aircraft off the map now that it has flown on.
 
-        Forced, because an entity with no unique ID has no registry entry to
-        fall back on, and what would otherwise stay behind is an `unavailable`
-        aircraft that is never coming back. An aircraft that arrived and left
-        before it was ever added has nothing to remove.
+        Forced, or an entity without a unique ID stays behind as unavailable.
         """
         if self.hass is not None:
             self.hass.async_create_task(self.async_remove(force_remove=True))
@@ -165,9 +136,5 @@ class AdsbStationAircraftLocation(GeolocationEvent):
 
     @property
     def extra_state_attributes(self) -> dict[str, str | float | None]:
-        """Return everything else known about this aircraft.
-
-        The same set the proximity sensors carry, minus the distance, which is
-        the state of this entity.
-        """
+        """Return everything else known; the distance is the state."""
         return aircraft_attributes(self._summary)

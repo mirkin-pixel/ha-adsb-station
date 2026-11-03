@@ -17,10 +17,8 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-# Home Assistant 2026.10 replaced voluptuous with probatio, which keeps its API,
-# and puts it in place under the old name before anything is imported. So at
-# run time `voluptuous` is probatio there and voluptuous itself before it; only
-# the type checker has to be told which one Home Assistant's signatures mean.
+# Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
+# the type checker needs to be told.
 if TYPE_CHECKING:
     import probatio as vol
 else:
@@ -68,9 +66,7 @@ from .reference import async_load_reference, kind_of
 
 _LOGGER = logging.getLogger(__name__)
 
-# Identifies an entry that has no feeder of its own. A station with fr24feed is
-# known by its feed alias; a bare decoder has nothing comparable, so the address
-# it was set up on is the best we can do.
+# A bare decoder has no feed alias, so it is known by its address.
 RECEIVER_UNIQUE_ID_PREFIX = "receiver:"
 
 FEEDER_SCHEMA = vol.Schema(
@@ -347,9 +343,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             if current:
                 return str(current)
         if await self._async_decoder_already_read():
-            # Offering the URL again is how you end up counting one decoder
-            # several times over, so the second feeder on a station starts
-            # with an empty field and has to be told otherwise on purpose.
+            # Empty for a second feeder, so one decoder is not counted twice.
             return ""
         detected = await async_detect_aircraft_url(
             async_get_clientsession(self.hass), self._host
@@ -429,9 +423,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected error while reading aircraft.json")
             return "unknown"
 
-        # Not every decoder serves statistics; the fr24feed fork does, older
-        # builds do not. Look once, here, so the entities that need it are only
-        # created when the receiver can actually feed them.
+        # Detected once, so entities are only created for what is reported.
         self._stats_url, self._features = await async_detect_statistics(
             async_get_clientsession(self.hass), url
         )
@@ -484,9 +476,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
 
             watchlist = str(user_input.get(CONF_WATCHLIST) or "")
             models = (await async_load_reference(self.hass)).models
-            # A line nobody can read is refused rather than saved and
-            # silently never matched. The message names the line, because a
-            # list of twenty is no place to go looking for the typo.
+            # Refused, naming the line, rather than saved and never matched.
             unreadable = [
                 line.strip()
                 for line in watchlist.splitlines()
