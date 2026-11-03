@@ -119,10 +119,8 @@ def _cpu_temperature(monitor: dict[str, Any]) -> float | None:
 def _reports_cpu_temperature(monitor: dict[str, Any]) -> bool:
     """Return True if this feeder reports on the host at all.
 
-    Only the builds for single board computers read out a temperature. On x86
-    there is no SoC to measure and monitor.json carries no cpu block, so the
-    sensor would never hold a value. A block that is present but unreadable is
-    a different matter: keep the sensor, and let unknown say so.
+    x86 builds have no cpu block. One that is present but unreadable keeps
+    the sensor, as unknown.
     """
     return "cpu" in monitor
 
@@ -132,16 +130,12 @@ class AdsbStationSensorEntityDescription(SensorEntityDescription):
     """Describes a sensor that reads monitor.json."""
 
     value_fn: Callable[[dict[str, Any]], Any]
-    # What the status document holds differs per build. When set, this decides
-    # from the first poll whether the feeder reports the field at all, so a
-    # build that never sends it does not get a sensor stuck on unknown.
+    # Decided on the first poll, so a build that never sends the field gets
+    # no sensor stuck on unknown.
     supported_fn: Callable[[dict[str, Any]], bool] | None = None
-    # Extra detail alongside the value, such as the sentence a status colour
-    # stands for.
     attributes_fn: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
-    # How far a timestamp that is worked out rather than read may wander
-    # before it is a different moment. Without it, a boot time derived from an
-    # uptime would move by a second on every other poll.
+    # How far a derived timestamp may drift before it counts as new, so a boot
+    # time worked out from an uptime does not move every poll.
     settle: timedelta | None = None
 
 
@@ -165,10 +159,8 @@ class AdsbStationReceptionSensorEntityDescription(SensorEntityDescription):
 def _as_shown(description: SensorEntityDescription, value: Any) -> Any:
     """Round a measurement to the precision it is shown at.
 
-    The recorder keeps the value, not what is shown of it, so a temperature
-    that wavers in its third decimal is a new row on every poll while the
-    dashboard shows the same figure. Only where the value is shown in its own
-    unit: rounding bytes to the precision of megabytes would round nothing.
+    Saves recorder rows for changes nobody sees. Only when shown in its own
+    unit.
     """
     if (
         not isinstance(value, float)
@@ -181,12 +173,9 @@ def _as_shown(description: SensorEntityDescription, value: Any) -> Any:
 
 
 def _piaware_started(payload: dict[str, Any]) -> datetime | None:
-    """Return when the host PiAware runs on was started.
+    """Return when PiAware's host was started, from its uptime.
 
-    PiAware reports how long that has been, which is a new value on every
-    poll for as long as the host runs. When it was started is the same
-    information, and only changes when the host restarts. The document says
-    when it was written, so that is the moment the uptime is counted back from.
+    Unlike the uptime, this only changes on a restart.
     """
     if (uptime := _as_float(payload.get("system_uptime"))) is None:
         return None
@@ -335,10 +324,8 @@ def _piaware_status(
 ) -> AdsbStationSensorEntityDescription:
     """Describe one of PiAware's four status sections.
 
-    They are green, amber or red rather than up or down, and amber carries
-    real information: PiAware reporting an unstable clock is still running,
-    but multilateration will not work. A binary sensor would throw that away,
-    so these stay three-valued with the sentence as an attribute.
+    Green, amber or red rather than a binary sensor: amber means degraded,
+    such as mlat failing on an unstable clock.
     """
     return AdsbStationSensorEntityDescription(
         key=key,
@@ -515,9 +502,7 @@ AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
         translation_key="receiver_updated",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
-        # A new moment on every poll by definition, so a row in the recorder
-        # every fifteen seconds for something the receiver binary sensor and
-        # the availability of everything else already say.
+        # A new row every poll for what other entities already show.
         entity_registry_enabled_default=False,
         value_fn=lambda stats: stats.updated,
     ),
@@ -859,10 +844,7 @@ class AdsbStationRememberedAircraftSensor(
 ):
     """A superlative that keeps standing once the aircraft has gone.
 
-    A station that hears two aircraft an hour would otherwise spend most of
-    its time reporting nothing, and the reading would vanish over a restart
-    as well. What it last saw is more use than a blank, as long as you can
-    tell how long ago that was, which the seen_at attribute says.
+    Kept over a restart too; the seen_at attribute says how old it is.
     """
 
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -933,10 +915,7 @@ class AdsbStationHighestAircraftSensor(AdsbStationRememberedAircraftSensor):
 
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.FEET
-    # Suggesting feet explicitly keeps aviation altitudes in feet on a metric
-    # system, where the device class would otherwise convert them to metres.
-    # The device class is what lets anyone who does want metres pick them per
-    # entity, so this sets the default without taking the choice away.
+    # Feet by default even on a metric system; metres stay selectable.
     _attr_suggested_unit_of_measurement = UnitOfLength.FEET
     _attr_suggested_display_precision = 0
 
@@ -992,9 +971,7 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
 
     _attr_translation_key = "aircraft_nearby"
     _attr_state_class = SensorStateClass.MEASUREMENT
-    # The list of aircraft is rewritten on every poll, so recording it would
-    # write the whole sky to the database every few seconds for a figure the
-    # state already carries. The count keeps its history; the list does not.
+    # The list changes every poll; the count keeps its history.
     _unrecorded_attributes = frozenset({"aircraft"})
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -1023,22 +1000,14 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
 
 
 def _passage_entry(passage: Passage) -> dict[str, Any]:
-    """Describe one passage for a board of what has come over.
-
-    The closest approach rather than the arrival, and lean rather than
-    complete: twenty of these are written to the database every time an
-    aircraft comes past, and a board is read at a glance.
-    """
+    """Describe one passage for the board: lean, at its closest approach."""
     entry: dict[str, Any] = {
         "at": passage.started_at.isoformat(),
         "hex": passage.hex,
         "flight": passage.closest.flight,
         "altitude": passage.closest.altitude,
         "distance": round(passage.closest_distance / 1000, 1),
-        # How long it was in view and the strongest it was ever heard, which
-        # are the two things a passage knows that a single poll cannot. Both
-        # grow while the aircraft is still there, and the entry is rewritten
-        # each poll, so the board holds the finished figures once it has gone.
+        # Both grow until the aircraft has gone.
         "duration": round((passage.last_seen - passage.started_at).total_seconds()),
     }
     for key, value in (
@@ -1081,12 +1050,9 @@ class RememberedPassage(ExtraStoredData):
 
 
 class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, SensorEntity):
-    """The one aircraft above you, which is what a panel shows.
+    """The nearest aircraft through the air, kept after it has gone.
 
-    Nearest first, measured through the air rather than across the ground, and
-    it keeps the last one rather than blanking the moment the sky empties. A
-    panel that goes empty between aircraft is a panel nobody hangs on a wall,
-    and the seen_at attribute says how long ago it was.
+    The seen_at attribute says how long ago that was.
     """
 
     _attr_translation_key = "overhead_flight"
@@ -1179,22 +1145,15 @@ class PassageBoard(ExtraStoredData):
 
 
 class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, SensorEntity):
-    """How many aircraft came over today, and which ones.
+    """How many aircraft came over today, and which ones, most recent first.
 
-    A departure board rather than a counter: the state is the tally, and the
-    attributes are the aircraft themselves, most recent first. Both survive a
-    restart, because a board that empties every time Home Assistant is updated
-    is not a record of anything.
+    Both survive a restart.
     """
 
     _attr_translation_key = "passages_today"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    # The board is rewritten on every arrival and while an aircraft is still in
-    # view, so recording it would store twenty aircraft again for every change
-    # to the tally. Excluding the whole entity from the recorder instead costs
-    # the history and the statistics of the tally itself, which is the part
-    # worth keeping. The board survives a restart through the restore state,
-    # which is not the recorder.
+    # The board changes constantly; the tally keeps its history, and the
+    # board survives a restart through the restore state.
     _unrecorded_attributes = frozenset({"passages"})
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -1225,12 +1184,7 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
         super()._handle_coordinator_update()
 
     def _absorb(self) -> None:
-        """Add what is passing, and refresh what is still passing.
-
-        An entry is written as soon as the aircraft arrives, so the board is
-        current, and rewritten while it is still in view, because the closest
-        approach is not known until it has been made.
-        """
+        """Add new passages, and update those still in view until they are past."""
         today = dt_util.now().date().isoformat()
         if self._board.day != today:
             self._board = PassageBoard(day=today)
@@ -1261,11 +1215,8 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
 class HeardToday(ExtraStoredData):
     """Which aircraft this station has heard today, and on which day.
 
-    The hex codes rather than a tally, because a tally cannot tell whether
-    the aircraft in front of it is one that was already counted. They survive
-    a restart through the restore state; without that, every aircraft still in
-    the air would be counted a second time on the way back up, and a station
-    restarted twice on a busy afternoon would report a day it never had.
+    Hex codes rather than a tally, kept over a restart, so nothing is counted
+    twice.
     """
 
     day: str | None = None
@@ -1288,18 +1239,11 @@ class HeardToday(ExtraStoredData):
 class AdsbStationHeardTodaySensor(
     AdsbStationAircraftEntity, RestoreEntity, SensorEntity
 ):
-    """How many different aircraft this station has heard today.
-
-    A different figure from the passages, and the one that says what the
-    station itself is doing: passages are what came over your house, this is
-    everything the antenna reached all day, however far away.
-    """
+    """How many different aircraft this station has heard today, at any range."""
 
     _attr_translation_key = "heard_today"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    # The hex codes are kept to count with, not to show. A few thousand of
-    # them in an attribute would be written to the database on every new
-    # aircraft, and nothing reads a list of hex codes anyway.
+    # The hex codes live in the restore data, not in attributes.
     _unrecorded_attributes = frozenset({"since"})
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -1358,11 +1302,7 @@ class AdsbStationHeardTodaySensor(
 
 @dataclass
 class SectorRecord(ExtraStoredData):
-    """The furthest aircraft ever seen in one sector.
-
-    Kept on the entity rather than in the coordinator, because it has to
-    outlive a restart and the entity is what Home Assistant restores.
-    """
+    """The furthest aircraft ever seen in one sector, kept over a restart."""
 
     distance: float | None = None
     recorded_at: str | None = None
@@ -1389,9 +1329,7 @@ class AdsbStationSectorRangeSensor(
 ):
     """The furthest an aircraft has ever been heard in one compass sector.
 
-    Eight of these together are the polar plot that tells you where your
-    antenna is blocked. The record only ever grows, so it survives a restart
-    and is cleared by the reset button.
+    Only grows; the reset button clears it.
     """
 
     _attr_device_class = SensorDeviceClass.DISTANCE
@@ -1429,20 +1367,11 @@ class AdsbStationSectorRangeSensor(
 
     @property
     def available(self) -> bool:
-        """Return True even with no aircraft, so a record stays readable.
-
-        A sector that has held a record for months should not go unavailable
-        just because nothing is flying there right now.
-        """
+        """Return True even with no aircraft, so a record stays readable."""
         return self.coordinator.last_update_success
 
     def _handle_coordinator_update(self) -> None:
-        """Take over a new record before the state and attributes are read.
-
-        Doing this from native_value would make a property that changes what
-        it reports, and would leave the attributes describing the record the
-        state had a moment ago.
-        """
+        """Take over a new record before the state and attributes are read."""
         self._absorb()
         super()._handle_coordinator_update()
 
