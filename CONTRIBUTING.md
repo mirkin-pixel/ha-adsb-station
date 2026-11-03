@@ -37,6 +37,18 @@ pytest --cov        # tests, and the coverage floor
 
 `scripts/check.sh` and `scripts/check.ps1` run all three in that order.
 
+### The dashboard card
+
+The card is plain JavaScript, so pytest never sees it. Its tests and its
+formatting live in `tests/card`, and need Node:
+
+```bash
+cd tests/card
+npm ci
+npm test              # the card in a simulated browser
+npm run format        # layout, by Prettier; CI runs format:check
+```
+
 ### The oldest supported Home Assistant
 
 `hacs.json` says which Home Assistant this needs at least: 2025.7. CI runs the

@@ -1,0 +1,3 @@
+# Prettier checks the card with LF line endings; keep them LF on Windows too.
+*.js  text eol=lf
+*.mjs text eol=lf

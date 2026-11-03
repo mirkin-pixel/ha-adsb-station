@@ -268,15 +268,12 @@ function mercatorView(origin, range, reach, centre, size) {
   const shrink = Math.cos((latitude * Math.PI) / 180);
   const zoom = Math.min(
     MAX_TILE_ZOOM,
-    Math.max(1, Math.log2((EQUATOR_METRES_PER_PIXEL * shrink * reach) / (range * 1000)))
+    Math.max(1, Math.log2((EQUATOR_METRES_PER_PIXEL * shrink * reach) / (range * 1000))),
   );
   const world = TILE_SIZE * 2 ** zoom;
   const toWorld = (lat, lon) => {
     const phi = (Math.max(-85, Math.min(85, lat)) * Math.PI) / 180;
-    return [
-      ((lon + 180) / 360) * world,
-      ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * world,
-    ];
+    return [((lon + 180) / 360) * world, ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * world];
   };
   const [cx, cy] = toWorld(latitude, longitude);
   const project = (lat, lon) => {
@@ -328,7 +325,10 @@ class AdsbStationCard extends HTMLElement {
           selector: {
             select: {
               mode: "dropdown",
-              options: MAP_STYLES.map((value) => ({ value, label: text[`map_${value === "map" ? "streets" : value}`] })),
+              options: MAP_STYLES.map((value) => ({
+                value,
+                label: text[`map_${value === "map" ? "streets" : value}`],
+              })),
             },
           },
         },
@@ -414,22 +414,19 @@ class AdsbStationCard extends HTMLElement {
 
   // Every entity of this integration, by its translation key, on one device.
   _find() {
-    const entities = Object.values(this._hass.entities || {}).filter(
-      (entry) => entry.platform === DOMAIN
-    );
+    const entities = Object.values(this._hass.entities || {}).filter((entry) => entry.platform === DOMAIN);
     const overhead = entities.filter(
       (entry) =>
         entry.translation_key === "overhead_flight" &&
-        (!this._config.device_id || entry.device_id === this._config.device_id)
+        (!this._config.device_id || entry.device_id === this._config.device_id),
     );
     if (!overhead.length) return null;
     const device = overhead[0].device_id;
-    const on = (key) =>
-      entities.find((entry) => entry.device_id === device && entry.translation_key === key);
+    const on = (key) => entities.find((entry) => entry.device_id === device && entry.translation_key === key);
     // A station commonly feeds several networks, each its own device, and the
     // feed status of every one of them belongs in the status line.
     const feeds = entities.filter(
-      (entry) => entry.translation_key === "feed" || entry.translation_key === "piaware_feed"
+      (entry) => entry.translation_key === "feed" || entry.translation_key === "piaware_feed",
     );
     return {
       device,
@@ -513,7 +510,7 @@ class AdsbStationCard extends HTMLElement {
           detail: { entityId: entry.entity_id },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     };
   }
@@ -528,9 +525,7 @@ class AdsbStationCard extends HTMLElement {
 
   _follow(found) {
     const wanted =
-      found && this._config.map !== "none" && this.isConnected && this._hass.connection
-        ? found.device
-        : null;
+      found && this._config.map !== "none" && this.isConnected && this._hass.connection ? found.device : null;
     if (wanted === this._following) return;
     this._unsubscribe();
     if (!wanted) return;
@@ -568,7 +563,7 @@ class AdsbStationCard extends HTMLElement {
         if (!here.has(hex)) continue;
         this._trails.set(
           hex,
-          points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t }))
+          points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t })),
         );
       }
     }
@@ -603,7 +598,7 @@ class AdsbStationCard extends HTMLElement {
         streets ? this._attribution() : null,
         this._legend(text),
         this._picked(text),
-      ].filter(Boolean)
+      ].filter(Boolean),
     );
   }
 
@@ -617,12 +612,13 @@ class AdsbStationCard extends HTMLElement {
 
   _scale(sky) {
     const mode = this._scaleMode();
-    if (mode === "fixed") return Number(this._config.map_range) > 0 ? Number(this._config.map_range) : DEFAULT_FIXED_RANGE;
+    if (mode === "fixed")
+      return Number(this._config.map_range) > 0 ? Number(this._config.map_range) : DEFAULT_FIXED_RANGE;
     const furthest = Math.max(
       sky ? sky.radius || 0 : 0,
       ...((sky && sky.aircraft) || []).map((plane) => plane.distance || 0),
       // The records as well, so the whole shape of the coverage fits.
-      ...(mode === "coverage" ? this._coverage() || [] : [])
+      ...(mode === "coverage" ? this._coverage() || [] : []),
     );
     // Held until the sky clearly fits a smaller ring, so one aircraft at the
     // edge coming and going does not make the whole radar breathe.
@@ -681,14 +677,20 @@ class AdsbStationCard extends HTMLElement {
       scope.append(svg("circle", { class: "scope", cx: centre, cy: centre, r: reach }));
     }
     scope.append(
-      svg("g", { "clip-path": "url(#scope)" },
+      svg(
+        "g",
+        { "clip-path": "url(#scope)" },
         svg("circle", { class: "ring", cx: centre, cy: centre, r: (range / 2) * perKm }),
         svg("circle", { class: "ring", cx: centre, cy: centre, r: range * perKm }),
         streets ? null : svg("line", { class: "ring", x1: centre - reach, y1: centre, x2: centre + reach, y2: centre }),
-        streets ? null : svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach })
+        streets ? null : svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach }),
       ),
-      svg("text", { class: "distance", x: centre + 4, y: centre - (range / 2) * perKm - 4 }, `${this._number(range / 2, 1)} km`),
-      svg("text", { class: "distance", x: centre + 4, y: centre - range * perKm + 14 }, `${this._number(range, 1)} km`)
+      svg(
+        "text",
+        { class: "distance", x: centre + 4, y: centre - (range / 2) * perKm - 4 },
+        `${this._number(range / 2, 1)} km`,
+      ),
+      svg("text", { class: "distance", x: centre + 4, y: centre - range * perKm + 14 }, `${this._number(range, 1)} km`),
     );
     const coverage = this._coverage();
     if (coverage) {
@@ -708,7 +710,7 @@ class AdsbStationCard extends HTMLElement {
         svg("text", { class: "compass", x: centre, y: centre - reach - 4 }, north),
         svg("text", { class: "compass", x: centre + reach + 9, y: centre + 4 }, east),
         svg("text", { class: "compass", x: centre, y: centre + reach + 13 }, south),
-        svg("text", { class: "compass", x: centre - reach - 9, y: centre + 4 }, west)
+        svg("text", { class: "compass", x: centre - reach - 9, y: centre + 4 }, west),
       );
     }
 
@@ -733,7 +735,11 @@ class AdsbStationCard extends HTMLElement {
       const here = [chosen.latitude, chosen.longitude];
       const line = (from, to) =>
         greatCircle(from, to)
-          .map(([lat, lon]) => project(lat, lon).map((value) => value.toFixed(1)).join(","))
+          .map(([lat, lon]) =>
+            project(lat, lon)
+              .map((value) => value.toFixed(1))
+              .join(","),
+          )
           .join(" ");
       const ends = [route.origin, route.destination];
       scope.append(
@@ -741,17 +747,20 @@ class AdsbStationCard extends HTMLElement {
           "g",
           { class: "route", "clip-path": "url(#scope)" },
           svg("polyline", { class: "flown", points: line([route.origin.latitude, route.origin.longitude], here) }),
-          svg("polyline", { class: "ahead", points: line(here, [route.destination.latitude, route.destination.longitude]) }),
+          svg("polyline", {
+            class: "ahead",
+            points: line(here, [route.destination.latitude, route.destination.longitude]),
+          }),
           ends.map((airport) => {
             const [x, y] = project(airport.latitude, airport.longitude);
             return svg(
               "g",
               { class: "airport", transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` },
               svg("circle", { r: 4 }),
-              svg("text", { x: 7, y: 4 }, airport.code || "")
+              svg("text", { x: 7, y: 4 }, airport.code || ""),
             );
-          })
-        )
+          }),
+        ),
       );
     }
 
@@ -768,9 +777,12 @@ class AdsbStationCard extends HTMLElement {
     const ranked = [...planes].sort(
       (a, b) =>
         (b.plane.hex === this._selected) - (a.plane.hex === this._selected) ||
-        (a.plane.distance || 0) - (b.plane.distance || 0)
+        (a.plane.distance || 0) - (b.plane.distance || 0),
     );
-    for (const { plane, at: [x, y] } of ranked) {
+    for (const {
+      plane,
+      at: [x, y],
+    } of ranked) {
       const box = [x + 11, y - 18, x + 13 + 6.4 * String(plane.flight || plane.hex).length, y - 5];
       const covers = (other) => box[0] < other[2] && other[0] < box[2] && box[1] < other[3] && other[1] < box[3];
       if (placed.some(covers)) continue;
@@ -780,7 +792,10 @@ class AdsbStationCard extends HTMLElement {
 
     // The highest drawn last, so the one overhead at cruising height is not
     // hidden under a trail far below it.
-    for (const { plane, at: [x, y] } of [...planes].sort((a, b) => (a.plane.altitude || 0) - (b.plane.altitude || 0))) {
+    for (const {
+      plane,
+      at: [x, y],
+    } of [...planes].sort((a, b) => (a.plane.altitude || 0) - (b.plane.altitude || 0))) {
       const { path, scale } = shapeOf(plane);
       const selected = plane.hex === this._selected;
       const marker = svg(
@@ -801,7 +816,7 @@ class AdsbStationCard extends HTMLElement {
           fill: altitudeColor(plane.altitude, plane.on_ground),
           transform: `rotate(${Math.round(plane.track || 0)}) scale(${scale})`,
         }),
-        labelled.has(plane.hex) ? svg("text", { class: "callsign", x: 12, y: -8 }, plane.flight || plane.hex) : null
+        labelled.has(plane.hex) ? svg("text", { class: "callsign", x: 12, y: -8 }, plane.flight || plane.hex) : null,
       );
       scope.append(marker);
     }
@@ -825,8 +840,15 @@ class AdsbStationCard extends HTMLElement {
       "g",
       { class: dark ? "tiles dark" : "tiles", "clip-path": "url(#scope)" },
       view.tiles(url).map((tile) =>
-        svg("image", { href: tile.href, x: tile.x, y: tile.y, width: tile.size, height: tile.size, preserveAspectRatio: "none" })
-      )
+        svg("image", {
+          href: tile.href,
+          x: tile.x,
+          y: tile.y,
+          width: tile.size,
+          height: tile.size,
+          preserveAspectRatio: "none",
+        }),
+      ),
     );
     this._tileLayer = { key, node };
     return node;
@@ -861,7 +883,7 @@ class AdsbStationCard extends HTMLElement {
       { class: "attribution" },
       "© ",
       el("a", { href: "https://www.openstreetmap.org/copyright", target: "_blank", rel: "noopener" }, "OpenStreetMap"),
-      " contributors"
+      " contributors",
     );
   }
 
@@ -920,7 +942,7 @@ class AdsbStationCard extends HTMLElement {
     this._hass
       .callWS({ type: LOOK_UP_ROUTE, device_id: this._following, hex })
       .then((answer) =>
-        this._routes.set(hex, { points: (answer && answer.route_points) || null, at: Date.now() / 1000 })
+        this._routes.set(hex, { points: (answer && answer.route_points) || null, at: Date.now() / 1000 }),
       )
       // A question that failed is no answer: the next tap asks again.
       .catch(() => this._routes.delete(hex))
@@ -930,9 +952,7 @@ class AdsbStationCard extends HTMLElement {
   }
 
   _legend(text) {
-    const stops = ALTITUDE_HUES.map(
-      ([feet]) => `${altitudeColor(feet)} ${((feet / ALTITUDE_TOP) * 100).toFixed(1)}%`
-    );
+    const stops = ALTITUDE_HUES.map(([feet]) => `${altitudeColor(feet)} ${((feet / ALTITUDE_TOP) * 100).toFixed(1)}%`);
     return el(
       "div",
       { class: "legend" },
@@ -940,7 +960,7 @@ class AdsbStationCard extends HTMLElement {
         "div",
         { class: "keys" },
         el("span", { class: "key" }, el("span", { class: "dot ground" }), text.on_ground),
-        this._coverage() ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage) : null
+        this._coverage() ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage) : null,
       ),
       el(
         "div",
@@ -950,15 +970,14 @@ class AdsbStationCard extends HTMLElement {
           "div",
           { class: "ticks" },
           [0, 15000, 30000].map((feet) => el("span", {}, this._number(feet, 0))),
-          el("span", {}, `${this._number(ALTITUDE_TOP, 0)} ft`)
-        )
-      )
+          el("span", {}, `${this._number(ALTITUDE_TOP, 0)} ft`),
+        ),
+      ),
     );
   }
 
   _picked(text) {
-    const plane =
-      this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
+    const plane = this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
     if (!plane) return null;
     return el(
       "div",
@@ -968,12 +987,12 @@ class AdsbStationCard extends HTMLElement {
         { class: "primary" },
         el("span", { class: "swatch", style: `background: ${altitudeColor(plane.altitude, plane.on_ground)}` }),
         plane.flight || plane.hex,
-        plane.airline ? ` · ${plane.airline}` : ""
+        plane.airline ? ` · ${plane.airline}` : "",
       ),
       el(
         "div",
         { class: "secondary" },
-        [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · ")
+        [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
       ),
       this._routeLine(plane, text),
       el(
@@ -985,8 +1004,8 @@ class AdsbStationCard extends HTMLElement {
           this._distance(plane.distance),
         ]
           .filter(Boolean)
-          .join("   ")
-      )
+          .join("   "),
+      ),
     );
   }
 
@@ -1007,16 +1026,13 @@ class AdsbStationCard extends HTMLElement {
   _overhead(found, text) {
     const state = this._state(found.overhead);
     const plane = state ? state.attributes : {};
-    const known =
-      state && !["unknown", "unavailable"].includes(state.state) && (plane.flight || plane.hex);
+    const known = state && !["unknown", "unavailable"].includes(state.state) && (plane.flight || plane.hex);
     if (!known) {
       return el("div", { class: "empty" }, el("ha-icon", { icon: "mdi:airplane-off" }), text.nothing);
     }
 
     const section = el("div", { class: "overhead" });
-    section.append(
-      el("div", { class: "label" }, plane.overhead === false ? text.last_overhead : text.overhead)
-    );
+    section.append(el("div", { class: "label" }, plane.overhead === false ? text.last_overhead : text.overhead));
 
     // The photo leads to its page and names who took it, as Planespotters asks
     // of anyone showing one. Without all three it is not shown at all.
@@ -1027,14 +1043,14 @@ class AdsbStationCard extends HTMLElement {
         el(
           "a",
           { class: "photo", href: link, target: "_blank", rel: "noopener" },
-          el("img", { src: photo, alt: plane.flight || plane.hex, loading: "lazy" })
+          el("img", { src: photo, alt: plane.flight || plane.hex, loading: "lazy" }),
         ),
         el(
           "div",
           { class: "credit" },
           `${text.photo}: ${plane.photographer} / `,
-          el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net")
-        )
+          el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
+        ),
       );
     }
 
@@ -1053,16 +1069,20 @@ class AdsbStationCard extends HTMLElement {
         el(
           "div",
           { class: "secondary" },
-          [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · ")
+          [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
         ),
         el(
           "div",
           { class: "secondary" },
-          [plane.origin && plane.destination ? `${plane.origin} → ${plane.destination}` : null, this._height(plane, text), this._distance(plane.distance)]
+          [
+            plane.origin && plane.destination ? `${plane.origin} → ${plane.destination}` : null,
+            this._height(plane, text),
+            this._distance(plane.distance),
+          ]
             .filter(Boolean)
-            .join("   ")
-        )
-      )
+            .join("   "),
+        ),
+      ),
     );
     section.append(details);
     return section;
@@ -1109,9 +1129,9 @@ class AdsbStationCard extends HTMLElement {
           el("span", { class: "flight" }, plane.flight || plane.hex),
           el("span", { class: "what" }, plane.airline || plane.description || ""),
           el("span", { class: "figure" }, this._distance(plane.distance) || ""),
-          el("span", { class: "figure" }, this._height(plane, text) || "")
-        )
-      )
+          el("span", { class: "figure" }, this._height(plane, text) || ""),
+        ),
+      ),
     );
   }
 
@@ -1134,7 +1154,9 @@ class AdsbStationCard extends HTMLElement {
     ].filter(([, value]) => value);
     figures.forEach(([entry, value], i) => {
       if (i) line.append(el("span", { class: "sep" }, "·"));
-      line.append(el("span", { class: "figures", role: "button", tabindex: "0", onclick: this._moreInfo(entry) }, value));
+      line.append(
+        el("span", { class: "figures", role: "button", tabindex: "0", onclick: this._moreInfo(entry) }, value),
+      );
     });
     for (const entry of found.feeds) {
       const state = this._state(entry);
@@ -1153,8 +1175,8 @@ class AdsbStationCard extends HTMLElement {
             onclick: this._moreInfo(entry),
           },
           el("span", { class: "dot" }),
-          network
-        )
+          network,
+        ),
       );
     }
     return line;

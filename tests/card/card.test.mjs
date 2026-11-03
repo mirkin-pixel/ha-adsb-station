@@ -67,9 +67,17 @@ function render(window, hass, config = {}) {
 }
 
 const KLM = {
-  hex: "484506", flight: "KLM1234", airline: "KLM", description: "Boeing 737-800",
-  registration: "PH-BXA", origin: "AMS", destination: "LHR", altitude: 3200,
-  vertical_rate: 1500, distance: 1.1, overhead: true,
+  hex: "484506",
+  flight: "KLM1234",
+  airline: "KLM",
+  description: "Boeing 737-800",
+  registration: "PH-BXA",
+  origin: "AMS",
+  destination: "LHR",
+  altitude: 3200,
+  vertical_rate: 1500,
+  distance: 1.1,
+  overhead: true,
   photo: "https://t.plnspttrs.net/1/1_280.jpg",
   photo_link: "https://www.planespotters.net/photo/1/ph-bxa",
   photographer: "Jan Seler",
@@ -94,11 +102,35 @@ function connect(hass) {
 
 const SKY = (aircraft) => ({ latitude: 52.0, longitude: 5.0, radius: 10, aircraft });
 const LOW = {
-  hex: "484506", flight: "KLM1234", latitude: 52.02, longitude: 5.0, altitude: 1500, track: 90,
-  distance: 2.2, speed: 160, description: "Boeing 737-800", registration: "PH-BXA",
+  hex: "484506",
+  flight: "KLM1234",
+  latitude: 52.02,
+  longitude: 5.0,
+  altitude: 1500,
+  track: 90,
+  distance: 2.2,
+  speed: 160,
+  description: "Boeing 737-800",
+  registration: "PH-BXA",
 };
-const HIGH = { hex: "4ca123", flight: "RYR5", latitude: 52.4, longitude: 5.3, altitude: 37000, track: 270, distance: 49.0 };
-const ROTOR = { hex: "4851a7", flight: "LIFE01", latitude: 51.98, longitude: 4.98, altitude: 900, category: "A7", distance: 2.6 };
+const HIGH = {
+  hex: "4ca123",
+  flight: "RYR5",
+  latitude: 52.4,
+  longitude: 5.3,
+  altitude: 37000,
+  track: 270,
+  distance: 49.0,
+};
+const ROTOR = {
+  hex: "4851a7",
+  flight: "LIFE01",
+  latitude: 51.98,
+  longitude: 4.98,
+  altitude: 900,
+  category: "A7",
+  distance: 2.6,
+};
 
 const hue = (color) => Number(/hsl\((\d+)/.exec(color)[1]);
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -135,13 +167,19 @@ const tests = {
     assert.match(root.querySelector(".credit").textContent, /Photo: Jan Seler \/ Planespotters\.net/);
     // The one overhead is not listed again among the nearby.
     const rows = [...root.querySelectorAll(".nearby .row")];
-    assert.deepEqual(rows.map((r) => r.querySelector(".flight").textContent), ["TRA45", "LIFE01"]);
+    assert.deepEqual(
+      rows.map((r) => r.querySelector(".flight").textContent),
+      ["TRA45", "LIFE01"],
+    );
     assert.equal(rows[1].querySelector("ha-icon").getAttribute("icon"), "mdi:helicopter");
     // The status line, with a dot per network.
     const figures = [...root.querySelectorAll(".status .figures")].map((f) => f.textContent);
     assert.equal(JSON.stringify(figures), JSON.stringify(["468 received", "75.0 msg/s", "67.9 km", "S/N 18.7 dB"]));
     const feeds = [...root.querySelectorAll(".feed")].map((f) => [f.textContent, f.className]);
-    assert.deepEqual(feeds, [["Flightradar24", "feed good"], ["FlightAware", "feed warn"]]);
+    assert.deepEqual(feeds, [
+      ["Flightradar24", "feed good"],
+      ["FlightAware", "feed warn"],
+    ]);
   },
 
   "speaks Dutch where Home Assistant does"() {
@@ -197,7 +235,7 @@ const tests = {
       hassWith({
         overhead: overheadState({ ...KLM, flight: evil, airline: evil, photographer: evil }),
         nearby: [{ hex: "1", flight: evil, airline: evil, distance: 2 }],
-      })
+      }),
     );
     const root = card.shadowRoot;
     assert.equal(root.querySelectorAll("img").length, 1); // only the photo
@@ -230,9 +268,18 @@ const tests = {
     const hass = hassWith({ overhead: overheadState(KLM) });
     const card = render(w, hass);
     const before = card.shadowRoot.querySelector(".body").firstElementChild;
-    card.hass = { ...hass, states: { ...hass.states, "sensor.unrelated": { state: "2", attributes: {}, last_updated: "u" } } };
+    card.hass = {
+      ...hass,
+      states: { ...hass.states, "sensor.unrelated": { state: "2", attributes: {}, last_updated: "u" } },
+    };
     assert.equal(card.shadowRoot.querySelector(".body").firstElementChild, before);
-    card.hass = { ...hass, states: { ...hass.states, "sensor.t_etur47_vliegtuigen_ontvangen": { state: "470", attributes: {}, last_updated: "u" } } };
+    card.hass = {
+      ...hass,
+      states: {
+        ...hass.states,
+        "sensor.t_etur47_vliegtuigen_ontvangen": { state: "470", attributes: {}, last_updated: "u" },
+      },
+    };
     assert.notEqual(card.shadowRoot.querySelector(".body").firstElementChild, before);
     assert.match(card.shadowRoot.textContent, /470 received/);
   },
@@ -251,7 +298,19 @@ const tests = {
     const w = browser();
     const Card = w.customElements.get("adsb-station-card");
     const form = Card.getConfigForm();
-    assert.equal(JSON.stringify(form.schema.map((s) => s.name)), JSON.stringify(["device_id", "title", "map", "map_scale", "map_range", "show_nearby", "max_nearby", "show_status"]));
+    assert.equal(
+      JSON.stringify(form.schema.map((s) => s.name)),
+      JSON.stringify([
+        "device_id",
+        "title",
+        "map",
+        "map_scale",
+        "map_range",
+        "show_nearby",
+        "max_nearby",
+        "show_status",
+      ]),
+    );
     w.__adsbStationHass = { locale: { language: "nl" } };
     assert.equal(form.computeLabel({ name: "device_id" }), "Station");
     assert.equal(form.computeLabel({ name: "show_nearby" }), "Toestellen dichtbij tonen");
@@ -268,14 +327,17 @@ const tests = {
     assert.equal(link.subscriptions.length, 1);
     assert.equal(
       JSON.stringify(link.subscriptions[0].message),
-      JSON.stringify({ type: "adsb_station/subscribe_aircraft", device_id: DEVICE })
+      JSON.stringify({ type: "adsb_station/subscribe_aircraft", device_id: DEVICE }),
     );
 
     link.send(SKY([LOW, HIGH, ROTOR]));
     const root = card.shadowRoot;
     const planes = [...root.querySelectorAll(".radar .plane")];
     // Low ones first, so the one at cruising height is drawn on top.
-    assert.deepEqual(planes.map((p) => p.querySelector(".callsign").textContent), ["LIFE01", "KLM1234", "RYR5"]);
+    assert.deepEqual(
+      planes.map((p) => p.querySelector(".callsign").textContent),
+      ["LIFE01", "KLM1234", "RYR5"],
+    );
     const shape = (hex) => root.querySelector(`.plane[data-hex="${hex}"] path`);
     // Warm and low, cool and high.
     assert.ok(hue(shape("484506").getAttribute("fill")) < 40);
@@ -335,8 +397,14 @@ const tests = {
     link.send({
       ...SKY([LOW]),
       trails: {
-        [LOW.hex]: [[52.0, 5.0, 1200, now - 60], [52.02, 5.0, 1500, now - 5]],
-        [HIGH.hex]: [[52.3, 5.5, 37000, now - 200], [52.4, 5.3, 37000, now - 90]],
+        [LOW.hex]: [
+          [52.0, 5.0, 1200, now - 60],
+          [52.02, 5.0, 1500, now - 5],
+        ],
+        [HIGH.hex]: [
+          [52.3, 5.5, 37000, now - 200],
+          [52.4, 5.3, 37000, now - 90],
+        ],
       },
     });
     assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 1);
@@ -411,7 +479,10 @@ const tests = {
     link.send(SKY([LOW, HIGH]));
     const tap = () => card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
     tap();
-    assert.equal(JSON.stringify(asked), JSON.stringify([{ type: "adsb_station/look_up_route", device_id: DEVICE, hex: "4ca123" }]));
+    assert.equal(
+      JSON.stringify(asked),
+      JSON.stringify([{ type: "adsb_station/look_up_route", device_id: DEVICE, hex: "4ca123" }]),
+    );
     await tick();
     await tick();
     assert.ok(card.shadowRoot.querySelector(".radar .route"));
@@ -535,7 +606,12 @@ const tests = {
   "draws the same sky on map tiles when asked"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
-    for (const [sector, km] of [["n", 40], ["e", 30], ["s", 20], ["w", 25]]) {
+    for (const [sector, km] of [
+      ["n", 40],
+      ["e", 30],
+      ["s", 20],
+      ["w", 25],
+    ]) {
       const id = `sensor.t_etur47_bereik_${sector}`;
       hass.entities[id] = entity(id, `max_range_${sector}`);
       hass.states[id] = { state: String(km), attributes: { unit_of_measurement: "km" }, last_updated: "t" };
@@ -551,7 +627,10 @@ const tests = {
     // proxy to ask, so they come from OpenStreetMap itself.
     const tiles = [...radar.querySelectorAll(".tiles image")].map((i) => i.getAttribute("href"));
     assert.ok(tiles.length >= 2);
-    assert.ok(tiles.every((href) => /^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/.test(href)), tiles[0]);
+    assert.ok(
+      tiles.every((href) => /^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/.test(href)),
+      tiles[0],
+    );
     // The same tiles again on the next poll, not loaded afresh.
     const layer = radar.querySelector(".tiles");
     link.send(SKY([{ ...LOW, latitude: 52.031 }, HIGH, ROTOR]));
@@ -563,7 +642,10 @@ const tests = {
     assert.equal(radar.querySelectorAll(".trails line").length, 1);
     assert.ok(radar.querySelector(".coverage"));
     // A tapped aircraft says what it is in its title as well.
-    assert.match(radar.querySelector('.plane[data-hex="484506"] title').textContent, /KLM1234 · Boeing 737-800 · 1,500 ft/);
+    assert.match(
+      radar.querySelector('.plane[data-hex="484506"] title').textContent,
+      /KLM1234 · Boeing 737-800 · 1,500 ft/,
+    );
     // The compass letters belong to the scope, not to a map.
     assert.equal(radar.querySelector(".compass"), null);
     // Credited as the tiles ask.
@@ -578,12 +660,17 @@ const tests = {
     const link = connect(hass);
     const card = render(w, hass, { map: "map", map_scale: "fixed", map_range: 50 });
     // Due north and due east of the station, 0.2 degrees out.
-    link.send(SKY([
-      { ...LOW, hex: "n1", latitude: 52.2, longitude: 5.0, distance: 22.2 },
-      { ...LOW, hex: "e1", latitude: 52.0, longitude: 5.2, distance: 13.7 },
-    ]));
+    link.send(
+      SKY([
+        { ...LOW, hex: "n1", latitude: 52.2, longitude: 5.0, distance: 22.2 },
+        { ...LOW, hex: "e1", latitude: 52.0, longitude: 5.2, distance: 13.7 },
+      ]),
+    );
     const at = (hex) =>
-      /translate\(([-\d.]+) ([-\d.]+)\)/.exec(card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).getAttribute("transform")).slice(1).map(Number);
+      /translate\(([-\d.]+) ([-\d.]+)\)/
+        .exec(card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).getAttribute("transform"))
+        .slice(1)
+        .map(Number);
     const [nx, ny] = at("n1");
     const [ex, ey] = at("e1");
     assert.equal(nx, 200);
@@ -615,7 +702,10 @@ const tests = {
     await tick();
     await tick();
     const layer = card.shadowRoot.querySelector(".tiles");
-    assert.match(layer.querySelector("image").getAttribute("href"), /^\/api\/map_tiles\/raster\/\d+\/\d+\/\d+\.png\?token=t0k%2Fen$/);
+    assert.match(
+      layer.querySelector("image").getAttribute("href"),
+      /^\/api\/map_tiles\/raster\/\d+\/\d+\/\d+\.png\?token=t0k%2Fen$/,
+    );
     // Asked once, not on every poll.
     link.send(SKY([{ ...LOW, latitude: 52.03 }]));
     assert.equal(JSON.stringify(asked), JSON.stringify(["map_tiles/access_token"]));
@@ -632,7 +722,10 @@ const tests = {
     link.send(SKY([LOW]));
     await tick();
     await tick();
-    assert.match(card.shadowRoot.querySelector(".tiles image").getAttribute("href"), /^https:\/\/tile\.openstreetmap\.org\//);
+    assert.match(
+      card.shadowRoot.querySelector(".tiles image").getAttribute("href"),
+      /^https:\/\/tile\.openstreetmap\.org\//,
+    );
     assert.equal(card.shadowRoot.querySelector(".tiles").getAttribute("class"), "tiles");
   },
 
@@ -672,7 +765,12 @@ const tests = {
 
   "scales to the aircraft, to the records, or not at all, as chosen"() {
     const hass = hassWith({ overhead: overheadState(KLM) });
-    for (const [sector, km] of [["n", 140], ["e", 60], ["s", 40], ["w", 90]]) {
+    for (const [sector, km] of [
+      ["n", 140],
+      ["e", 60],
+      ["s", 40],
+      ["w", 90],
+    ]) {
       const id = `sensor.t_etur47_bereik_${sector}`;
       hass.entities[id] = entity(id, `max_range_${sector}`);
       hass.states[id] = { state: String(km), attributes: { unit_of_measurement: "km" }, last_updated: "t" };

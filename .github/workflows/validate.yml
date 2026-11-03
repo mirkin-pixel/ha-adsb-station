@@ -85,6 +85,9 @@ jobs:
       - name: Run the card tests
         run: npm test
         working-directory: tests/card
+      - name: Check the card's formatting
+        run: npm run format:check
+        working-directory: tests/card
 
   hassfest:
     name: Hassfest
