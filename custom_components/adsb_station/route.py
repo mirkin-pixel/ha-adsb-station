@@ -98,6 +98,15 @@ def _text(value: Any) -> str | None:
     return text or None
 
 
+class RouteLookupError(Exception):
+    """Routeset could not be asked, or did not answer."""
+
+
+async def _until(waiter: asyncio.Future[None], seconds: float) -> None:
+    """Wait for the waiter to be done, or for the seconds to pass."""
+    await asyncio.wait((waiter,), timeout=seconds)
+
+
 class RouteLookup:
     """Resolves callsigns to routes, remembering what it has been told."""
 
@@ -106,57 +115,106 @@ class RouteLookup:
         self._session = session
         self._cache: dict[str, _CachedRoute] = {}
         self._asked_at: datetime | None = None
+        # Tapped callsigns waiting for a turn; whoever asks next takes them along.
+        self._waiting: dict[str, tuple[FlightPosition, asyncio.Future[None]]] = {}
 
     async def async_resolve(
-        self, flights: Sequence[FlightPosition], *, wait: bool = False
+        self, flights: Sequence[FlightPosition]
     ) -> dict[str, FlightRoute]:
         """Return the route of every callsign we know, asking about the rest.
 
         Within thirty seconds of the last question the rest wait for the next
-        poll, or with `wait` (a tap on the card) for their turn. Never raises.
+        poll. Never raises.
         """
+        now = dt_util.utcnow()
+        self._drop_expired(now)
+        known, pending = self._split(flights)
+        if not pending or self._remaining(now) > 0:
+            return known
+
+        waiting = [flight for flight, _ in self._waiting.values()]
+        answers = await self._async_ask([*waiting, *pending.values()], now)
+        for callsign in pending:
+            if (route := (answers or {}).get(callsign)) is not None:
+                known[callsign] = route
+        return known
+
+    async def async_look_up(self, flight: FlightPosition) -> FlightRoute | None:
+        """Return the route of one tapped callsign, or None if nobody knows it.
+
+        Waits for routeset's next turn, at most thirty seconds away; a
+        poll that takes that turn asks about this callsign too. Raises
+        RouteLookupError when routeset could not answer.
+        """
+        callsign = flight.callsign
         while True:
             now = dt_util.utcnow()
             self._drop_expired(now)
-            known, pending = self._split(flights)
-            if not pending:
-                return known
-            remaining = (
-                0.0
-                if self._asked_at is None
-                else (self._asked_at + ROUTESET_MIN_INTERVAL - now).total_seconds()
-            )
+            if (cached := self._cache.get(callsign)) is not None:
+                return cached.route
+            remaining = self._remaining(now)
             if remaining <= 0:
                 break
-            if not wait:
-                return known
-            # A poll can take the turn while this sleeps. Then it is a turn
-            # later, and the cache may by then hold the answer anyway.
-            await asyncio.sleep(remaining)
+            if callsign not in self._waiting:
+                waiter = asyncio.get_running_loop().create_future()
+                self._waiting[callsign] = (flight, waiter)
+            waiter = self._waiting[callsign][1]
+            await _until(waiter, remaining)
+            if waiter.done():
+                # Asked about by someone else; no answer in the cache means
+                # that question failed.
+                if (cached := self._cache.get(callsign)) is not None:
+                    return cached.route
+                raise RouteLookupError
 
-        asking = list(pending.values())[:ROUTE_MAX_LOOKUPS_PER_POLL]
-        if len(asking) < len(pending):
+        waiting = [other for other, _ in self._waiting.values()]
+        answers = await self._async_ask([flight, *waiting], now)
+        if answers is None:
+            raise RouteLookupError
+        return answers.get(callsign)
+
+    def _remaining(self, now: datetime) -> float:
+        """Return the seconds until routeset may be asked again."""
+        if self._asked_at is None:
+            return 0.0
+        return (self._asked_at + ROUTESET_MIN_INTERVAL - now).total_seconds()
+
+    async def _async_ask(
+        self, flights: Sequence[FlightPosition], now: datetime
+    ) -> dict[str, FlightRoute] | None:
+        """Take routeset's turn for these callsigns, first ones first.
+
+        Return what it answered, or None when it could not be asked. Every
+        tap waiting on a callsign asked about is told, either way.
+        """
+        asking: dict[str, FlightPosition] = {}
+        for flight in flights:
+            asking.setdefault(flight.callsign, flight)
+        if len(asking) > ROUTE_MAX_LOOKUPS_PER_POLL:
             _LOGGER.debug(
                 "Asking about %d of %d new callsigns this poll; the rest wait "
                 "for the next one",
+                ROUTE_MAX_LOOKUPS_PER_POLL,
                 len(asking),
-                len(pending),
             )
+            asking = dict(list(asking.items())[:ROUTE_MAX_LOOKUPS_PER_POLL])
+        told = [self._waiting.pop(c)[1] for c in asking if c in self._waiting]
 
         self._asked_at = now
         try:
-            answers = await self._async_fetch(asking)
+            answers = await self._async_fetch(list(asking.values()))
         except (TimeoutError, aiohttp.ClientError, ValueError) as err:
             # Nothing is cached on a failure, so the next poll tries again.
             _LOGGER.debug("Could not reach routeset for a route: %s", err)
-            return known
-
-        for flight in asking:
-            route = answers.get(flight.callsign)
-            self._remember(flight.callsign, route, now)
-            if route is not None:
-                known[flight.callsign] = route
-        return known
+            return None
+        else:
+            for callsign in asking:
+                self._remember(callsign, answers.get(callsign), now)
+            return answers
+        finally:
+            for waiter in told:
+                if not waiter.done():
+                    waiter.set_result(None)
 
     def _split(
         self, flights: Sequence[FlightPosition]

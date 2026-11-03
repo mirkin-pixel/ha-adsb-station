@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
@@ -32,6 +33,7 @@ from custom_components.adsb_station.route import (
     FlightPosition,
     FlightRoute,
     RouteLookup,
+    RouteLookupError,
     build_route_lookup,
     route_attributes,
     route_points,
@@ -84,6 +86,9 @@ ROUTESET_ANSWER: list[dict[str, Any]] = [
 NO_SUCH_FLIGHT: list[Any] = [None]
 
 HERE = FlightPosition(callsign=NEARBY_CALLSIGN, latitude=52.0, longitude=5.0)
+
+# An aircraft asked about first, so that routeset's next turn is a while off.
+OTHER = FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)
 
 
 @pytest.fixture
@@ -490,60 +495,97 @@ async def test_no_more_than_one_question_every_thirty_seconds(
 
 
 async def test_a_tapped_aircraft_waits_for_its_turn_rather_than_going_without(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
-    """Test that asking with wait sleeps out the thirty seconds, then asks."""
+    """Test that a tap sleeps out the thirty seconds, then asks."""
     aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
     lookup = build_lookup(hass)
-    await lookup.async_resolve(
-        [FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)]
-    )
-    slept: list[float] = []
+    await lookup.async_resolve([OTHER])
+    waited: list[float] = []
 
-    async def _sleep(seconds: float) -> None:
-        slept.append(seconds)
-        # As though the time had passed.
-        lookup._asked_at = None
+    async def _until(waiter: asyncio.Future[None], seconds: float) -> None:
+        waited.append(seconds)
+        freezer.tick(timedelta(seconds=seconds))
 
-    with patch("custom_components.adsb_station.route.asyncio.sleep", _sleep):
-        routes = await lookup.async_resolve([HERE], wait=True)
+    with patch("custom_components.adsb_station.route._until", _until):
+        route = await lookup.async_look_up(HERE)
 
-    assert slept and 0 < slept[0] <= ROUTESET_MIN_INTERVAL.total_seconds()
-    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
+    assert waited == [ROUTESET_MIN_INTERVAL.total_seconds()]
+    assert route is not None
+    assert route.label == "GOT-AMS"
     assert aioclient_mock.call_count == 2
 
 
-async def test_a_tapped_aircraft_keeps_waiting_when_a_poll_takes_its_turn(
+async def test_a_poll_takes_a_waiting_tap_along(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
 ) -> None:
-    """Test that a poll asking first does not leave the tap without a route.
+    """Test that a poll taking the turn asks about the tapped aircraft too.
 
-    A poll comes every few seconds. One that asks about a new aircraft nearby
-    while a tap sleeps out the thirty seconds takes the turn the tap was
-    waiting for, and the tap then waits for the next one.
+    Before, the tap then waited another thirty seconds, and could go on
+    losing the turn to the polls.
     """
     aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
     lookup = build_lookup(hass)
-    await lookup.async_resolve(
-        [FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)]
-    )
-    slept: list[float] = []
+    await lookup.async_resolve([OTHER])
+    tap = hass.async_create_task(lookup.async_look_up(HERE))
+    await asyncio.sleep(0)
+    assert not tap.done()
 
-    async def _sleep(seconds: float) -> None:
-        slept.append(seconds)
-        freezer.tick(timedelta(seconds=seconds))
-        if len(slept) == 1:
-            # A poll gets in first, the moment the thirty seconds are up.
-            await lookup.async_resolve(
-                [FlightPosition(callsign="EZY22", latitude=52.0, longitude=5.0)]
-            )
+    freezer.tick(ROUTESET_MIN_INTERVAL)
+    nearby = FlightPosition(callsign="EZY22", latitude=52.0, longitude=5.0)
+    await lookup.async_resolve([nearby])
+    route = await asyncio.wait_for(tap, 1)
 
-    with patch("custom_components.adsb_station.route.asyncio.sleep", _sleep):
-        routes = await lookup.async_resolve([HERE], wait=True)
+    assert route is not None
+    assert route.label == "GOT-AMS"
+    assert aioclient_mock.call_count == 2
+    asked = [plane["callsign"] for plane in aioclient_mock.mock_calls[1][2]["planes"]]
+    assert asked == [NEARBY_CALLSIGN, "EZY22"]
 
-    assert len(slept) == 2
-    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
-    assert aioclient_mock.call_count == 3
+
+async def test_a_tap_hears_that_the_question_it_went_along_with_failed(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
+) -> None:
+    """Test that a tap is told at once, rather than waiting another turn."""
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
+    lookup = build_lookup(hass)
+    await lookup.async_resolve([OTHER])
+    tap = hass.async_create_task(lookup.async_look_up(HERE))
+    await asyncio.sleep(0)
+
+    freezer.tick(ROUTESET_MIN_INTERVAL)
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(ROUTESET_URL, status=502)
+    nearby = FlightPosition(callsign="EZY22", latitude=52.0, longitude=5.0)
+    await lookup.async_resolve([nearby])
+
+    with pytest.raises(RouteLookupError):
+        await asyncio.wait_for(tap, 1)
+    assert not lookup._waiting
+
+
+async def test_a_tap_says_so_when_routeset_cannot_be_reached(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that a failed question is not taken for "nobody knows the route"."""
+    aioclient_mock.post(ROUTESET_URL, status=502)
+    lookup = build_lookup(hass)
+
+    with pytest.raises(RouteLookupError):
+        await lookup.async_look_up(HERE)
+    assert not lookup._cache
+
+
+async def test_a_tap_on_a_known_callsign_asks_nothing(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Test that a tap answers from the cache, also with "no route"."""
+    aioclient_mock.post(ROUTESET_URL, json=NO_SUCH_FLIGHT)
+    lookup = build_lookup(hass)
+    await lookup.async_resolve([HERE])
+
+    assert await lookup.async_look_up(HERE) is None
+    assert aioclient_mock.call_count == 1
 
 
 async def test_where_the_airports_are(
