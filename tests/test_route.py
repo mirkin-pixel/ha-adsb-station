@@ -513,6 +513,39 @@ async def test_a_tapped_aircraft_waits_for_its_turn_rather_than_going_without(
     assert aioclient_mock.call_count == 2
 
 
+async def test_a_tapped_aircraft_keeps_waiting_when_a_poll_takes_its_turn(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: Any
+) -> None:
+    """Test that a poll asking first does not leave the tap without a route.
+
+    A poll comes every few seconds. One that asks about a new aircraft nearby
+    while a tap sleeps out the thirty seconds takes the turn the tap was
+    waiting for, and the tap then waits for the next one.
+    """
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+    lookup = build_lookup(hass)
+    await lookup.async_resolve(
+        [FlightPosition(callsign="TRA45", latitude=52.0, longitude=5.0)]
+    )
+    slept: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        slept.append(seconds)
+        freezer.tick(timedelta(seconds=seconds))
+        if len(slept) == 1:
+            # A poll gets in first, the moment the thirty seconds are up.
+            await lookup.async_resolve(
+                [FlightPosition(callsign="EZY22", latitude=52.0, longitude=5.0)]
+            )
+
+    with patch("custom_components.adsb_station.route.asyncio.sleep", _sleep):
+        routes = await lookup.async_resolve([HERE], wait=True)
+
+    assert len(slept) == 2
+    assert routes[NEARBY_CALLSIGN].label == "GOT-AMS"
+    assert aioclient_mock.call_count == 3
+
+
 async def test_where_the_airports_are(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
