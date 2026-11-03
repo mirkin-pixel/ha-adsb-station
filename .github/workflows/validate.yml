@@ -1,7 +1,9 @@
 name: Validate
 
 on:
+  # Branches are tested through their pull request; once on main as well.
   push:
+    branches: [main]
   pull_request:
   schedule:
     - cron: "0 4 * * 1"
