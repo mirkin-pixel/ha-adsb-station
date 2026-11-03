@@ -26,12 +26,7 @@ async def async_setup_entry(
 
 
 class AdsbStationResetRangeButton(AdsbStationEntity, ButtonEntity):
-    """Clears the range record of every compass sector.
-
-    The records only ever grow, which is what makes them useful, and also what
-    makes them wrong the moment the antenna moves or a neighbour puts up a
-    shed. This is how you start measuring again.
-    """
+    """Clears the range record of every compass sector, for after a change."""
 
     _attr_translation_key = "reset_range"
     _attr_entity_category = EntityCategory.CONFIG

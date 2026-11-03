@@ -1,18 +1,7 @@
-"""What you can ask out loud, for the ADS-B Station integration.
+"""Five spoken questions for Assist, answered from the last poll.
 
-"What is flying over?" is the question the whole receiver was put on the roof
-for, and it is a better question to ask a room than to look up on a dashboard:
-you ask it while looking out of the window.
-
-Five of them, answered out of the last poll. The names come from the tables
-this integration already ships, so the answer is "KLM flight 1234" rather than
-"kilo lima mike one two three four", and it is spoken without a single request
-leaving your network — which is the difference between this and asking a
-speaker in the corner what is overhead.
-
-The sentences that reach these handlers are not here. Home Assistant reads
-those out of your configuration directory alone, so they ship as files and are
-put there by you or by `adsb_station.install_sentences`.
+The sentences ship as files and must be copied into the configuration
+directory, by hand or with `adsb_station.install_sentences`.
 """
 
 from __future__ import annotations
@@ -46,9 +35,7 @@ INTENT_CLOSEST: Final = "AdsbStationClosest"
 INTENT_TRAFFIC: Final = "AdsbStationTraffic"
 INTENT_ROUTE: Final = "AdsbStationRoute"
 
-# What the traffic question can ask for, and how each is recognised. Military
-# is a marker on the aircraft; the other two are emitter categories it
-# broadcasts, which is the only thing that tells them apart at all.
+# Military is a marker; the others are broadcast emitter categories.
 TRAFFIC_KINDS: Final[dict[str, str | None]] = {
     "military": None,
     "helicopter": "A7",
@@ -63,10 +50,7 @@ _SPOKEN_MATCHES: Final = 1
 class _AdsbStationIntent(intent.IntentHandler):
     """Shared ground: find the station, pick the language, say one thing.
 
-    Every one of these answers out of a single station. Two receivers is rare
-    enough that asking which one out loud would cost every other setup a
-    question, so the first by name answers and the services are there for
-    anyone who needs to be exact about it.
+    With two receivers the first by name answers; the services can pick one.
     """
 
     async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
@@ -220,9 +204,7 @@ class TrafficIntent(_AdsbStationIntent):
         """Answer with the nearest one of its kind, and how many others."""
         kind = str(slots.get("kind", {}).get("value", "")).strip().lower()
         if kind not in TRAFFIC_KINDS:
-            # The sentence file only ever sends the three, but a spoken slot
-            # is text from outside and "military" is what a missing one would
-            # otherwise fall through to.
+            # A slot is outside text; do not fall through to "military".
             return say(language, "nothing_matching")
         category = TRAFFIC_KINDS[kind]
 
@@ -283,21 +265,13 @@ class RouteIntent(_AdsbStationIntent):
 
 
 def _place(airport: Any) -> str | None:
-    """Return what to call one end of a route out loud.
-
-    The city, because that is what somebody asking means. An airport code
-    read aloud is three letters and no answer at all.
-    """
+    """Return what to call one end of a route out loud: the city, not the code."""
     if airport is None:
         return None
     return airport.location or airport.name or airport.code
 
 
-# The five questions, under the short names a service takes. Home Assistant
-# reads sentences out of the configuration directory alone, so the intents
-# above are only reachable once two files have been copied there. These same
-# answers are reachable without copying anything, through a sentence trigger
-# in an automation, and that is what the names are for.
+# The names `adsb_station.speak` takes, for answers without the sentence files.
 QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
     "overhead": OverheadIntent(),
     "count": CountIntent(),
@@ -321,11 +295,6 @@ def answer_question(
 
 
 async def async_setup_intents(hass: HomeAssistant) -> None:
-    """Register what can be asked out loud, once for the integration.
-
-    Home Assistant's intent component finds this module by its name and awaits
-    this once both it and this integration are loaded. Calling it from
-    `async_setup` as well would register every question twice.
-    """
+    """Register what can be asked out loud; the intent component calls this."""
     for handler in QUESTIONS.values():
         intent.async_register(hass, handler)

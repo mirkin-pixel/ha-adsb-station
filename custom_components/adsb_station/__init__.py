@@ -41,14 +41,9 @@ PLATFORMS: list[Platform] = [
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register what belongs to the integration rather than to one station.
+    """Register the services, websocket commands and card once, not per entry.
 
-    The services answer about a station, but they are the integration's and
-    are registered once. Doing it per entry would register them again for the
-    second feeder in front of the same decoder, and unregister them for both
-    when either one is removed. The spoken questions are registered once too,
-    by the intent component through `intent.async_setup_intents`. So is the
-    dashboard card, which belongs to no station at all.
+    Per entry, removing one feeder would unregister them for the others.
     """
     async_setup_services(hass)
     async_setup_websocket(hass)
@@ -88,38 +83,27 @@ async def async_migrate_entry(
     data = {**entry.data}
     options = {**entry.options}
 
-    # Entries from before there was more than one kind of feeder record none,
-    # and fr24feed is the only one they can be. Writing it once beats deriving
-    # it on every load, where it would not appear in the entry itself and
-    # would puzzle anyone reading diagnostics.
+    # Entries from before other feeders can only be fr24feed.
     if entry.version < 2 and CONF_FEEDER_TYPE not in data:
         data[CONF_FEEDER_TYPE] = (
             FEEDER_FR24 if data.get(CONF_PORT) is not None else None
         )
 
-    # Routes used to be a choice between two sources, one of which sent a
-    # sixth of the aircraft the way they had come. Anyone who picked either of
-    # them asked for routes, and that is all the setting says now.
+    # Picking either old route source becomes routes switched on.
     if entry.version < 3 and LEGACY_ROUTE_SOURCE in options:
         options[CONF_LOOK_UP_ROUTES] = options.pop(LEGACY_ROUTE_SOURCE) not in (
             None,
             "none",
         )
 
-    # PiAware's uptime became the moment the host was started, which says the
-    # same thing without a new row in the recorder every poll. It is a
-    # different sensor rather than the same one in another unit: history in
-    # hours has no place on a timestamp, so the old one goes.
+    # PiAware's uptime sensor became a start time; the old one is removed.
     if entry.version < 4:
         registry = er.async_get(hass)
         for registered in er.async_entries_for_config_entry(registry, entry.entry_id):
             if registered.unique_id.endswith(f"_{LEGACY_PIAWARE_UPTIME}"):
                 registry.async_remove(registered.entity_id)
 
-    # The moment aircraft.json was last read is new on every poll, and so a
-    # row every poll, for what the receiver binary sensor already tells. It is
-    # off by default now, and switched off once for entries that had it on;
-    # one somebody switched off themselves keeps saying so.
+    # "Last read" is now off by default, and switched off once for old entries.
     if entry.version < 5:
         registry = er.async_get(hass)
         for registered in er.async_entries_for_config_entry(registry, entry.entry_id):

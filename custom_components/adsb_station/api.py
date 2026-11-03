@@ -55,12 +55,7 @@ def sibling_url(url: str, filename: str) -> str:
 
 
 def web_root(aircraft_url: str) -> str:
-    """Return the page a human would open for this receiver.
-
-    Every layout we know serves aircraft.json from a "data" directory below the
-    web interface, so /tar1090/data/aircraft.json belongs to /tar1090/. A URL
-    that does not follow that shape falls back to the root of the server.
-    """
+    """Return the receiver's web page: the part before /data/, or the root."""
     base, separator, _ = aircraft_url.partition("/data/")
     if not separator:
         scheme, _, remainder = aircraft_url.partition("://")
@@ -92,9 +87,7 @@ async def async_fetch_json(
 
 def build_candidate_urls(host: str) -> list[str]:
     """Return the aircraft.json URLs to probe, in the order we prefer them."""
-    # Port 80 is left out of the URL. It is the default for http, so writing it
-    # produces an address that is equal to the bare one for a reader but not
-    # for a URL library, and it is not what anyone would type by hand.
+    # Port 80 is left out, as anyone would type it.
     return [
         f"http://{host}{path}"
         if port == DEFAULT_HTTP_PORT
@@ -117,9 +110,7 @@ async def async_detect_aircraft_url(
 ) -> str | None:
     """Look for aircraft.json in the usual places and return the best match.
 
-    The candidates span two ports, so they are probed at the same time; walking
-    them one by one would leave someone with a firewalled port waiting through
-    a timeout for every single one.
+    Probed in parallel, so a firewalled port costs one timeout, not one each.
     """
     urls = build_candidate_urls(host)
     found = await asyncio.gather(
@@ -139,11 +130,7 @@ async def async_detect_aircraft_url(
 async def async_detect_statistics(
     session: aiohttp.ClientSession, aircraft_url: str
 ) -> tuple[str | None, list[str]]:
-    """Look for the stats.json next to an aircraft.json.
-
-    Returns its URL and the optional features it was found to report, so the
-    entities for those can be created only where they can have a value.
-    """
+    """Look for the stats.json next to an aircraft.json, and what it reports."""
     url = sibling_url(aircraft_url, STATS_FILENAME)
     try:
         data = await async_fetch_json(session, url)
@@ -181,11 +168,7 @@ def _window_counts_positions(window: Any) -> bool:
 
 
 def stats_report_gain(data: dict[str, Any]) -> bool:
-    """Return True if this stats.json carries gain figures.
-
-    The dump1090 fork that fr24feed ships reports none, so its users would
-    otherwise get a gain sensor that can never have a value.
-    """
+    """Return True if this stats.json carries gain figures (fr24feed's has none)."""
     if _as_gain(data.get("gain_db")) is not None:
         return True
     return any(
@@ -210,11 +193,8 @@ def read_gain(
 ) -> float | None:
     """Return the gain the dongle is running at, in dB.
 
-    The two decoder families disagree on where it lives. dump1090-fa reports it
-    per window under "local", or under "adaptive" when adaptive gain is running
-    and that is the value actually in use. readsb puts a single "gain_db" at the
-    root of the document instead, which is the more honest place: the gain
-    belongs to the dongle, not to a measurement window.
+    dump1090-fa has it per window ("adaptive" first, then "local"); readsb
+    once, as "gain_db" at the root.
     """
     for section in ("adaptive", "local"):
         block = window.get(section)
@@ -229,11 +209,7 @@ def read_gain(
 
 
 class AdsbStationClient:
-    """Reads the local endpoints of an ADS-B station.
-
-    The fr24feed status page is optional: a station that only runs a decoder,
-    or that feeds a network other than Flightradar24, has no port to read it on.
-    """
+    """Reads the local endpoints of an ADS-B station; the feeder is optional."""
 
     def __init__(
         self,

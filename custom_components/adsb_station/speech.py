@@ -1,21 +1,8 @@
-"""What the station sounds like when it answers out loud.
+"""The spoken answers, in English and Dutch.
 
-Spoken text is not entity text. An entity says `KLM1234` and `n` and `2000`,
-which a screen reads at a glance and a speaker turns into noise: a callsign
-read as a word, a compass sector read as a letter, a height read as a bare
-number in a unit nobody said. So the answers live here rather than in
-`strings.json`, which holds what Home Assistant shows, and rather than
-scattered through the handlers, where a sentence would be assembled in three
-places and translated in none.
-
-Two languages, and English for anything else. Not because the other thirty
-are unwelcome, but because a sentence that has to sound natural cannot be
-machine translated and left at that; the tables are laid out so adding one is
-adding a key, not restructuring anything.
-
-English is the source, as it is for the rest of Home Assistant: a phrase or a
-direction a language does not have yet is said in English rather than not at
-all, so a new phrase can land before every translation has caught up.
+Spoken text differs from entity text: callsigns, sectors and heights must be
+written to be heard. English is the fallback for any phrase or language that
+is missing.
 """
 
 from __future__ import annotations
@@ -111,26 +98,17 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
     },
 }
 
-# A callsign is read out as characters, so the letters have to be separated or
-# a speaker says "klum". The digits are left as they are: "one two three" is
-# what a reader does to a flight number nobody calls that.
+# Letters are spaced so they are spelled, not read as a word.
 _SPELL: Final = " "
 
-# How each language groups the thousands. It matters more than it looks: a
-# Dutch reader takes "3,700" for three point seven, which is a different
-# height by three orders of magnitude.
+# In Dutch "3,700" reads as three point seven.
 _THOUSANDS: Final[dict[str, str]] = {"en": ",", "nl": "."}
 # Both languages write a decimal point the other way round as well.
 _DECIMAL: Final[dict[str, str]] = {"en": ".", "nl": ","}
 
 
 def language_of(language: str | None) -> str:
-    """Return which of our languages to answer in.
-
-    Home Assistant hands over anything from `nl` to `en-GB`, and the part
-    before the dash is the language. Anything we have no table for is
-    answered in English, which is worse than silence in no case.
-    """
+    """Return which of our languages to answer in, by the part before the dash."""
     if language is None:
         return DEFAULT_LANGUAGE
     code = language.replace("_", "-").split("-", 1)[0].lower()
@@ -157,10 +135,7 @@ def rounded(value: float, language: str) -> str:
 def name_of(summary: AircraftSummary, language: str) -> str:
     """Return what to call this aircraft out loud.
 
-    An airliner is its airline and its flight number, which is how it is
-    announced everywhere else. Anything else is read out character by
-    character, because a registration is not a word and a hex code is even
-    less of one.
+    An airline flight by airline and number; anything else spelled out.
     """
     flight = None if summary.flight is None else summary.flight.strip().upper()
     if flight:

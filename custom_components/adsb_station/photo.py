@@ -1,21 +1,8 @@
-"""What an aircraft looks like.
+"""Photos of aircraft from Planespotters.net, looked up by ICAO address.
 
-Nothing an aircraft broadcasts says this either, so like a route it is
-something to be asked for, and it stays off until you switch it on. The source
-is Planespotters.net, which keeps a photo of most airframes that fly and
-answers by the ICAO address every aircraft broadcasts, so it works whether or
-not your decoder has an aircraft database.
-
-The photos are someone's work, and Planespotters lends them out on terms:
-whoever shows one names the photographer next to it and makes the photo lead
-back to its page. That is why this hands a dashboard the photo, the link and
-the name as three attributes and never sets one as an entity picture. Home
-Assistant shows an entity picture as a small round avatar with neither, and
-there is no way to put them back.
-
-The image itself is never fetched here. The terms ask for it to be loaded by
-whatever shows it, straight from the address the API gave, so all this keeps
-is that address.
+Its terms require the photographer's name and a link to the photo page next
+to every photo, so these are attributes, never an entity picture, and the
+image is loaded by the dashboard, not fetched here.
 """
 
 from __future__ import annotations
@@ -45,9 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 # a poll for, so it gets as little patience as a route does.
 TIMEOUT = 8
 
-# An ICAO address, as the database is keyed on. readsb marks an address that is
-# not one, such as a TIS-B track, with a leading tilde, and a photo looked up by
-# one of those would be of whichever airframe the number happens to belong to.
+# Excludes readsb's `~` addresses, which would show the wrong airframe.
 _ICAO_ADDRESS = re.compile(r"[0-9a-f]{6}")
 
 
@@ -94,8 +79,7 @@ class PhotoLookup:
     async def async_resolve(self, hex_codes: Iterable[str]) -> dict[str, AircraftPhoto]:
         """Return the photo of every address we know, asking about a few more.
 
-        Never raises: a photo is a nicety, and losing it must not cost you the
-        aircraft entities that do come off your own receiver.
+        Never raises.
         """
         now = dt_util.utcnow()
         self._drop_expired(now)
@@ -117,9 +101,7 @@ class PhotoLookup:
             try:
                 photo = await self._async_fetch(hex_code)
             except (TimeoutError, aiohttp.ClientError, ValueError) as err:
-                # Nothing is cached on a failure, so a later poll tries again.
-                # The rest wait too: a source that just failed one request is
-                # not one to send the next to straight away.
+                # Not cached, so a later poll retries; the rest wait as well.
                 _LOGGER.debug("Could not reach Planespotters for a photo: %s", err)
                 break
             self._remember(hex_code, photo, now)
@@ -167,11 +149,7 @@ class PhotoLookup:
 
 
 def _planespotters_photo(item: Any) -> AircraftPhoto | None:
-    """Read the photo out of an answer, or None if it cannot be shown properly.
-
-    A photo with no page to lead back to, or no name to put beside it, is one
-    the terms do not let us show, so it is as good as none.
-    """
+    """Read the photo out of an answer, or None without the link or name."""
     if not isinstance(item, dict):
         return None
     src = None
@@ -196,11 +174,7 @@ def build_photo_lookup(
 
 
 def photo_attributes(photo: AircraftPhoto | None) -> dict[str, Any]:
-    """Describe a photo for the attributes of an aircraft.
-
-    All three or none: a photo without its credit and its link is not one a
-    dashboard may show.
-    """
+    """Describe a photo for the attributes of an aircraft: all three or none."""
     if photo is None:
         return {}
     return {

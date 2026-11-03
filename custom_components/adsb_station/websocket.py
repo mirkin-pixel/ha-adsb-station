@@ -1,14 +1,7 @@
-"""The sky as the dashboard card draws it, over the websocket.
+"""The sky for the dashboard card, over a websocket subscription.
 
-The card's radar shows every aircraft with a position, not only the ones
-inside the nearby radius, and no entity carries that list. Putting it in one
-would send the whole sky to every open browser on every poll, whether a radar
-is on screen or not, and every attribute change is written to the state
-machine. A subscription sends it only to a card that asked for it, only while
-that card is open, and nothing of it is ever recorded.
-
-The station is named by its device, which is what the card already knows: it
-finds its entities by device and translation key.
+Only sent to an open card that asked, and never recorded; an entity would
+push the whole sky to every browser every poll. Stations are named by device.
 """
 
 from __future__ import annotations
@@ -39,9 +32,7 @@ def async_setup_websocket(hass: HomeAssistant) -> None:
 def _receiver_entry(hass: HomeAssistant, device_id: str) -> ConfigEntry | None:
     """Return the loaded entry with a receiver that a device belongs to.
 
-    Asked the other way round, entry to devices, because the device's own
-    list of entries is on its way out and the single entry that replaces it
-    is newer than the oldest Home Assistant this supports.
+    Searched from the entries, which works on the oldest supported release.
     """
     registry = dr.async_get(hass)
     for entry in hass.config_entries.async_loaded_entries(DOMAIN):
@@ -55,12 +46,7 @@ def _receiver_entry(hass: HomeAssistant, device_id: str) -> ConfigEntry | None:
 
 
 def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
-    """Return where the station is and every aircraft it can place.
-
-    The aircraft without a position are left out: there is nowhere to draw
-    them. The ones with one carry the same attributes the nearby list does,
-    plus where they are.
-    """
+    """Return where the station is and every aircraft with a position."""
     latitude, longitude = coordinator.origin
     aircraft = coordinator.data.aircraft
     heard = () if aircraft is None else aircraft.heard
@@ -90,9 +76,7 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
     }
 
 
-# Left untyped on purpose. Newer Home Assistant types this decorator against
-# probatio's markers, the oldest one supported against voluptuous's, and the
-# voluptuous markers written here are accepted by both when it runs.
+# Untyped: the decorator's type differs between old and new Home Assistant.
 _SUBSCRIBE_SCHEMA: Any = {
     vol.Required("type"): SUBSCRIBE_AIRCRAFT,
     vol.Required("device_id"): str,
@@ -124,9 +108,7 @@ def _subscribe_aircraft(
 
     connection.subscriptions[msg["id"]] = coordinator.async_add_listener(_send)
     connection.send_result(msg["id"])
-    # The trails so far go out once, with the first sky: after that the card
-    # extends them itself from every position it is sent, which keeps what
-    # goes over the websocket on every poll small.
+    # Trails go out once; the card extends them itself from then on.
     connection.send_message(
         websocket_api.event_message(
             msg["id"], {**sky(coordinator), "trails": coordinator.trails.as_dict()}
@@ -151,10 +133,8 @@ async def _look_up_route(
 ) -> None:
     """Answer where an aircraft tapped on the card is flying from and to.
 
-    The nearby ones already carry their route; this is for one further out.
-    It goes through the same lookup, so its cache and its pace hold, and an
-    answer can take up to thirty seconds when another question went just
-    before it. Null when routes are switched off or nobody knows the route.
+    Through the shared lookup, so it can take up to thirty seconds. Null when
+    routes are off or unknown.
     """
     if (entry := _receiver_entry(hass, msg["device_id"])) is None:
         connection.send_error(

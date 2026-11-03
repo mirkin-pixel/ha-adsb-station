@@ -12,9 +12,7 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_AIRCRAFT_URL, CONF_STATS_URL
 from .coordinator import AdsbStationConfigEntry, AircraftStats
 
-# The feed alias names the user's public Flightradar24 feed and site_url their
-# FlightAware account, fr24key is a credential, and the URLs carry the address
-# of their receiver.
+# Feed alias, site_url and URLs identify the user; fr24key is a credential.
 TO_REDACT = {
     CONF_HOST,
     CONF_AIRCRAFT_URL,
@@ -27,13 +25,7 @@ TO_REDACT = {
 
 
 def _aircraft(stats: AircraftStats) -> dict[str, Any]:
-    """Describe one poll, without repeating the whole sky.
-
-    Every aircraft the decoder was holding is kept for the services to answer
-    out of, and on a good afternoon that is a few hundred. What helps here is
-    how many there were, not which; the ones that are worth naming are the
-    superlatives and the aircraft in range, and those are still here in full.
-    """
+    """Describe one poll, counting the heard aircraft rather than listing them."""
     payload = asdict(stats)
     payload["heard"] = len(stats.heard)
     return payload
