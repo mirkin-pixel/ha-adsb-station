@@ -148,6 +148,29 @@ function svg(tag, attributes, ...children) {
   return fill(document.createElementNS(SVG, tag), attributes, children);
 }
 
+// OpenStreetMap has no dark tiles, so they are inverted for a dark theme, as
+// Home Assistant's map does: invert(1) hue-rotate(180deg) brightness(0.95)
+// contrast(0.9), written as SVG filter primitives because WebKit ignores CSS
+// filters on elements inside an SVG (bugs.webkit.org/show_bug.cgi?id=246106).
+function darkTiles() {
+  const channel = (c, attributes) => svg(`feFunc${c}`, attributes);
+  return svg(
+    "filter",
+    { id: "dark", "color-interpolation-filters": "sRGB" },
+    svg(
+      "feComponentTransfer",
+      {},
+      ["R", "G", "B"].map((c) => channel(c, { type: "table", tableValues: "1 0" })),
+    ),
+    svg("feColorMatrix", { type: "hueRotate", values: 180 }),
+    svg(
+      "feComponentTransfer",
+      {},
+      ["R", "G", "B"].map((c) => channel(c, { type: "linear", slope: 0.855, intercept: 0.05 })),
+    ),
+  );
+}
+
 function fill(node, attributes, children) {
   for (const [key, value] of Object.entries(attributes || {})) {
     if (value === undefined || value === null || value === false) continue;
@@ -639,7 +662,7 @@ class AdsbStationCard extends HTMLElement {
     const shape = streets
       ? svg("rect", { x: 0, y: 0, width: size, height: size, rx: 12 })
       : svg("circle", { cx: centre, cy: centre, r: reach });
-    scope.append(svg("defs", {}, svg("clipPath", { id: "scope" }, shape)));
+    scope.append(svg("defs", {}, svg("clipPath", { id: "scope" }, shape), streets && darkTiles()));
     if (streets) {
       scope.append(svg("rect", { class: "land", x: 0, y: 0, width: size, height: size, "clip-path": "url(#scope)" }));
       if (tiles) scope.append(tiles);
@@ -803,7 +826,7 @@ class AdsbStationCard extends HTMLElement {
     const url = token ? (z, x, y) => PROXY_TILES(z, x, y, token) : UPSTREAM_TILES;
     const node = svg(
       "g",
-      { class: dark ? "tiles dark" : "tiles", "clip-path": "url(#scope)" },
+      { class: dark ? "tiles dark" : "tiles", "clip-path": "url(#scope)", filter: dark && "url(#dark)" },
       view.tiles(url).map((tile) =>
         svg("image", {
           href: tile.href,
@@ -1274,10 +1297,6 @@ const STYLE = css`
   }
   .radar .land {
     fill: var(--secondary-background-color, #eee);
-  }
-  /* OpenStreetMap has no dark tiles; Home Assistant inverts them the same way. */
-  .radar .tiles.dark {
-    filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
   }
   .radar.streets .ring {
     stroke: rgba(0, 0, 0, 0.3);
