@@ -1,14 +1,7 @@
-"""Where each aircraft has been in the last few minutes.
+"""Where each aircraft has been in the last few minutes, for the card's trails.
 
-The dashboard card draws a trail behind every aircraft. Kept by the card
-itself, a trail would start over every time the card is opened, which on a
-phone is every time anyone looks: a dashboard would only ever show a few
-seconds of each. Kept here, a card that opens gets the last five minutes at
-once.
-
-Only in memory. A restart starts over, and nothing of it reaches the state
-machine or the recorder, which would write the whole sky to the database on
-every poll.
+Kept here rather than in the card, so a card that opens draws them at once.
+Only in memory: the recorder would otherwise store the whole sky every poll.
 """
 
 from __future__ import annotations
@@ -21,8 +14,7 @@ if TYPE_CHECKING:
 
 TRAIL_SECONDS = 300
 
-# Five decimals is about a metre, which is closer than any position an
-# aircraft reports, and keeps what goes over the websocket short.
+# About a metre, finer than any reported position, and short on the websocket.
 _DECIMALS = 5
 
 # latitude, longitude, altitude in feet or None on the ground, seconds since
@@ -40,13 +32,9 @@ class SkyTrails:
     def follow(self, heard: Iterable[AircraftSummary], now: float) -> None:
         """Add where every aircraft is now, and forget what is too old.
 
-        A point is only added when the aircraft moved: a poll that read the
-        same position twice, or kept the last read, adds nothing.
-
-        An aircraft no longer heard with a position takes its trail with it.
-        The card draws an aircraft only where it is now, so a trail kept on
-        after it would end in nothing: a line across the map with no aircraft
-        to account for it.
+        A point is only added when the aircraft moved. An aircraft no longer
+        heard with a position loses its trail, or the card would draw a line
+        with no aircraft at the end of it.
         """
         placed: set[str] = set()
         for summary in heard:

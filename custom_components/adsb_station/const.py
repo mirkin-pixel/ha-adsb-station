@@ -9,9 +9,8 @@ DOMAIN = "adsb_station"
 
 CONF_FEEDER_TYPE = "feeder_type"
 
-# The feeders we can read. Each uploads to its own network and serves its own
-# local status document; a station commonly runs several of them side by side
-# off one decoder, so each becomes its own entry and its own device.
+# The feeders we can read. A station often runs several off one decoder; each
+# becomes its own entry and device.
 FEEDER_FR24 = "fr24feed"
 FEEDER_PIAWARE = "piaware"
 FEEDER_PLANEFINDER = "planefinder"
@@ -22,14 +21,13 @@ class FeederKind:
     """Everything that differs between one feeder and the next."""
 
     key: str
-    # Where its status document lives, and the port it is normally on.
     port: int
     path: str
-    # Keys that only that document has, so we can tell we reached the right one.
+    # Keys only this feeder's status document has, to recognise it.
     markers: frozenset[str]
     manufacturer: str
     model: str
-    # Used as the device name until the feeder tells us something better.
+    # The device name until the feeder reports a better one.
     default_name: str
 
 
@@ -45,8 +43,6 @@ FEEDERS: dict[str, FeederKind] = {
     ),
     FEEDER_PIAWARE: FeederKind(
         key=FEEDER_PIAWARE,
-        # FlightAware's own tooling defaults to 8080, though a station whose
-        # web server was taken over by something else may serve it elsewhere.
         port=8080,
         path="/status.json",
         markers=frozenset({"piaware", "adept", "radio"}),
@@ -70,70 +66,56 @@ FEEDERS: dict[str, FeederKind] = {
 MODEL_RECEIVER = "ADS-B receiver"
 DEFAULT_STATION_NAME = "ADS-B station"
 
-# What receiver.json holds when nothing expanded the placeholder. The dump1090
-# fork that fr24feed ships serves it verbatim.
+# The unexpanded placeholder fr24feed's dump1090 fork serves in receiver.json.
 UNSET_RECEIVER_VERSION = "EB_VERSION"
 
 CONF_AIRCRAFT_URL = "aircraft_url"
 CONF_STATS_URL = "stats_url"
 CONF_RECEIVER_FEATURES = "receiver_features"
 
-# The eight compass sectors the range records are kept in. Each spans 45
-# degrees centred on its own direction, so north runs from 337.5 to 22.5.
+# Compass sectors for the range records, each 45 degrees centred on its
+# direction.
 SECTORS: tuple[str, ...] = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
 
-# Optional things a receiver may report. Detected once during the config flow,
-# so entities for data a decoder never sends are not created at all. Run
-# Reconfigure after upgrading the decoder to pick them up.
+# Optional receiver data, detected in the config flow so no entity is created
+# for data the decoder never sends. Reconfigure picks up new ones.
 FEATURE_GAIN = "gain"
-# readsb puts these at the root of stats.json; the other decoders send neither.
+# Only readsb reports these.
 FEATURE_AIRCRAFT_TYPES = "aircraft_types"
 FEATURE_FREQUENCY_ERROR = "frequency_error"
-# Position bookkeeping inside a window. The dump1090 fork of fr24feed has none.
+# Not in fr24feed's dump1090 fork.
 FEATURE_POSITIONS = "positions"
 
-# How readsb labels the way it came to know about an aircraft. Reporting all
-# fourteen would be noise, so they are summed into the three that say something
-# about your reception: heard directly, computed from timing, or bare Mode S.
+# readsb's fourteen source types, summed into the three that say something
+# about reception.
 AIRCRAFT_TYPE_GROUPS: dict[str, tuple[str, ...]] = {
     "adsb": ("adsb_icao", "adsb_icao_nt", "adsb_other"),
     "mlat": ("mlat",),
     "mode_s": ("mode_s",),
 }
 
-# What the traffic counters split everything the antenna hears into, in the
-# order an aircraft is tried against them: the first that fits is the one it
-# counts under, so each aircraft is counted once and the four add up to the
-# aircraft received. Military first, because a military helicopter or a
-# transport flying under an airline-style callsign is military before it is
-# anything else.
+# Traffic categories, tried in this order so each aircraft counts once.
+# Military goes first: a military helicopter is military before helicopter.
 TRAFFIC_MILITARY = "military"
 TRAFFIC_HELICOPTER = "helicopter"
 TRAFFIC_AIRLINE = "airline"
 TRAFFIC_OTHER = "other"
-# The emitter category a rotorcraft broadcasts.
 CATEGORY_ROTORCRAFT = "A7"
 
-# How fast an aircraft has to climb or descend, in feet per minute, before the
-# map shows it climbing or descending. Below this it is holding its level and
-# drifting, which is not worth a different marker.
+# Feet per minute before the map shows an aircraft climbing or descending.
 CLIMB_RATE_SHOWN = 500
 
-# The bits of readsb's dbFlags, which an aircraft database fills in and a
-# decoder without one leaves out altogether. Military is the one that has an
-# entity of its own; the other three say something about the aircraft that
-# only a dashboard can decide what to do with.
+# Bits of readsb's dbFlags, set only with an aircraft database.
 DB_FLAG_MILITARY = 1
 DB_FLAG_INTERESTING = 2
 DB_FLAG_PIA = 4
 DB_FLAG_LADD = 8
 
-# Files that sit next to aircraft.json in the same data directory.
+# Next to aircraft.json in the same data directory.
 STATS_FILENAME = "stats.json"
 RECEIVER_FILENAME = "receiver.json"
 
-# Squawk codes that mean the crew is in trouble. dump1090-fa also reports an
-# "emergency" field, but the fr24feed fork only gives us the raw squawk.
+# fr24feed's fork has no "emergency" field, only the squawk.
 EMERGENCY_SQUAWKS: dict[str, str] = {
     "7500": "hijack",
     "7600": "radio_failure",
@@ -147,202 +129,116 @@ DEFAULT_SCAN_INTERVAL = 15
 MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 600
 
-# How often the figures that describe the station rather than the sky are
-# read: the feeder's status document and the decoder's stats.json. Those are
-# counters and averages over a minute, so reading them every fifteen seconds
-# only gives the recorder four rows for what is one figure.
+# The feeder status and stats.json are per-minute figures, so reading them
+# more often only adds recorder rows.
 CONF_STATISTICS_INTERVAL = "statistics_interval"
 DEFAULT_STATISTICS_INTERVAL = 60
 
-# How close an aircraft has to be to count as nearby, in kilometres. Ten is
-# roughly the circle you can see and hear from, which is what makes it useful
-# for automations; the range of a good receiver is many times that.
+# Nearby radius in km. Ten is roughly what you can see and hear.
 CONF_PROXIMITY_RADIUS = "proximity_radius"
 DEFAULT_PROXIMITY_RADIUS = 10
 MIN_PROXIMITY_RADIUS = 1
 MAX_PROXIMITY_RADIUS = 500
 
-# A ceiling on what counts as overhead, in feet. Empty by default, which is
-# what every station had before there was one: the radius alone decides.
-#
-# It exists because a radius is a circle drawn on the ground, and an airliner
-# at eleven kilometres is inside it while being nothing anyone would look up
-# at. Where it applies is the whole of the point: what is nearby, what is
-# overhead and what counts as a passage, and nothing else. The station's own
-# figures are about reception rather than about your sky.
+# Optional ceiling in feet for nearby, overhead and passages, so an airliner
+# at cruise inside the radius does not count. Unset by default.
 CONF_PROXIMITY_MAX_ALTITUDE = "proximity_max_altitude"
 MAX_PROXIMITY_ALTITUDE = 60000
 
-# Every aircraft inside that radius as its own entity on the map, for as long
-# as it is there. Off unless it is asked for: it is another way of looking at
-# data the sensors already carry rather than data of its own, and a map layer
-# nobody opened is entities nobody reads.
+# An entity per nearby aircraft on the map. Off by default: the sensors carry
+# the same data.
 CONF_MAP_AIRCRAFT = "map_aircraft"
 DEFAULT_MAP_AIRCRAFT = False
 
-# One aircraft crossing the sky above you, from the moment it comes inside the
-# radius to the moment it leaves. An automation wants to hear about that once,
-# so a passage fires an event of its own rather than leaving a template to work
-# out what changed in a list of attributes.
+# Fired once per aircraft crossing the radius.
 EVENT_AIRCRAFT_PASSAGE = f"{DOMAIN}_aircraft_passage"
 
-# How long an aircraft has to stay away before coming back counts as a second
-# passage. Reception drops out, aircraft circle, and an aircraft flickering on
-# the edge of the radius would otherwise ring the doorbell every poll.
+# How long an aircraft must be gone before returning counts as a new passage,
+# so one flickering on the edge does not fire every poll.
 PASSAGE_GAP = timedelta(minutes=10)
 
-# How long the dongle may deliver no samples before the receiver counts as
-# silent. Samples are the raw radio, 2.4 million a second whether or not
-# anything is flying, so this is a figure about the hardware rather than the
-# sky: a decoder restarting, or reopening a dongle that hiccupped, is back
-# within the minute, and three minutes of nothing is a dongle that is gone.
-# Counting messages instead does not work: a modest antenna hears none at all
-# for twenty minutes on a quiet night.
+# No samples for this long means the dongle is gone: a restarting decoder is
+# back within a minute. Messages cannot tell, a quiet night has none for long.
 RECEIVER_SILENT_AFTER = timedelta(minutes=3)
 
-# How many reads in a row an endpoint may miss before its entities go
-# unavailable. A Wi-Fi hiccup or a decoder that took a second too long costs one
-# read, and showing that as unavailable for a poll does real harm: a gap in
-# every graph, and an automation waiting for "overhead" to turn on that sees
-# on, unavailable, on and runs a second time. So a missed read keeps the last
-# answer, and only a third one in a row says the endpoint is gone. At the
-# default intervals that is 45 seconds for the aircraft and three minutes for
-# the feeder and the statistics, both well short of a receiver gone silent.
+# Missed reads in a row before entities go unavailable. One blip should not
+# leave a gap in graphs or re-trigger automations.
 MISSED_READS_TOLERATED = 2
 
-# A standing list of aircraft worth knowing about, one to a line. Unlike a
-# passage this has no radius: the question is whether the aircraft is up
-# there at all, however far away, so it is matched against everything the
-# decoder is holding.
+# Aircraft to watch for anywhere in range, one per line.
 CONF_WATCHLIST = "watchlist"
 EVENT_WATCHLIST_MATCH = f"{DOMAIN}_watchlist_match"
 
-# What a line on that list can be, and how each is recognised. A hex code is
-# six hexadecimal characters, a squawk is four digits, a type code is one the
-# shipped table knows, and anything else carrying a letter is a name the
-# aircraft flies under — a registration or a callsign, compared against both
-# because PH-BXA is one, KLM123 the other, and N123AB could be either.
-# Nothing is guessed from a line that fits none of them: the option refuses
-# it and says which forms it knows.
+# What a watchlist line can be. A name is compared against both registration
+# and callsign, since N123AB could be either. Anything else is refused.
 WATCHLIST_HEX = "hex"
 WATCHLIST_SQUAWK = "squawk"
 WATCHLIST_TYPE = "aircraft_type"
 WATCHLIST_NAME = "name"
 
-# How many passages the board keeps. Long enough to be a record of the
-# afternoon, short enough that writing the whole list to the database on every
-# arrival stays cheap.
+# Passages kept on the board, written whole to the recorder on each arrival.
 PASSAGE_BOARD_LENGTH = 20
 
-# What an altitude in feet is in metres, for measuring the real distance to an
-# aircraft rather than the distance to the ground beneath it.
 FEET_TO_METRES = 0.3048
-# And what an aircraft's ground speed is in metres per second, since every
-# decoder reports it in knots.
 KNOTS_TO_METRES_PER_SECOND = 0.514444
-# How long a degree of latitude is. Good to a fraction of a percent, which is
-# far better than a prediction built on a straight line deserves.
+# Length of a degree of latitude.
 DEGREE_METRES = 111_320.0
 
-# Everything about seeing an aircraft coming rather than reporting that it is
-# here. All of it rests on one assumption — that the aircraft carries on in a
-# straight line at the same speed — so the limits below are not tuning, they
-# are what keeps a guess from being announced as a fact.
+# Approach predictions assume a straight line at constant speed; these limits
+# keep that guess from being announced as fact.
 EVENT_AIRCRAFT_APPROACHING = f"{DOMAIN}_aircraft_approaching"
-# How far ahead a prediction is worth making. Beyond a few minutes an
-# aircraft has had time to turn, descend or be told to hold, and a straight
-# line says nothing about any of that.
+# Beyond a few minutes an aircraft may have turned or descended.
 APPROACH_HORIZON = timedelta(minutes=5)
-# How many polls in a row have to agree before anything is announced. One
-# mis-decoded heading is enough to point an aircraft at your house for a
-# single poll; two in a row is not.
+# Polls that must agree, so one mis-decoded heading announces nothing.
 APPROACH_POLLS = 2
 
-# How far an aircraft at a given height can possibly be heard from, and the
-# room left over for the antenna being up a hill.
-#
-# ADS-B is line of sight, so the horizon is the limit: about 1.23 nautical
-# miles times the square root of the height in feet, which is this many metres
-# times that square root. An aircraft at 37,000 feet reaches roughly 438 km,
-# and one at 2,000 feet roughly 102 km. The allowance is what a receiver adds
-# by standing high, and 80 km of it covers a site 350 metres above everything
-# around it, which is more than any rooftop.
-#
-# This is not a limit on what the integration reports. It is a limit on what a
-# position has to satisfy to be believed at all: a mis-decoded position lands
-# somewhere impossible, and a sector record only ever grows, so one of those
-# would stand for good.
+# Radio horizon: the furthest a position at a given height can be believed.
+# A mis-decoded position would otherwise set a sector record for good. The
+# allowance covers an antenna up to about 350 m above its surroundings.
 RADIO_HORIZON_METRES_PER_ROOT_FOOT = 2278.0
 RADIO_HORIZON_ALLOWANCE = 80_000
-# And a ceiling for aircraft that report no height at all. Nothing on earth
-# has heard an aircraft from this far, so a position beyond it is not one.
+# The same limit for aircraft that report no height.
 MAX_PLAUSIBLE_RANGE = 700_000
 
-# What every decoder puts in the altitude field of an aircraft that is on the
-# ground. It is a string where a number belongs, which is the only way an
-# aircraft says it is not flying.
+# The altitude every decoder reports for an aircraft on the ground.
 GROUND_ALTITUDE = "ground"
 
-# How often to ask for receiver.json before accepting that it will not answer.
-# What it holds cannot change while the decoder runs, so one answer settles it
-# for good; a request that fails is not an answer, and letting a single timeout
-# decide that every range is measured from the wrong place would be both silent
-# and permanent.
+# receiver.json never changes while the decoder runs, but one timeout should
+# not decide where every range is measured from.
 RECEIVER_READ_ATTEMPTS = 5
 
-# Where a flight came from and where it is going. This cannot come off your
-# own network: no ADS-B message carries a route. An
-# aircraft broadcasts its callsign and nothing more, so the only way to know
-# is to ask someone who keeps a database of flight numbers. That is a request
-# leaving your network, which is why it is off unless you ask for it.
+# Routes come from an outside service, so they are off unless switched on.
 CONF_LOOK_UP_ROUTES = "look_up_routes"
 DEFAULT_LOOK_UP_ROUTES = False
 
-# adsb.lol serves the same API but currently answers empty, so the default
-# points at the host tar1090 itself defaults to. Over http, not https: since
-# October 2026 adsb.im refuses anything else from a client it has not
-# approved, and allows non-commercial use that says who is asking and asks
-# no more than once every thirty seconds.
+# Since October 2026 adsb.im accepts unapproved clients only over http, with a
+# User-Agent and at most one request every thirty seconds.
 ROUTESET_URL = "http://adsb.im/api/0/routeset"
 ROUTESET_MIN_INTERVAL = timedelta(seconds=30)
-# What that endpoint accepts in one request.
 ROUTESET_MAX_PLANES = 100
 
-# A flight number keeps its route for the day, so an answer is worth holding
-# on to; over a whole day the same few airliners pass overhead again and
-# again. A callsign that resolves to nothing is remembered for less time,
-# because that is as likely to be a database that has not caught up yet.
+# A route holds for the day. A miss is kept shorter: the database may catch up.
 ROUTE_CACHE_TTL = timedelta(hours=12)
 ROUTE_MISS_CACHE_TTL = timedelta(hours=1)
-# Enough for every airliner a station sees in a day, and small enough that a
-# stream of unknown callsigns cannot grow it without bound.
 ROUTE_CACHE_MAX_ENTRIES = 512
-# A ceiling on what one poll may ask, so a wide radius over a busy airport
-# cannot turn into a burst of requests at somebody else's expense.
+# So a busy sky cannot turn into a burst of requests.
 ROUTE_MAX_LOOKUPS_PER_POLL = 25
 
-# What an aircraft looks like, which is not broadcast either. The other thing
-# that leaves your network, and off for the same reason.
+# Photos come from an outside service too, so they are off by default.
 CONF_LOOK_UP_PHOTOS = "look_up_photos"
 DEFAULT_LOOK_UP_PHOTOS = False
 
 PHOTO_URL = "https://api.planespotters.net/pub/photos/hex/{hex}"
-# Planespotters and routeset both refuse a request that does not say who is
-# asking and how to reach them.
+# Planespotters and routeset refuse requests that do not say who is asking.
 USER_AGENT = "ADS-B-Station (+https://github.com/mirkin-pixel/ha-adsb-station)"
 PHOTO_USER_AGENT = USER_AGENT
-# An airframe keeps its photo far longer than a day, but a day is as long as
-# the terms let an answer be kept. A miss is kept as long, because a new photo
-# of an aircraft that had none is rare.
+# A day is as long as Planespotters' terms allow an answer to be kept.
 PHOTO_CACHE_TTL = timedelta(hours=24)
 PHOTO_CACHE_MAX_ENTRIES = 512
-# One request per aircraft, so fewer per poll than routes, which come in one.
+# One request per aircraft, so fewer than routes, which batch.
 PHOTO_MAX_LOOKUPS_PER_POLL = 3
 
-# Where aircraft.json lives on the common receiver images, in the order we
-# prefer them. fr24feed ships its own dump1090 on port 8080 under /dump1090;
-# readsb with tar1090 puts it behind the normal web server on port 80, which is
-# where you end up after upgrading the decoder.
+# Where the common receiver images serve aircraft.json, in order of preference.
 AIRCRAFT_URL_CANDIDATES: tuple[tuple[int, str], ...] = (
     (DEFAULT_AIRCRAFT_PORT, "/dump1090/data/aircraft.json"),
     (DEFAULT_AIRCRAFT_PORT, "/data/aircraft.json"),
