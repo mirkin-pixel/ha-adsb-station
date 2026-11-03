@@ -493,18 +493,74 @@ const tests = {
     assert.equal(asked.length, 1);
   },
 
-  async "draws no route where nobody knows it"() {
+  async "says so where nobody knows the route"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    hass.callWS = () => Promise.resolve({ route_points: null });
+    hass.callWS = () => Promise.resolve({ route_points: null, status: "unknown" });
     const card = render(w, hass);
     link.send(SKY([LOW]));
     card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
     await tick();
     await tick();
     assert.equal(card.shadowRoot.querySelector(".radar .route"), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .route-line").textContent, "No route known");
+  },
+
+  async "says nothing about routes when they are off"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.callWS = () => Promise.resolve({ route_points: null, status: "off" });
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    await tick();
+    await tick();
     assert.equal(card.shadowRoot.querySelector(".picked .route-line"), null);
+  },
+
+  async "says so when a route could not be looked up"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    hass.callWS = () => Promise.resolve({ route_points: null, status: "failed" });
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    await tick();
+    await tick();
+    assert.equal(card.shadowRoot.querySelector(".picked .route-line").textContent, "Route opzoeken mislukt");
+  },
+
+  async "stops waiting for an answer that does not come"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const asked = [];
+    hass.callWS = (message) => {
+      asked.push(message);
+      return new Promise(() => {});
+    };
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    const tap = () => card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
+    tap();
+    assert.match(card.shadowRoot.querySelector(".picked .route-line").textContent, /Route opzoeken/);
+    tap();
+    tap();
+    assert.equal(asked.length, 1);
+    const realNow = w.Date.now;
+    w.Date.now = () => realNow() + 61_000;
+    try {
+      link.send(SKY([LOW, HIGH]));
+      assert.equal(card.shadowRoot.querySelector(".picked .route-line").textContent, "Route opzoeken mislukt");
+      tap();
+      tap();
+    } finally {
+      w.Date.now = realNow;
+    }
+    assert.equal(asked.length, 2);
   },
 
   async "says a route is on its way while it is asked for"() {
@@ -517,10 +573,10 @@ const tests = {
     link.send(SKY([LOW, HIGH]));
     card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
     assert.match(card.shadowRoot.querySelector(".picked .route-line").textContent, /Route opzoeken/);
-    answer({ route_points: null });
+    answer({ route_points: null, status: "unknown" });
     await tick();
     await tick();
-    assert.equal(card.shadowRoot.querySelector(".picked .route-line"), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .route-line").textContent, "Geen route bekend");
   },
 
   async "asks again for a route it got no answer for"() {
@@ -546,7 +602,7 @@ const tests = {
     await tap();
     assert.equal(asked.length, 2);
     // Nobody knew the route: not again straight away, but a minute on.
-    reply = () => Promise.resolve({ route_points: null });
+    reply = () => Promise.resolve({ route_points: null, status: "unknown" });
     await tap();
     await tap();
     assert.equal(asked.length, 3);

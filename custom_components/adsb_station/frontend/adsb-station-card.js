@@ -44,6 +44,8 @@ const STRINGS = {
     scale_fixed: "Fixed",
     map_range: "Fixed range in km",
     route_pending: "Looking up the route…",
+    route_unknown: "No route known",
+    route_failed: "Could not look up the route",
   },
   nl: {
     name: "ADS-B Station",
@@ -76,6 +78,8 @@ const STRINGS = {
     scale_fixed: "Vast",
     map_range: "Vast bereik in km",
     route_pending: "Route opzoeken…",
+    route_unknown: "Geen route bekend",
+    route_failed: "Route opzoeken mislukt",
   },
 };
 
@@ -89,6 +93,8 @@ const MAP_STYLES = ["radar", "map", "none"];
 const TRAIL_SECONDS = 300;
 // After "no route", a later tap asks again; the integration caches the miss.
 const ROUTE_RETRY_SECONDS = 60;
+// The integration answers within forty seconds; after this the answer is lost.
+const ROUTE_WAIT_SECONDS = 60;
 // The radar's outer ring snaps to one of these, in kilometres, unless it is
 // fixed: to the aircraft in the sky now, or to the range records as well.
 const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
@@ -337,7 +343,7 @@ class AdsbStationCard extends HTMLElement {
     this._trails = new Map();
     this._sky = null;
     this._selected = null;
-    // hex → "pending", or { points, at } with points null when there were none.
+    // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
   }
 
@@ -884,7 +890,7 @@ class AdsbStationCard extends HTMLElement {
   _routeOf(plane) {
     if (plane.route_points) return plane.route_points;
     const asked = this._routes.get(plane.hex);
-    return asked && asked !== "pending" ? asked.points : null;
+    return asked ? asked.points : null;
   }
 
   _lookUpRoute(hex) {
@@ -892,15 +898,20 @@ class AdsbStationCard extends HTMLElement {
     if (!plane || plane.route_points || !this._following || !this._hass.callWS) return;
     const asked = this._routes.get(hex);
     const now = Date.now() / 1000;
-    if (asked === "pending" || (asked && (asked.points || asked.at > now - ROUTE_RETRY_SECONDS))) return;
-    this._routes.set(hex, "pending");
+    if (asked) {
+      // A failed question is asked again on the next tap.
+      const wait = { pending: ROUTE_WAIT_SECONDS, failed: 0 }[asked.status] ?? ROUTE_RETRY_SECONDS;
+      if (asked.points || asked.at > now - wait) return;
+    }
+    this._routes.set(hex, { status: "pending", points: null, at: now });
+    const answered = (status, points = null) => this._routes.set(hex, { status, points, at: Date.now() / 1000 });
     this._hass
       .callWS({ type: LOOK_UP_ROUTE, device_id: this._following, hex })
-      .then((answer) =>
-        this._routes.set(hex, { points: (answer && answer.route_points) || null, at: Date.now() / 1000 }),
-      )
-      // A question that failed is no answer: the next tap asks again.
-      .catch(() => this._routes.delete(hex))
+      .then((answer) => {
+        const points = (answer && answer.route_points) || null;
+        answered(points ? "found" : (answer && answer.status) || "unknown", points);
+      })
+      .catch(() => answered("failed"))
       .finally(() => {
         if (this._selected === hex) this._drawSky();
       });
@@ -964,14 +975,18 @@ class AdsbStationCard extends HTMLElement {
     );
   }
 
-  // Where it comes from and goes to, in words, under the aircraft's name. An
-  // answer can take thirty seconds, so say that one is on its way.
+  // Where it comes from and goes to, under the aircraft's name. Without a
+  // route, whether one is on its way, unknown, or could not be looked up.
   _routeLine(plane, text) {
     const route = this._routeOf(plane);
-    if (!route && this._routes.get(plane.hex) === "pending") {
-      return el("div", { class: "secondary route-line pending" }, text.route_pending);
+    if (!route) {
+      const asked = this._routes.get(plane.hex);
+      if (!asked) return null;
+      const lost = asked.status === "pending" && asked.at <= Date.now() / 1000 - ROUTE_WAIT_SECONDS;
+      const status = lost ? "failed" : asked.status;
+      const words = { pending: text.route_pending, unknown: text.route_unknown, failed: text.route_failed }[status];
+      return words ? el("div", { class: `secondary route-line ${status}` }, words) : null;
     }
-    if (!route) return null;
     const end = (airport) => [airport.code, airport.location].filter(Boolean).join(" ");
     return el("div", { class: "secondary route-line" }, `${end(route.origin)} → ${end(route.destination)}`);
   }

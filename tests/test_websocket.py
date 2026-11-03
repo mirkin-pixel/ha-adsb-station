@@ -195,6 +195,63 @@ async def test_a_tapped_aircraft_further_out_is_looked_up(
 
     assert answer["success"]
     assert answer["result"]["route_points"]["origin"]["location"] == "Gothenburg"
+    assert answer["result"]["status"] == "found"
+
+
+async def test_a_lookup_that_failed_says_so(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    route_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that the card can tell a failed lookup from an unknown route."""
+    set_responses(aioclient_mock)
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+    assert await setup_integration(hass, route_entry)
+    # Down only now: a failed poll would ask again and take the tap's turn.
+    aioclient_mock.clear_requests()
+    set_responses(aioclient_mock)
+    aioclient_mock.post(ROUTESET_URL, status=502)
+    freezer.tick(timedelta(seconds=31))
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id(
+        {
+            "type": LOOK_UP_ROUTE,
+            "device_id": _station_device(hass, route_entry),
+            "hex": "484124",
+        }
+    )
+    answer = await client.receive_json()
+
+    assert answer["result"] == {"route_points": None, "status": "failed"}
+
+
+async def test_an_aircraft_nobody_knows_the_route_of(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    route_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that routeset answering without a route is "unknown"."""
+    set_responses(aioclient_mock)
+    aioclient_mock.post(ROUTESET_URL, json=[None])
+    assert await setup_integration(hass, route_entry)
+    freezer.tick(timedelta(seconds=31))
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id(
+        {
+            "type": LOOK_UP_ROUTE,
+            "device_id": _station_device(hass, route_entry),
+            "hex": "484124",
+        }
+    )
+    answer = await client.receive_json()
+
+    assert answer["result"] == {"route_points": None, "status": "unknown"}
 
 
 async def test_no_route_when_routes_are_off(
@@ -217,7 +274,7 @@ async def test_no_route_when_routes_are_off(
     )
     answer = await client.receive_json()
 
-    assert answer["result"] == {"route_points": None}
+    assert answer["result"] == {"route_points": None, "status": "off"}
     assert not [
         call for call in aioclient_mock.mock_calls if "routeset" in str(call[1])
     ]

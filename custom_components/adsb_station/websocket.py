@@ -16,7 +16,7 @@ import voluptuous as vol
 
 from .const import DOMAIN
 from .coordinator import AdsbStationDataUpdateCoordinator, aircraft_attributes
-from .route import FlightPosition, route_points
+from .route import FlightPosition, RouteLookupError, route_points
 
 SUBSCRIBE_AIRCRAFT = f"{DOMAIN}/subscribe_aircraft"
 LOOK_UP_ROUTE = f"{DOMAIN}/look_up_route"
@@ -133,8 +133,8 @@ async def _look_up_route(
 ) -> None:
     """Answer where an aircraft tapped on the card is flying from and to.
 
-    Through the shared lookup, so it can take up to thirty seconds. Null when
-    routes are off or unknown.
+    Through the shared lookup, so it can take up to thirty seconds. The
+    status says why there are no points: "off", "unknown" or "failed".
     """
     if (entry := _receiver_entry(hass, msg["device_id"])) is None:
         connection.send_error(
@@ -153,15 +153,24 @@ async def _look_up_route(
         ),
         None,
     )
-    if coordinator.route_lookup is None or summary is None or summary.flight is None:
-        connection.send_result(msg["id"], {"route_points": None})
+    if coordinator.route_lookup is None:
+        connection.send_result(msg["id"], {"route_points": None, "status": "off"})
+        return
+    if summary is None or summary.flight is None:
+        connection.send_result(msg["id"], {"route_points": None, "status": "unknown"})
         return
     flight = FlightPosition(
         callsign=summary.flight,
         latitude=None if summary.position is None else summary.position[0],
         longitude=None if summary.position is None else summary.position[1],
     )
-    routes = await coordinator.route_lookup.async_resolve([flight], wait=True)
+    try:
+        route = await coordinator.route_lookup.async_look_up(flight)
+    except RouteLookupError:
+        connection.send_result(msg["id"], {"route_points": None, "status": "failed"})
+        return
+    points = route_points(route)
     connection.send_result(
-        msg["id"], {"route_points": route_points(routes.get(summary.flight))}
+        msg["id"],
+        {"route_points": points, "status": "unknown" if points is None else "found"},
     )
