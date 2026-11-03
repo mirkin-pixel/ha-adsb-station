@@ -135,6 +135,127 @@ const ROTOR = {
 const hue = (color) => Number(/hsl\((\d+)/.exec(color)[1]);
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+// A vector tile as Home Assistant's proxy serves it, written out by hand in
+// Protocol Buffers: layers of features with properties and geometry.
+function vectorTile(layers) {
+  const varint = (n, out) => {
+    while (n > 127) {
+      out.push((n % 128) | 0x80);
+      n = Math.floor(n / 128);
+    }
+    out.push(n);
+    return out;
+  };
+  const tag = (number, wire, out) => varint(number * 8 + wire, out);
+  const bytes = (number, content, out) => {
+    tag(number, 2, out);
+    varint(content.length, out);
+    for (const byte of content) out.push(byte);
+    return out;
+  };
+  const text = (value) => [...new TextEncoder().encode(value)];
+  const packed = (number, values, out) =>
+    bytes(
+      number,
+      values.reduce((acc, value) => varint(value, acc), []),
+      out,
+    );
+  const out = [];
+  for (const layer of layers) {
+    const body = bytes(1, text(layer.name), []);
+    const keys = [];
+    const values = [];
+    for (const feature of layer.features) {
+      const tags = [];
+      for (const [key, value] of Object.entries(feature.properties || {})) {
+        if (!keys.includes(key)) keys.push(key);
+        values.push(value);
+        tags.push(keys.indexOf(key), values.length - 1);
+      }
+      const encoded = packed(2, tags, []);
+      varint(feature.type, tag(3, 0, encoded));
+      packed(4, feature.geometry, encoded);
+      bytes(2, encoded, body);
+    }
+    for (const key of keys) bytes(3, text(key), body);
+    for (const value of values) {
+      bytes(4, typeof value === "string" ? bytes(1, text(value), []) : varint(value, tag(5, 0, [])), body);
+    }
+    varint(layer.extent, tag(5, 0, body));
+    varint(2, tag(15, 0, body));
+    bytes(3, body, out);
+  }
+  return new Uint8Array(out);
+}
+
+const move = (count) => 1 | (count << 3);
+const draw = (count) => 2 | (count << 3);
+const zigzag = (n) => (n << 1) ^ (n >> 31);
+
+// Where a position falls in tile z/x/y, in units of the given extent.
+function inTile([latitude, longitude], z, x, y, extent) {
+  const n = 2 ** z;
+  const phi = (latitude * Math.PI) / 180;
+  const tx = ((longitude + 180) / 360) * n;
+  const ty = ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * n;
+  return [Math.round((tx - x) * extent), Math.round((ty - y) * extent)];
+}
+
+// Just east of the station, so its name clears the station itself.
+const UTRECHT = [52.0, 5.03];
+
+// What one tile holds: water and streets at half the extent of the borders
+// and names, as OpenStreetMap's Shortbread tiles have them.
+function tileAround(z, x, y) {
+  const [px, py] = inTile(UTRECHT, z, x, y, 4096);
+  const line = [move(1), zigzag(100), zigzag(100), draw(1), zigzag(800), zigzag(0)];
+  const square = [move(1), zigzag(512), zigzag(512), draw(3), zigzag(1024), 0, 0, zigzag(1024), zigzag(-1024), 0, 15];
+  const place = [move(1), zigzag(px), zigzag(py)];
+  return vectorTile([
+    { name: "water_polygons", extent: 2048, features: [{ type: 3, properties: { kind: "water" }, geometry: square }] },
+    {
+      name: "streets",
+      extent: 2048,
+      features: [
+        { type: 2, properties: { kind: "motorway" }, geometry: line },
+        { type: 2, properties: { kind: "residential" }, geometry: line },
+      ],
+    },
+    { name: "boundaries", extent: 4096, features: [{ type: 2, properties: { admin_level: 2 }, geometry: line }] },
+    {
+      name: "place_labels",
+      extent: 4096,
+      features: [
+        { type: 1, properties: { kind: "city", name: "Utrecht", population: 361924 }, geometry: place },
+        { type: 1, properties: { kind: "hamlet", name: "Nergens" }, geometry: place },
+      ],
+    },
+  ]);
+}
+
+function tileFor(url) {
+  const [z, x, y] = /(\d+)\/(\d+)\/(\d+)\.mvt/.exec(url).slice(1).map(Number);
+  return tileAround(z, x, y);
+}
+
+// A browser whose fetch plays Home Assistant's vector tile proxy.
+function vectorBrowser(answer = (url) => ({ ok: true, status: 200, body: tileFor(url) })) {
+  const w = browser();
+  w.TextDecoder = TextDecoder;
+  const asked = [];
+  w.fetch = (url, options) => {
+    const header = options && options.headers ? options.headers["X-Map-Tiles-Token"] : undefined;
+    asked.push({ url, token: header });
+    const { ok, status, body } = answer(url, header);
+    return Promise.resolve({ ok, status, arrayBuffer: () => Promise.resolve(body && body.buffer) });
+  };
+  return { w, asked };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 8; i++) await tick();
+};
+
 const tests = {
   "registers itself for the card picker"() {
     const w = browser();
@@ -775,6 +896,85 @@ const tests = {
       ["feComponentTransfer", "feColorMatrix", "feComponentTransfer"],
     );
     assert.ok(![...card.shadowRoot.querySelectorAll("style")].some((style) => /invert\(/.test(style.textContent)));
+  },
+
+  async "draws OpenStreetMap's own data in the theme's colours where Home Assistant serves it"() {
+    const { w, asked } = vectorBrowser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.resolve({ token: "t0k" });
+    const card = render(w, hass, { map: "map" });
+    link.send(SKY([LOW]));
+    await settle();
+    const root = card.shadowRoot;
+    assert.equal(root.querySelector(".tiles"), null);
+    assert.ok(asked.length);
+    for (const { url, token } of asked) {
+      assert.match(url, /^\/api\/map_tiles\/vector\/\d+\/\d+\/\d+\.mvt$/);
+      // As a header, so the address and the browser's cache outlast the token.
+      assert.equal(token, "t0k");
+    }
+    // Water is in half the extent of the names: both are drawn in one.
+    assert.equal(
+      root.querySelector(".basemap path.water").getAttribute("d"),
+      "M1024 1024L3072 1024 3072 3072 1024 3072Z",
+    );
+    assert.ok(root.querySelector(".basemap path.motorway"));
+    assert.ok(root.querySelector(".basemap path.country"));
+    // A residential street and a hamlet are more than the map needs.
+    assert.equal(root.querySelector(".basemap path.road"), null);
+    assert.deepEqual(
+      [...root.querySelectorAll(".basemap text")].map((t) => t.textContent),
+      ["Utrecht"],
+    );
+  },
+
+  async "leaves a place's name off where an aircraft is"() {
+    const { w } = vectorBrowser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.resolve({ token: "t0k" });
+    const card = render(w, hass, { map: "map" });
+    const above = { ...LOW, hex: "4851a8", flight: "PHX1", latitude: UTRECHT[0], longitude: UTRECHT[1] };
+    link.send(SKY([LOW, above]));
+    await settle();
+    assert.ok(card.shadowRoot.querySelector(".basemap path.water"));
+    assert.equal(card.shadowRoot.querySelector(".basemap text"), null);
+  },
+
+  async "puts the token in the address for Home Assistant 2026.9, which takes no header"() {
+    const { w, asked } = vectorBrowser((url, header) =>
+      url.includes("?token=t0k") && !header
+        ? { ok: true, status: 200, body: tileFor(url) }
+        : { ok: false, status: 403 },
+    );
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.resolve({ token: "t0k" });
+    const card = render(w, hass, { map: "map" });
+    link.send(SKY([LOW]));
+    await settle();
+    assert.equal(asked[0].token, "t0k");
+    assert.match(asked[asked.length - 1].url, /\.mvt\?token=t0k$/);
+    assert.ok(card.shadowRoot.querySelector(".basemap path.water"));
+  },
+
+  async "keeps to the picture tiles where Home Assistant has no vector tiles"() {
+    const { w, asked } = vectorBrowser(() => ({ ok: false, status: 404 }));
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.resolve({ token: "t0k" });
+    const card = render(w, hass, { map: "map" });
+    link.send(SKY([LOW]));
+    await settle();
+    const tried = asked.length;
+    assert.ok(tried);
+    assert.equal(card.shadowRoot.querySelector(".basemap"), null);
+    assert.match(card.shadowRoot.querySelector(".tiles image").getAttribute("href"), /^\/api\/map_tiles\/raster\//);
+    // Not asked again on every poll.
+    link.send(SKY([LOW]));
+    await settle();
+    assert.equal(asked.length, tried);
   },
 
   async "falls back on OpenStreetMap where there is no proxy"() {
