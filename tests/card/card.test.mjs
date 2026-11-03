@@ -767,6 +767,14 @@ const tests = {
     assert.equal(JSON.stringify(asked), JSON.stringify(["map_tiles/access_token"]));
     // OpenStreetMap has no dark tiles: they are inverted for a dark theme.
     assert.equal(layer.getAttribute("class"), "tiles dark");
+    // An SVG filter rather than CSS, which WebKit does not apply inside an SVG.
+    assert.equal(layer.getAttribute("filter"), "url(#dark)");
+    const dark = card.shadowRoot.querySelector(".radar defs filter#dark");
+    assert.deepEqual(
+      [...dark.children].map((step) => step.tagName),
+      ["feComponentTransfer", "feColorMatrix", "feComponentTransfer"],
+    );
+    assert.ok(![...card.shadowRoot.querySelectorAll("style")].some((style) => /invert\(/.test(style.textContent)));
   },
 
   async "falls back on OpenStreetMap where there is no proxy"() {
@@ -783,6 +791,8 @@ const tests = {
       /^https:\/\/tile\.openstreetmap\.org\//,
     );
     assert.equal(card.shadowRoot.querySelector(".tiles").getAttribute("class"), "tiles");
+    // A light theme keeps the tiles as they are.
+    assert.equal(card.shadowRoot.querySelector(".tiles").getAttribute("filter"), null);
   },
 
   "draws the furthest heard in each direction on the radar"() {
