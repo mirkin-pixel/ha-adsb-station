@@ -88,9 +88,8 @@ class SectorRangeRecord(Protocol):
 
 type AdsbStationConfigEntry = ConfigEntry[AdsbStationDataUpdateCoordinator]
 
-# dump1090 keeps several windows in stats.json. The one-minute window follows
-# the receiver closely; the longer ones cover the first seconds after a restart,
-# when the shorter window has not measured a signal yet.
+# stats.json windows, shortest first. The longer ones cover the first seconds
+# after a restart, before the one-minute window has a signal.
 STATS_PERIODS = ("last1min", "last5min", "total")
 
 
@@ -98,9 +97,8 @@ STATS_PERIODS = ("last1min", "last5min", "total")
 class AircraftSummary:
     """One aircraft out of a single poll, as we expose it.
 
-    The distance is optional: altitude and speed reach us from aircraft that
-    never broadcast a position, and those still count for the highest and the
-    fastest in range.
+    The distance is None for aircraft without a position; they still count
+    for the highest and fastest.
     """
 
     hex: str
@@ -112,56 +110,35 @@ class AircraftSummary:
     vertical_rate: float | None
     rssi: float | None
     seen: float | None
-    # True for an aircraft that says it is on the ground. Its altitude is None
-    # like that of an aircraft that reports none at all, so without this the
-    # two cannot be told apart.
+    # Its altitude is None too, so this tells it from an unknown altitude.
     on_ground: bool = False
     registration: str | None
     aircraft_type: str | None
     description: str | None
     military: bool
-    # The rest of what dbFlags says, out of the same aircraft database.
-    # Interesting is whatever the keeper of that database thought worth
-    # marking, a PIA address is a temporary hex code an operator flies under
-    # to stay off the lists, and LADD is an American request not to be shown
-    # at all. All three are passed on rather than acted on: an aircraft this
-    # receiver heard is one it heard, and what to show is the dashboard's to
-    # decide.
+    # The other dbFlags. Passed on, not acted on: what to hide is up to the
+    # dashboard.
     interesting: bool = False
     pia: bool = False
     ladd: bool = False
-    # The country that was handed the range this aircraft's address falls in,
-    # as an ISO two-letter code. Where it is registered, not where it is: a
-    # KLM aircraft over Spain is still NL.
+    # ISO code of the country of registration, from the address block.
     country: str | None = None
-    # The emitter category the aircraft broadcasts, A0 through D7. It is the
-    # only thing that tells a helicopter from an airliner without a database,
-    # and it arrives over the air rather than out of a file.
+    # Emitter category, A0 to D7: tells a helicopter apart without a database.
     category: str | None = None
-    # Which kind of message this aircraft is known through: heard directly
-    # over ADS-B, computed from timing by mlat, or bare Mode S. The station
-    # counts these already; per aircraft it is what explains why one of them
-    # has no position while the rest do.
+    # ADS-B, mlat or Mode S, which explains a missing position.
     heard_as: str | None = None
-    # Read off the callsign against a table we ship, so this is filled in
-    # whether or not a route source is configured.
+    # From the callsign and the shipped table, with or without routes.
     airline: str | None = None
-    # The designator the callsign opens with, whether or not the table has a
-    # name for it. It is what a dashboard looks an airline logo up by.
+    # The callsign's designator, even without a name; dashboards key logos on it.
     airline_code: str | None = None
-    # Where it was heard, which no entity shows but a route lookup needs to
-    # tell one flight number from the same one halfway around the world.
+    # Lets routeset tell this flight from the same number elsewhere.
     position: tuple[float, float] | None = None
-    # Filled in after the poll, and only for the aircraft near enough to
-    # matter, when a route source is configured.
+    # Only for nearby aircraft, when routes are on.
     route: FlightRoute | None = None
-    # The same, for a photo of the airframe, when photos are switched on. The
-    # aircraft on the watchlist get one too, near or not.
+    # For nearby and watched aircraft, when photos are on.
     photo: AircraftPhoto | None = None
-    # Where this aircraft is heading, if it holds its heading and its speed.
-    # False for anything already going away, anything that reports too little
-    # to say, and anything further ahead than a straight line is worth
-    # believing. The distance is across the ground, in metres.
+    # Straight-line prediction; False when receding or too far ahead to trust.
+    # The distance is across the ground, in metres.
     approaching: bool = False
     closest_passing_distance: float | None = None
     seconds_to_closest: float | None = None
@@ -169,16 +146,9 @@ class AircraftSummary:
 
 @dataclass(kw_only=True)
 class Passage:
-    """One aircraft crossing the sky above you, start to finish.
+    """One aircraft crossing the radius, start to finish.
 
-    An aircraft is not a state that changes, it is a thing that comes past.
-    Something overhead that stays overhead is one passage however many polls
-    it spans, and the same aircraft an hour later is a second one.
-
-    What it holds is the closest it ever came, not what it looked like when it
-    arrived, because that is the moment worth reporting: an aircraft is first
-    seen at the edge of the radius and is most worth looking up at directly
-    overhead.
+    It keeps the closest approach, which is the moment worth reporting.
     """
 
     hex: str
@@ -187,13 +157,10 @@ class Passage:
     # The aircraft at its closest approach, and how close that was in metres.
     closest: AircraftSummary
     closest_distance: float
-    # And as it was on the last poll that saw it, which is what a panel
-    # showing what is above you right now wants to read.
+    # As on the last poll that saw it.
     current: AircraftSummary
     current_distance: float
-    # The strongest signal heard from it over the whole passage. Not the same
-    # as the signal at the closest approach: an aircraft banking away can put
-    # its antenna in a better place than one directly overhead.
+    # Strongest over the passage, not necessarily at the closest approach.
     peak_rssi: float | None = None
 
 
@@ -201,10 +168,10 @@ class Passage:
 class WatchlistEntry:
     """One line of the watchlist, and what it turned out to be."""
 
-    # As it was written down, which is what an automation reads back.
+    # As written, for automations to read back.
     line: str
     kind: str
-    # And as it is compared: capitals, no dashes.
+    # As compared: capitals, no dashes.
     value: str
 
 
@@ -213,8 +180,7 @@ class WatchlistMatch:
     """One aircraft on the watchlist, in range of the antenna."""
 
     entry: WatchlistEntry
-    # Which field of the aircraft it matched on, since a name is compared
-    # against the registration and the callsign both.
+    # A name can match the registration or the callsign.
     matched_on: str
     summary: AircraftSummary
     squawk: str | None
@@ -240,25 +206,19 @@ class AircraftStats:
     message_rate: float | None
     updated: datetime | None
     closest: AircraftSummary | None
-    # The furthest aircraft this poll heard, which is the range figure as well:
-    # the distance is on the summary, and keeping it twice would be two things
-    # to hold in step.
+    # Also the range figure, through its distance.
     furthest: AircraftSummary | None = None
     highest: AircraftSummary | None = None
     fastest: AircraftSummary | None = None
     # Everything inside the configured radius, nearest first.
     nearby: tuple[AircraftSummary, ...] = ()
-    # And everything the decoder was holding, near or not, in the order it
-    # served them. No entity shows this: it is what a question about one
-    # particular aircraft has to be answered out of, because an aircraft
-    # forty kilometres out is in none of the lists above.
+    # Everything the decoder holds, near or not, for questions about one
+    # aircraft. No entity shows it.
     heard: tuple[AircraftSummary, ...] = ()
-    # The furthest aircraft seen in each compass sector this poll. The
-    # all-time record lives on the entities, which survive a restart.
+    # Furthest per sector this poll; the all-time records live on the entities.
     by_sector: dict[str, AircraftSummary] = field(default_factory=dict)
     emergencies: tuple[EmergencyAircraft, ...] = ()
-    # Whatever the watchlist recognised this poll, in the order the list was
-    # written. Empty when nothing is being watched for.
+    # In watchlist order.
     watched: tuple[WatchlistMatch, ...] = ()
 
 
@@ -292,8 +252,7 @@ class ReceiverStats:
 class AdsbStationData:
     """The data of one poll cycle."""
 
-    # The feeder's own status document, whichever feeder that is. None when
-    # the station only runs a decoder and uploads nowhere we can read.
+    # None for a station that only runs a decoder.
     feeder: dict[str, Any] | None = field(default=None)
     aircraft: AircraftStats | None
     stats: ReceiverStats | None = field(default=None)
@@ -324,13 +283,7 @@ def _as_text(value: Any) -> str | None:
 
 
 def _as_code(value: Any) -> str | None:
-    """Return a code as it is written down, which is in capitals.
-
-    Nothing else compares a broadcast code against a written one, so the
-    aircraft is taken at its word everywhere else. A category is compared, by
-    an automation looking for helicopters, and a decoder that sent `a7` would
-    otherwise never match.
-    """
+    """Return a code in capitals, so `a7` from a decoder still matches `A7`."""
     text = _as_text(value)
     return None if text is None else text.upper()
 
@@ -348,12 +301,7 @@ ALTITUDE_KEYS = ("alt_baro", "altitude")
 
 
 def _altitude(entry: dict[str, Any]) -> float | None:
-    """Return the barometric altitude in feet.
-
-    The fr24feed fork of dump1090 calls this field 'altitude' and reports the
-    string 'ground' for aircraft on the ground; dump1090-fa and readsb call it
-    'alt_baro'.
-    """
+    """Return the barometric altitude in feet ('altitude' in fr24feed's fork)."""
     for key in ALTITUDE_KEYS:
         if key in entry:
             return _as_float(entry[key])
@@ -361,13 +309,7 @@ def _altitude(entry: dict[str, Any]) -> float | None:
 
 
 def _on_ground(entry: dict[str, Any]) -> bool:
-    """Return True if this aircraft says it is on the ground.
-
-    It says so by putting a word where the altitude belongs, which parses as
-    no altitude at all. That is the same thing an aircraft heard only over
-    Mode S reports, and the two are worth telling apart: one is a height we do
-    not know, the other is a height of zero.
-    """
+    """Return True if the altitude field says 'ground' rather than a number."""
     for key in ALTITUDE_KEYS:
         if key in entry:
             return str(entry[key]).strip().lower() == GROUND_ALTITUDE
@@ -385,10 +327,7 @@ def _ground_speed(entry: dict[str, Any]) -> float | None:
 def _vertical_rate(entry: dict[str, Any]) -> float | None:
     """Return the rate of climb or descent in feet per minute.
 
-    readsb and dump1090-fa report the barometric rate and, on aircraft that
-    send one, a geometric rate measured against GNSS. The barometric one is
-    what every map shows, so it comes first; the dump1090 fork that fr24feed
-    ships has neither and calls its own field 'vert_rate'.
+    Barometric first, as every map shows; fr24feed's fork calls it 'vert_rate'.
     """
     for key in ("baro_rate", "geom_rate", "vert_rate"):
         if (rate := _as_float(entry.get(key))) is not None:
@@ -397,16 +336,10 @@ def _vertical_rate(entry: dict[str, Any]) -> float | None:
 
 
 def slant_distance(summary: AircraftSummary) -> float | None:
-    """Return how far away an aircraft really is, in metres.
+    """Return the distance through the air in metres, height included.
 
-    Every other distance here is measured across the ground, which is the
-    right answer for how far your antenna reaches. It is the wrong answer for
-    what is above you: an airliner at 37,000 feet passing nine kilometres to
-    the north is eleven kilometres up and fourteen away, and calling that
-    overhead would fill a passage list with traffic nobody can see.
-
-    An aircraft that never reported an altitude keeps its ground distance,
-    which is the best that can be said about it.
+    Ground distance alone would count an airliner at cruise as overhead.
+    Without an altitude it falls back to the ground distance.
     """
     if summary.distance is None:
         return None
@@ -418,25 +351,11 @@ def slant_distance(summary: AircraftSummary) -> float | None:
 def approach_of(
     origin: tuple[float, float], summary: AircraftSummary
 ) -> tuple[float, float] | None:
-    """Return how close an aircraft will pass, and how long until it does.
+    """Return how close an aircraft will pass across the ground, and when.
 
-    Everything else this integration reports is in the past tense: the
-    aircraft is already here. Position, track and speed are all in the poll,
-    and between them they say where an aircraft will be, which is what makes
-    an announcement useful rather than late.
-
-    **It is a straight line at a constant speed, and nothing more.** An
-    aircraft that turns, descends into an approach or is told to hold makes
-    this wrong, and the answer is worth exactly as much as that assumption is.
-    So it is only worked out for an aircraft that reports all three, is not
-    on the ground, and is actually closing: the moment the distance stops
-    shrinking there is no approach left to predict.
-
-    The distance is across the ground. Height is deliberately left out of it,
-    because an aircraft at eleven kilometres passing straight overhead has a
-    closest approach of nothing at all across the ground and that is the
-    honest answer to "will it come over my house"; whether it is worth
-    looking up at is what the [overhead ceiling](const.py) decides.
+    A straight line at constant speed, so only for an airborne aircraft with
+    position, track and speed that is still closing. Height is left out; the
+    overhead ceiling decides whether it matters.
     """
     if summary.position is None or summary.track is None or summary.speed is None:
         return None
@@ -445,8 +364,7 @@ def approach_of(
 
     origin_latitude, origin_longitude = origin
     latitude, longitude = summary.position
-    # Flat enough over the tens of kilometres a receiver reaches, and a
-    # rounder earth would not rescue a straight-line guess.
+    # Flat earth is close enough over a receiver's range.
     north = (latitude - origin_latitude) * DEGREE_METRES
     east = (
         (longitude - origin_longitude) * DEGREE_METRES * cos(radians(origin_latitude))
@@ -469,22 +387,14 @@ def approach_of(
 def _is_believable(metres: float, altitude: float | None) -> bool:
     """Return whether an aircraft can really be that far away.
 
-    Positions are decoded from a pair of messages, and a pair that does not
-    belong together decodes to somewhere else entirely. Decoders reject most
-    of those themselves, which is what the rejected positions figure counts,
-    but the ones that survive land far outside what line of sight allows.
-
-    That matters more here than it looks: the sector records only ever grow,
-    so a single bad position becomes a record that stands until someone
-    presses the button, and one close enough to be overhead would ring the
-    doorbell for an aircraft that was never there.
+    A mis-decoded position lands beyond line of sight, and would otherwise
+    set a sector record that stands until reset.
     """
     if metres > MAX_PLAUSIBLE_RANGE:
         return False
     if altitude is None:
         return True
-    # Below sea level is a real altitude and a shorter horizon, not a reason
-    # to take the square root of a negative number.
+    # Below sea level is real; clamp before the square root.
     horizon = RADIO_HORIZON_METRES_PER_ROOT_FOOT * sqrt(max(altitude, 0.0))
     return metres <= horizon + RADIO_HORIZON_ALLOWANCE
 
@@ -492,13 +402,8 @@ def _is_believable(metres: float, altitude: float | None) -> bool:
 def _under(summary: AircraftSummary, ceiling: float | None) -> bool:
     """Return whether an aircraft is low enough to count as nearby.
 
-    An aircraft on the ground is under every ceiling there is. It reports no
-    altitude, precisely because it is on the ground, so comparing the figure
-    would throw out the taxiing traffic that a ceiling was never aimed at.
-
-    Anything else without an altitude cannot be judged and does not count,
-    the same way a height filter on the services leaves out what it cannot
-    measure.
+    On the ground is always under. Any other aircraft without an altitude
+    cannot be judged and does not count.
     """
     if ceiling is None:
         return True
@@ -508,24 +413,16 @@ def _under(summary: AircraftSummary, ceiling: float | None) -> bool:
 
 
 def _db_flag(entry: dict[str, Any], flag: int) -> bool:
-    """Return whether one of readsb's dbFlags bits is set.
-
-    dbFlags is a bitfield an aircraft database fills in. Decoders without one
-    omit the field entirely, which is why an unset bit and an unknown one look
-    the same here: both are False, and neither is worth an attribute.
-    """
+    """Return whether a dbFlags bit is set; False without a database too."""
     flags = _as_int(entry.get("dbFlags"))
     return flags is not None and bool(flags & flag)
 
 
 def _military_flag(entry: dict[str, Any]) -> bool | None:
-    """Return what dbFlags says about this aircraft, or None if it says nothing.
+    """Return the military bit of dbFlags, or None without a database.
 
-    Three answers rather than two, because "the database says this is not
-    military" and "there is no database" are different things and only one of
-    them can be corrected. dbFlags knows the individual tail and is believed
-    either way it points; the address block behind it knows only what range a
-    country set aside, and gets its say when nobody else has one.
+    None lets the address block decide instead; a database answer wins either
+    way.
     """
     flags = _as_int(entry.get("dbFlags"))
     return None if flags is None else bool(flags & DB_FLAG_MILITARY)
@@ -543,11 +440,7 @@ def _bearing(
 
 
 def sector_of(bearing: float) -> str:
-    """Return which compass sector a bearing falls in.
-
-    Each sector is centred on its direction rather than starting at it, so
-    north covers the 45 degrees around 0 and not the 45 degrees after it.
-    """
+    """Return the compass sector a bearing falls in, sectors centred on it."""
     return SECTORS[int(((bearing + 22.5) % 360) // 45)]
 
 
@@ -584,16 +477,12 @@ def _summarise(
         # Only a decoder with an aircraft database fills these in.
         registration=_as_text(entry.get("r")),
         aircraft_type=aircraft_type,
-        # A database that fills in the type code without describing it is the
-        # common case, so the table stands in where the decoder says nothing.
+        # Databases often give a type code without a description.
         description=_as_text(entry.get("desc")) or reference.model_of(aircraft_type),
-        # The decoder's own answer where there is one, and the address block
-        # only where there is not.
         military=reference.is_military(hex_code) if military is None else military,
         interesting=_db_flag(entry, DB_FLAG_INTERESTING),
         pia=_db_flag(entry, DB_FLAG_PIA),
         ladd=_db_flag(entry, DB_FLAG_LADD),
-        # Out of the address itself, so this is there whatever the decoder is.
         country=reference.country_of(hex_code),
         category=_as_code(entry.get("category")),
         heard_as=_as_text(entry.get("type")),
@@ -615,8 +504,7 @@ def aircraft_attributes(
         "altitude": summary.altitude,
         "speed": summary.speed,
         "track": summary.track,
-        # Feet per minute, positive climbing. Absent from aircraft on the
-        # ground and from the ones we only ever hear over Mode S.
+        # Feet per minute, positive climbing.
         "vertical_rate": summary.vertical_rate,
         "rssi": summary.rssi,
         "seen": summary.seen,
@@ -625,8 +513,7 @@ def aircraft_attributes(
         attributes["distance"] = (
             None if summary.distance is None else round(summary.distance / 1000, 1)
         )
-    # Decoders without an aircraft database send none of this, and empty
-    # attributes are worse than absent ones on a dashboard.
+    # Left out rather than empty when unknown.
     if summary.registration is not None:
         attributes["registration"] = summary.registration
     if summary.aircraft_type is not None:
@@ -665,7 +552,6 @@ def aircraft_attributes(
         attributes["airline_code"] = summary.airline_code
     if summary.airline is not None:
         attributes["airline"] = summary.airline
-    # Empty unless a route source is configured and it recognised the flight.
     attributes.update(route_attributes(summary.route))
     attributes.update(photo_attributes(summary.photo))
     return attributes
@@ -674,13 +560,8 @@ def aircraft_attributes(
 def traffic_kind(summary: AircraftSummary) -> str:
     """Return which of the four traffic counters an aircraft counts under.
 
-    Nothing is guessed. Military comes off the aircraft database or the
-    address block, a helicopter off the category the aircraft itself
-    broadcasts, and an airline off the designator its callsign opens with,
-    against the table we ship: KLM123 is an airline flight, PHBXA is not.
-    Whatever none of the three recognises is other, which is private flying,
-    business aviation under a registration, and anything with no callsign at
-    all.
+    An airline flight is one whose callsign opens with a known designator:
+    KLM123 is, PHBXA is not.
     """
     if summary.military:
         return TRAFFIC_MILITARY
@@ -702,12 +583,9 @@ def watchlist_signal(entry_id: str) -> str:
 
 
 def watchlist_of(entry: ConfigEntry, models: dict[str, str]) -> list[WatchlistEntry]:
-    """Read the watchlist off an entry, dropping what it cannot read.
+    """Read the watchlist off an entry, skipping lines it cannot read.
 
-    The option flow refuses a line it does not recognise, so a bad line here
-    is one that was saved before the shipped type table knew a code, or one
-    that arrived in a restored backup. Skipping it quietly is right: it costs
-    that line and not the rest of the list.
+    Those can come from an older type table or a restored backup.
     """
     text = entry.options.get(CONF_WATCHLIST) or ""
     watched = []
@@ -733,8 +611,7 @@ def _matches(
             if normalise(summary.aircraft_type) == watched.value
             else None
         )
-    # A name is compared against both, because which of the two it is cannot
-    # be told from the line and does not have to be.
+    # A name can be either, so it is compared against both.
     if normalise(summary.registration) == watched.value:
         return "registration"
     return "flight" if normalise(summary.flight) == watched.value else None
@@ -743,15 +620,10 @@ def _matches(
 def receivers(
     hass: HomeAssistant,
 ) -> list[tuple[AdsbStationDataUpdateCoordinator, AircraftStats]]:
-    """Return every station that is reading a receiver, by title.
+    """Return every entry that reads a receiver, sorted by title.
 
-    A station commonly runs several feeders in front of one decoder, and each
-    of those is an entry of its own with no aircraft to its name: the receiver
-    belongs to one of them, or the count would be the same aircraft over
-    again. So anything asked about aircraft asks these and not every entry.
-
-    Sorted by title, so two antennas answer in an order that does not depend
-    on which entry happened to load first.
+    Feeder-only entries are left out, or one decoder's aircraft would count
+    twice. Sorting keeps the order independent of load order.
     """
     found = []
     for entry in hass.config_entries.async_loaded_entries(DOMAIN):
@@ -797,46 +669,35 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             _LOGGER,
             config_entry=config_entry,
             name=DOMAIN,
-            # Without aircraft.json there is nothing to read more often than
-            # the statistics, so polling faster would only repeat them.
+            # Without aircraft.json, faster polling would only repeat statistics.
             update_interval=(
                 scan_interval if client.aircraft_url else self.statistics_interval
             ),
         )
         self.client = client
-        # When the feeder and stats.json were last read. None until the first
-        # poll, which always reads them.
+        # None until the first poll, which always reads them.
         self._statistics_read_at: datetime | None = None
-        # The names for the codes an aircraft broadcasts. Empty when the tables
-        # could not be read, which costs a name and nothing else.
+        # Empty if the tables could not be read; that costs only names.
         self.reference = reference
         self.receiver_version: str | None = None
-        # None unless the user picked a source to look routes up with. This
-        # and the photos are all that talks to anything off your own network.
+        # Routes and photos are the only requests that leave the network, and
+        # both are None unless switched on.
         self.route_lookup = build_route_lookup(
             async_get_clientsession(hass),
             config_entry.options.get(CONF_LOOK_UP_ROUTES, DEFAULT_LOOK_UP_ROUTES),
         )
-        # The other thing that reaches off your network, and as optional.
         self.photo_lookup = build_photo_lookup(
             async_get_clientsession(hass),
             config_entry.options.get(CONF_LOOK_UP_PHOTOS, DEFAULT_LOOK_UP_PHOTOS),
         )
-        # Filled in by the sector sensors as they are added, so the reset
-        # button can reach them without going through the entity platform.
+        # Registered by the sector sensors, for the reset button.
         self.sector_sensors: list[SectorRangeRecord] = []
-        # The aircraft currently crossing the sky above you, by hex. Kept
-        # across polls, because a passage is a thing that lasts and a poll is
-        # only a look at it.
+        # Aircraft crossing the radius now, by hex, kept across polls.
         self.passages: dict[str, Passage] = {}
-        # The nearest of those on the last poll, which is what a panel showing
-        # one aircraft shows. None the moment the sky above you is empty.
+        # The nearest of those on the last poll.
         self.overhead: Passage | None = None
         self._previous_messages: tuple[int, float] | None = None
-        # When the dongle last delivered samples, and where the last minute of
-        # stats.json ended on the last read. Seeded with the start, so a dongle
-        # that is gone from the first poll is noticed as soon as one that goes
-        # quiet later.
+        # Seeded with the start, so a dongle gone from the first poll is noticed.
         self._sampled_at = dt_util.utcnow()
         self._sampled_until: float | None = None
         self.receiver_silent = False
@@ -844,28 +705,20 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._feeder_misses = 0
         self._aircraft_misses = 0
         self._stats_misses = 0
-        # Whether the aircraft and the statistics are unavailable right now,
-        # which is what the warning and the all-clear in the log are about.
-        # Not the same as having missed a read: a station that cannot reach
-        # its receiver at start has no last answer to keep, so it is out from
-        # the first miss.
+        # Unavailable right now, for the log's warning and all-clear. Without a
+        # last answer to keep, that is from the first miss.
         self._aircraft_out = False
         self._stats_out = False
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
         self.watchlist = watchlist_of(config_entry, reference.models)
-        # The options this coordinator was started with, so that a change to
-        # the watchlist alone can be told apart from one that needs a reload.
+        # To tell a watchlist-only change from one that needs a reload.
         self.started_with = dict(config_entry.options)
-        # When each watched aircraft was last announced, so that one aircraft
-        # crossing the sky is one message rather than one every fifteen
-        # seconds. The same gap a passage uses, for the same reason.
+        # Last announcement per watched aircraft, so one flight is one message.
         self._announced: dict[str, datetime] = {}
-        # How many polls in a row each aircraft has been coming this way, and
-        # when it was last warned about.
+        # Polls in a row each aircraft has been approaching, and its last warning.
         self._approaching: dict[str, int] = {}
         self._warned: dict[str, datetime] = {}
-        # Where each aircraft has been lately, for the trails on the card.
         self.trails = SkyTrails()
 
     @property
@@ -890,47 +743,29 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
     @property
     def proximity_ceiling(self) -> float | None:
-        """Return how high an aircraft may be and still count as nearby.
-
-        None where nothing was set, which is what every station did before
-        this existed and what it keeps doing: the radius alone decides.
-        """
+        """Return the nearby ceiling in feet, or None when only the radius counts."""
         feet = self.config_entry.options.get(CONF_PROXIMITY_MAX_ALTITUDE)
         return None if feet in (None, "") else float(feet)
 
     @property
     def origin_source(self) -> str:
-        """Return where the point ranges are measured from came from.
-
-        The two are indistinguishable from the coordinates alone, and which one
-        is in use decides whether the range figures mean anything.
-        """
+        """Return whether ranges are measured from the receiver or from home."""
         return "receiver" if self._antenna is not None else "home_location"
 
     async def async_set_watchlist(self) -> None:
         """Take over a changed watchlist without reloading the entry.
 
-        A reload forgets everything that is under way: which aircraft were
-        already announced, and which are crossing the sky right now. Every
-        watched aircraft in the air would be announced again, and every one
-        overhead would start a second passage and be counted twice. Editing the
-        list is something done from a dashboard while things are flying, so it
-        is the one option that is taken over in place.
+        A reload would forget announcements and passages under way, and
+        announce and count them again.
         """
         self.watchlist = watchlist_of(self.config_entry, self.reference.models)
         self.started_with = dict(self.config_entry.options)
-        # The sensor that stands for the list comes and goes with it.
         async_dispatcher_send(self.hass, watchlist_signal(self.config_entry.entry_id))
-        # Matched against the new list now, rather than on the next poll.
         await self.async_request_refresh()
 
     @callback
     def async_update_listeners(self) -> None:
-        """Take in where the aircraft are, then tell everyone listening.
-
-        Here rather than in the update itself, which returns early along
-        several paths: every poll that succeeded passes through this.
-        """
+        """Follow the trails, then notify listeners; every good poll passes here."""
         if self.data is not None and self.data.aircraft is not None:
             self.trails.follow(self.data.aircraft.heard, dt_util.utcnow().timestamp())
         super().async_update_listeners()
@@ -938,9 +773,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     async def _async_update_data(self) -> AdsbStationData:
         """Fetch every endpoint; only the primary source is fatal.
 
-        The feeder is the primary source when there is one, so a receiver that
-        stops answering does not take the feed entities with it. Without a
-        feeder the receiver is all there is, and failing to read it is fatal.
+        That is the feeder when there is one, otherwise the receiver.
         """
         if self.data is not None and not self._statistics_due():
             aircraft = await self._async_get_aircraft(
@@ -977,17 +810,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     ) -> AircraftStats | None:
         """Give this poll's aircraft the message figures they should show.
 
-        The counter and the rate describe the station rather than the sky, so
-        they move at the statistics interval like the rest of those, and the
-        figures of the last such poll stand in between. The rate is then over
-        the whole interval, which is a steadier figure than one over fifteen
-        seconds as well as a quarter of the rows in the recorder.
+        Those move at the statistics interval; in between, the last ones stand.
         """
         if aircraft is None:
             return None
         previous = self.data.aircraft if self.data is not None else None
         if aircraft is previous:
-            # A missed read standing in with the last answer, figures and all.
+            # A missed read, keeping the last answer.
             return aircraft
         if not sample and previous is not None:
             return replace(
@@ -1003,22 +832,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _check_samples(self, data: dict[str, Any] | None) -> None:
         """Note whether the dongle is delivering, and say so when it stops.
 
-        A dongle that drops off the bus, or comes back from a reboot without
-        having been power cycled, does not always take the decoder with it.
-        The decoder can stop, hang, or keep running on nothing, and to every
-        other entity the last of those looks like an empty sky. What gives it
-        away is the samples: the decoder counts every one the dongle hands
-        it, at a steady 2.4 million a second, and none of that depends on
-        anything flying. So the last minute of stats.json is read for them,
-        and a minute that has not moved on since the last read is a decoder
-        that hung.
-
-        Always the last minute, not the window the other figures come from:
-        those fall back to a longer window when the last minute heard no
-        signal, which is exactly the minute this is about. A decoder that
-        does not count samples is one we cannot judge, and is taken at its
-        word rather than called silent. None is a stats.json that could not
-        be read, which counts as nothing delivered.
+        A dead dongle can look like an empty sky. Samples flow whether anything
+        flies or not, so the last minute's sample count tells them apart; a
+        minute that did not move on means a hung decoder. A decoder that counts
+        no samples is trusted. None is an unreadable stats.json.
         """
         now = dt_util.utcnow()
         window = data.get("last1min") if data is not None else None
@@ -1073,9 +890,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _statistics_due(self) -> bool:
         """Return whether the feeder and stats.json should be read this poll.
 
-        Polls do not land on the second, so a poll that is due within half a
-        poll of now counts as due: otherwise a minute of fifteen-second polls
-        would read the statistics on the fifth poll rather than the fourth.
+        Half a poll of slack, so jitter does not push a read to the next poll.
         """
         if self._statistics_read_at is None:
             return True
@@ -1084,11 +899,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         return elapsed + slack >= self.statistics_interval
 
     async def _async_get_aircraft(self, *, required: bool) -> AircraftStats | None:
-        """Fetch aircraft.json.
-
-        A receiver that is not reachable is tolerated unless it is the only
-        source this station has.
-        """
+        """Fetch aircraft.json; an unreachable receiver is fatal only if required."""
         if not self.client.aircraft_url:
             return None
         try:
@@ -1097,8 +908,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self._aircraft_misses += 1
             previous = self.data.aircraft if self.data is not None else None
             if previous is not None and self._aircraft_misses <= MISSED_READS_TOLERATED:
-                # The last answer stands, and is handed back as it was: nothing
-                # in it is new, so nothing is announced or counted again.
+                # The last answer, unchanged, so nothing is announced twice.
                 _LOGGER.debug(
                     "Missed a read of %s, keeping the last: %s",
                     self.client.aircraft_url,
@@ -1106,13 +916,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
                 return previous
             if required:
-                # Nothing else will be read this poll, stats.json included, and
-                # a decoder that is not there delivers no samples either.
+                # No stats.json this poll either, so no samples.
                 if self.client.stats_url:
                     self._check_samples(None)
                 raise UpdateFailed(err) from err
-            # The feeder keeps working without the decoder, so degrade instead
-            # of taking every entity down. Report the outage only once.
+            # The feeder entities keep working; log the outage once.
             if not self._aircraft_out:
                 self._aircraft_out = True
                 _LOGGER.warning(
@@ -1131,25 +939,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         await self._async_read_receiver()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
         stats = await self._async_add_photos(stats)
-        # After the routes and photos, so an automation is told where the
-        # aircraft it is being woken for is going, and what it looks like.
+        # After routes and photos, so the events carry them.
         self._track_passages(stats)
         self._announce_watched(stats)
         self._announce_approaching(stats)
         return stats
 
     def _track_passages(self, stats: AircraftStats) -> None:
-        """Follow the aircraft crossing the sky above you, and announce them.
+        """Follow the aircraft crossing the radius, and announce new ones.
 
-        The nearby list is already everything within the radius across the
-        ground, and an aircraft can only be within the real distance if it is
-        within that, so this is a matter of dropping the ones that are high
-        rather than close, and the ones that are not flying at all.
-
-        Aircraft on the ground report no altitude, so the real distance to one
-        falls back to the distance across the ground and every airliner taxiing
-        at a field down the road would come past as a passage. Nobody looks up
-        at those, and near a field there are a great many of them.
+        From the nearby list, dropping aircraft that are too high or on the
+        ground, so taxiing traffic at a nearby field is no passage.
         """
         now = dt_util.utcnow()
         radius = self.proximity_radius
@@ -1191,17 +991,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             ):
                 passage.peak_rssi = summary.rssi
 
-        # Of the aircraft this poll actually saw, the nearest is the one to
-        # look up at. A passage that was not seen is not overhead, however
-        # recently it was there.
+        # The nearest seen this poll; one not seen now is not overhead.
         self.overhead = (
             min(in_view, key=lambda passage: passage.current_distance)
             if in_view
             else None
         )
 
-        # An aircraft that has been gone longer than a passage can be paused
-        # for is gone, and holding on to it would grow this without bound.
+        # Forget passages gone longer than the gap.
         for hex_code in [
             hex_code
             for hex_code, passage in self.passages.items()
@@ -1212,21 +1009,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _announce_approaching(self, stats: AircraftStats) -> None:
         """Fire an event for an aircraft that is about to come over.
 
-        Everything else here reports the present tense. This is the one thing
-        that says something before it happens, and it is built out of an
-        assumption rather than a measurement, so it is held to three rules:
-
-        It has to be coming somewhere worth mentioning, which is inside the
-        same radius and under the same ceiling a passage uses; there is no
-        point announcing an aircraft that will pass forty kilometres away.
-
-        It has to say so twice. A single mis-decoded heading points an
-        aircraft straight at your house for one poll, and by the next it is
-        pointing where it was really going.
-
-        And it is said once. Repeating it every fifteen seconds for the four
-        minutes it takes to arrive would be worse than not saying it at all,
-        so the same gap that separates two passages separates two warnings.
+        Only within the passage radius and ceiling, only after APPROACH_POLLS
+        polls agree, and once per PASSAGE_GAP.
         """
         now = dt_util.utcnow()
         radius = self.proximity_radius
@@ -1262,8 +1046,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 },
             )
 
-        # An aircraft that has stopped coming this way starts over, so that
-        # turning back towards you counts as two polls again.
+        # One that stopped approaching starts counting again.
         for hex_code in set(self._approaching) - coming:
             del self._approaching[hex_code]
         for hex_code in [
@@ -1274,13 +1057,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             del self._warned[hex_code]
 
     def _announce_watched(self, stats: AircraftStats) -> None:
-        """Fire an event for each watched aircraft that has turned up.
-
-        Unlike a passage this has no radius. The question a watchlist asks is
-        whether the aircraft is up there at all, so an answer forty kilometres
-        away is the answer; where a passage says something came over your
-        house, this says something you were waiting for is in the air.
-        """
+        """Fire an event for each watched aircraft in range, at any distance."""
         now = dt_util.utcnow()
         for match in stats.watched:
             announced = self._announced.get(match.summary.hex)
@@ -1292,8 +1069,6 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 {
                     "entry_id": self.config_entry.entry_id,
                     "station": self.config_entry.title,
-                    # The line as it was written down, and what about the
-                    # aircraft it turned out to name.
                     "watching": match.entry.line,
                     "matched_on": match.matched_on,
                     "squawk": match.squawk,
@@ -1301,8 +1076,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 },
             )
 
-        # An aircraft that has been gone longer than the gap is gone, and
-        # coming back is worth being told about again.
+        # Gone longer than the gap: announce it again when it returns.
         for hex_code in [
             hex_code
             for hex_code, announced in self._announced.items()
@@ -1313,10 +1087,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _announce(self, passage: Passage, metres: float) -> None:
         """Fire the event for a passage that has just begun.
 
-        Once per aircraft, where the binary sensor can only say whether there
-        is anything at all overhead: a second aircraft arriving while the
-        first is still in view changes no state and would otherwise pass
-        unnoticed.
+        Per aircraft, so a second arrival while one is overhead is not missed.
         """
         self.hass.bus.async_fire(
             EVENT_AIRCRAFT_PASSAGE,
@@ -1324,19 +1095,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 "entry_id": self.config_entry.entry_id,
                 "station": self.config_entry.title,
                 **aircraft_attributes(passage.closest, include_distance=True),
-                # How far away it really is, where the distance above is the
-                # one measured across the ground.
+                # Through the air; "distance" is across the ground.
                 "slant_distance": round(metres / 1000, 1),
             },
         )
 
     async def _async_add_routes(self, stats: AircraftStats) -> AircraftStats:
-        """Look up where the aircraft near you are flying from and to.
-
-        Only the nearby ones: they are the handful an automation acts on, and
-        every other aircraft in range would be a question asked of someone
-        else's server for a figure nothing displays.
-        """
+        """Look up the routes of the nearby aircraft only, to spare routeset."""
         if self.route_lookup is None or not stats.nearby:
             return stats
 
@@ -1367,15 +1132,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
 
     async def _async_add_photos(self, stats: AircraftStats) -> AircraftStats:
-        """Look up what the aircraft near you, and the ones you watch, look like.
+        """Look up photos of the nearby and the watched aircraft.
 
-        The same nearby ones a route is looked up for, and the watched ones
-        wherever they are: an aircraft worth a watchlist line is the one whose
-        photo is worth having when it turns up forty kilometres out.
-
-        Not for an aircraft flying under a PIA address. That address is lent
-        out for privacy and taken back, so its photo would be of whichever
-        airframe last flew under it.
+        Not under a PIA address: it is reused, so the photo could be of
+        another airframe.
         """
         if self.photo_lookup is None:
             return stats
@@ -1418,8 +1178,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         try:
             data = await self.client.async_get_stats()
         except AdsbStationError as err:
-            # Counted as nothing delivered either way: a receiver gone silent
-            # is measured over minutes, and a missed read is part of that.
+            # A missed read counts as no samples towards going silent.
             self._check_samples(None)
             self._stats_misses += 1
             previous = self.data.stats if self.data is not None else None
@@ -1449,18 +1208,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         return self._build_receiver_stats(data)
 
     async def _async_read_receiver(self) -> None:
-        """Read receiver.json: the antenna position and the decoder version.
+        """Read receiver.json once: the antenna position and the decoder version.
 
-        Once, as long as it answers. Neither of those can change while the
-        decoder runs, so a document that carries no position is a final answer
-        and not worth asking after again.
-
-        A request that fails is not an answer, though, and this one only runs
-        after aircraft.json has just been read, so a receiver that answers on
-        one URL and not on the other is having a moment rather than telling us
-        anything. Give it a few polls before settling for the home location,
-        because settling for it is silent and lasts until the entry is
-        reloaded.
+        Neither changes while the decoder runs. A failed request gets a few
+        more tries before falling back to the home location until a reload.
         """
         if self._receiver_reads_left <= 0:
             return
@@ -1480,19 +1231,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
             return
 
-        # It answered, so stop asking whatever it had to say.
         self._receiver_reads_left = 0
 
-        # Without a feeder this is the only thing that identifies the decoder
-        # on the device page. The fr24feed fork never expands its placeholder.
+        # Without a feeder, this names the decoder on the device page.
         version = _as_text(data.get("version"))
         if version is not None and version != UNSET_RECEIVER_VERSION:
             self.receiver_version = version
 
         position = _position({"lat": data.get("lat"), "lon": data.get("lon")})
-        # The fr24feed fork serves a receiver.json without coordinates, and an
-        # unconfigured receiver reports the null island. Both mean "no answer",
-        # so fall back to the location of Home Assistant itself.
+        # No coordinates (fr24feed's fork) or 0,0 (unconfigured): use home.
         if position is None or position == (0.0, 0.0):
             _LOGGER.debug(
                 "receiver.json has no usable position; measuring range from the "
@@ -1506,16 +1253,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _build_aircraft_stats(self, data: dict[str, Any]) -> AircraftStats:
         """Turn a raw aircraft.json document into the figures we expose.
 
-        Every aircraft the decoder is holding counts, including the ones it
-        has not heard from for a moment: it keeps an aircraft in the document
-        for about a minute after its last message, and the seen field on each
-        one says how long that is.
-
-        Dropping those was tempting and would have been wrong. It is the same
-        aircraft in the same place it was heard, so the range it set is a range
-        this station really reached; the count would stop agreeing with the map
-        the decoder serves; and a gap in reception is exactly what a passage is
-        built to ride out, so cutting one short here would undo that.
+        Aircraft not heard for a moment still count: their range was really
+        reached, and the count then matches the decoder's own map.
         """
         aircraft: list[dict[str, Any]] = [
             entry for entry in data["aircraft"] if isinstance(entry, dict)
@@ -1525,10 +1264,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         ceiling = self.proximity_ceiling
 
         with_position = 0
-        # Each superlative is kept next to the figure that won it. A summary
-        # carries an optional distance, altitude and speed, because plenty of
-        # aircraft report none of them, but the one holding a superlative
-        # always has the figure it won on, and comparing plain numbers says so.
+        # Each record keeps the plain number it won on, so comparisons stay typed.
         closest: AircraftSummary | None = None
         closest_metres: float | None = None
         furthest: AircraftSummary | None = None
@@ -1558,10 +1294,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             metres: float | None = None
             if (position := _position(entry)) is not None:
                 metres = distance(origin_latitude, origin_longitude, *position)
-                # A position we do not believe is worse than none: it would set
-                # a record that stands for good, or put an aircraft overhead
-                # that was never there. The aircraft itself is real and still
-                # counts; we simply do not know where it is.
+                # An unbelievable position is dropped; the aircraft still counts.
                 if metres is not None and not _is_believable(
                     metres, altitude := _altitude(entry)
                 ):
@@ -1590,9 +1323,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     )
             heard.append(summary)
 
-            # The first line that matches wins and the rest are not tried: a
-            # hex code and a type code can both name the same aircraft, and
-            # one aircraft is one thing to be told about.
+            # First matching line wins, so one aircraft is one match.
             squawk = _as_text(entry.get("squawk")) or ""
             for line in self.watchlist:
                 if (field := _matches(line, summary, squawk)) is not None:
@@ -1606,8 +1337,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     )
                     break
 
-            # Altitude and speed reach us from aircraft without a position too,
-            # so these two are not restricted to the ones we can locate.
+            # These two include aircraft without a position.
             if summary.altitude is not None and (
                 highest_feet is None or summary.altitude > highest_feet
             ):
@@ -1623,13 +1353,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 furthest, furthest_metres = summary, metres
             if closest_metres is None or metres < closest_metres:
                 closest, closest_metres = summary, metres
-            # The ceiling belongs to the nearby family and to nothing else.
-            # Everything above this line is about what the station received,
-            # which an aircraft at cruising height counted towards whether or
-            # not you would ever look up at it: the count, the range records,
-            # the furthest and the highest, and an emergency squawk, which is
-            # worth hearing about at any altitude at all. Somebody tidying up
-            # later will be tempted to hoist this; that is what it would cost.
+            # The ceiling applies to nearby only, not to reception figures or
+            # emergencies; do not move it up.
             if metres <= radius and _under(summary, ceiling):
                 nearby.append(summary)
 
@@ -1644,8 +1369,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             total=len(aircraft),
             with_position=with_position,
             messages=_as_int(data.get("messages")),
-            # Filled in by _count_messages, which decides whether this poll
-            # takes a new sample or keeps showing the last one.
+            # Filled in by _count_messages.
             message_rate=None,
             updated=None if now is None else dt_util.utc_from_timestamp(now),
             closest=closest,
@@ -1664,9 +1388,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     ) -> float | None:
         """Return the messages per second since the previous poll.
 
-        Named for the fact that it consumes something: a rate needs two
-        samples, so this replaces the one it was holding with the one it was
-        given. Asking twice for the same poll answers the first time only.
+        Consumes the held sample, so call it once per poll.
         """
         if messages is None or now is None:
             return None
@@ -1678,8 +1400,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         previous_messages, previous_now = previous
         elapsed = now - previous_now
-        # A restarted receiver resets its counter and its clock, so a negative
-        # delta means the previous sample is worthless rather than a real rate.
+        # Time or count going backwards means the receiver restarted.
         if elapsed <= 0 or messages < previous_messages:
             return None
         return (messages - previous_messages) / elapsed
@@ -1735,11 +1456,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
 
 def _accepted(value: Any) -> int | None:
-    """Return the accepted message count.
-
-    dump1090 reports one entry per bit-error correction level, so the total is
-    the sum of the list.
-    """
+    """Return the accepted message count, summed over error-correction levels."""
     if isinstance(value, list):
         counts = [_as_int(item) for item in value]
         return sum(count for count in counts if count is not None)
@@ -1749,8 +1466,7 @@ def _accepted(value: Any) -> int | None:
 def _error_rate(local: dict[str, Any]) -> float | None:
     """Return the share of Mode S messages that failed to decode, in percent.
 
-    A quiet minute has no messages and therefore no rate, which is honestly
-    unknown rather than a perfect zero.
+    None for a minute without messages, rather than a misleading zero.
     """
     total = _as_int(local.get("modes"))
     bad = _as_int(local.get("bad"))
