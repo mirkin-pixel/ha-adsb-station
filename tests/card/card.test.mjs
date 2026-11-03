@@ -325,6 +325,28 @@ const tests = {
     assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 3);
   },
 
+  "draws no trail without the aircraft at the end of it"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const now = Date.now() / 1000;
+    // HIGH is in the trails but no longer in the sky.
+    link.send({
+      ...SKY([LOW]),
+      trails: {
+        [LOW.hex]: [[52.0, 5.0, 1200, now - 60], [52.02, 5.0, 1500, now - 5]],
+        [HIGH.hex]: [[52.3, 5.5, 37000, now - 200], [52.4, 5.3, 37000, now - 90]],
+      },
+    });
+    assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 1);
+    // And one that drops out of the sky takes its trail with it.
+    link.send(SKY([{ ...LOW, latitude: 52.03 }, HIGH]));
+    link.send(SKY([{ ...HIGH, latitude: 52.41 }]));
+    assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 1);
+    assert.equal(card.shadowRoot.querySelectorAll(".plane").length, 1);
+  },
+
   "shows what was tapped on the radar"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
@@ -412,6 +434,64 @@ const tests = {
     await tick();
     assert.equal(card.shadowRoot.querySelector(".radar .route"), null);
     assert.equal(card.shadowRoot.querySelector(".picked .route-line"), null);
+  },
+
+  async "says a route is on its way while it is asked for"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    let answer;
+    hass.callWS = () => new Promise((resolve) => (answer = resolve));
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
+    assert.match(card.shadowRoot.querySelector(".picked .route-line").textContent, /Route opzoeken/);
+    answer({ route_points: null });
+    await tick();
+    await tick();
+    assert.equal(card.shadowRoot.querySelector(".picked .route-line"), null);
+  },
+
+  async "asks again for a route it got no answer for"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const asked = [];
+    let reply = () => Promise.reject(new Error("connection lost"));
+    hass.callWS = (message) => {
+      asked.push(message);
+      return reply();
+    };
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    const tap = async () => {
+      card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
+      await tick();
+      await tick();
+    };
+    // A question that failed is asked again on the next tap.
+    await tap();
+    await tap();
+    await tap();
+    assert.equal(asked.length, 2);
+    // Nobody knew the route: not again straight away, but a minute on.
+    reply = () => Promise.resolve({ route_points: null });
+    await tap();
+    await tap();
+    assert.equal(asked.length, 3);
+    // A second tap takes the selection off, a third puts it back.
+    await tap();
+    await tap();
+    assert.equal(asked.length, 3);
+    const realNow = w.Date.now;
+    w.Date.now = () => realNow() + 61_000;
+    try {
+      await tap();
+      await tap();
+    } finally {
+      w.Date.now = realNow;
+    }
+    assert.equal(asked.length, 4);
   },
 
   "keeps to the range it was given"() {

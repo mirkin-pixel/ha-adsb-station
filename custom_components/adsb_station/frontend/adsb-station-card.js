@@ -53,6 +53,7 @@ const STRINGS = {
     scale_coverage: "Automatic, to fit the range records",
     scale_fixed: "Fixed",
     map_range: "Fixed range in km",
+    route_pending: "Looking up the route…",
   },
   nl: {
     name: "ADS-B Station",
@@ -84,6 +85,7 @@ const STRINGS = {
     scale_coverage: "Automatisch, passend bij de bereikrecords",
     scale_fixed: "Vast",
     map_range: "Vast bereik in km",
+    route_pending: "Route opzoeken…",
   },
 };
 
@@ -93,10 +95,14 @@ const CLIMB_RATE_SHOWN = 500;
 const DEFAULT_MAX_NEARBY = 5;
 const MAP_STYLES = ["radar", "map", "none"];
 
-// How long a trail is, and how long an aircraft that stopped being sent is
-// remembered before its trail goes as well.
+// How long a trail is. An aircraft that is no longer sent takes its trail
+// with it at once: it is not drawn, and a trail kept on after it would be a
+// line across the map with nothing at the end of it.
 const TRAIL_SECONDS = 300;
-const FORGET_SECONDS = 60;
+// A tapped aircraft nobody knew the route of is asked about again when it is
+// tapped again this long after. The integration keeps a miss for an hour, so
+// that costs routeset nothing; it is for an answer lost on the way.
+const ROUTE_RETRY_SECONDS = 60;
 // The radar's outer ring snaps to one of these, in kilometres, unless it is
 // fixed: to the aircraft in the sky now, or to the range records as well.
 const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
@@ -355,13 +361,13 @@ class AdsbStationCard extends HTMLElement {
 
   constructor() {
     super();
-    // hex → the points it was seen at, oldest first, and when it was last sent.
+    // hex → the points it was seen at, oldest first.
     this._trails = new Map();
-    this._lastSent = new Map();
     this._sky = null;
     this._selected = null;
-    // hex → the route asked for when it was tapped: its points, or null when
-    // there is none, or pending while the answer is on its way.
+    // hex → the route asked for when it was tapped: "pending" while the
+    // answer is on its way, then its points, or null when there were none,
+    // with when the answer came.
     this._routes = new Map();
   }
 
@@ -531,7 +537,6 @@ class AdsbStationCard extends HTMLElement {
     this._following = wanted;
     this._sky = null;
     this._trails.clear();
-    this._lastSent.clear();
     const subscription = this._hass.connection.subscribeMessage((sky) => this._receive(sky), {
       type: SUBSCRIBE,
       device_id: wanted,
@@ -554,20 +559,20 @@ class AdsbStationCard extends HTMLElement {
   _receive(sky) {
     this._sky = sky;
     const now = Date.now() / 1000;
+    const here = new Set((sky.aircraft || []).map((plane) => plane.hex));
     // The first sky brings where every aircraft has been lately, kept by the
     // integration, so a card that just opened does not start from nothing.
     if (sky.trails) {
       this._trails.clear();
       for (const [hex, points] of Object.entries(sky.trails)) {
+        if (!here.has(hex)) continue;
         this._trails.set(
           hex,
           points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t }))
         );
-        this._lastSent.set(hex, now);
       }
     }
     for (const plane of sky.aircraft || []) {
-      this._lastSent.set(plane.hex, now);
       const trail = this._trails.get(plane.hex) || [];
       const last = trail[trail.length - 1];
       if (!last || last.lat !== plane.latitude || last.lon !== plane.longitude) {
@@ -581,11 +586,8 @@ class AdsbStationCard extends HTMLElement {
       while (trail.length && trail[0].t < now - TRAIL_SECONDS) trail.shift();
       this._trails.set(plane.hex, trail);
     }
-    for (const [hex, seen] of this._lastSent) {
-      if (seen < now - FORGET_SECONDS) {
-        this._lastSent.delete(hex);
-        this._trails.delete(hex);
-      }
+    for (const hex of [...this._trails.keys()]) {
+      if (!here.has(hex)) this._trails.delete(hex);
     }
     if (this._skyBox && !this._skyBox.hidden) this._drawSky();
   }
@@ -905,17 +907,23 @@ class AdsbStationCard extends HTMLElement {
   _routeOf(plane) {
     if (plane.route_points) return plane.route_points;
     const asked = this._routes.get(plane.hex);
-    return asked && asked !== "pending" ? asked : null;
+    return asked && asked !== "pending" ? asked.points : null;
   }
 
   _lookUpRoute(hex) {
     const plane = this._sky && (this._sky.aircraft || []).find((p) => p.hex === hex);
-    if (!plane || plane.route_points || this._routes.has(hex) || !this._following || !this._hass.callWS) return;
+    if (!plane || plane.route_points || !this._following || !this._hass.callWS) return;
+    const asked = this._routes.get(hex);
+    const now = Date.now() / 1000;
+    if (asked === "pending" || (asked && (asked.points || asked.at > now - ROUTE_RETRY_SECONDS))) return;
     this._routes.set(hex, "pending");
     this._hass
       .callWS({ type: LOOK_UP_ROUTE, device_id: this._following, hex })
-      .then((answer) => this._routes.set(hex, (answer && answer.route_points) || null))
-      .catch(() => this._routes.set(hex, null))
+      .then((answer) =>
+        this._routes.set(hex, { points: (answer && answer.route_points) || null, at: Date.now() / 1000 })
+      )
+      // A question that failed is no answer: the next tap asks again.
+      .catch(() => this._routes.delete(hex))
       .finally(() => {
         if (this._selected === hex) this._drawSky();
       });
@@ -967,7 +975,7 @@ class AdsbStationCard extends HTMLElement {
         { class: "secondary" },
         [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · ")
       ),
-      this._routeLine(plane),
+      this._routeLine(plane, text),
       el(
         "div",
         { class: "secondary" },
@@ -982,9 +990,13 @@ class AdsbStationCard extends HTMLElement {
     );
   }
 
-  // Where it comes from and goes to, in words, under the aircraft's name.
-  _routeLine(plane) {
+  // Where it comes from and goes to, in words, under the aircraft's name. An
+  // answer can take thirty seconds, so say that one is on its way.
+  _routeLine(plane, text) {
     const route = this._routeOf(plane);
+    if (!route && this._routes.get(plane.hex) === "pending") {
+      return el("div", { class: "secondary route-line pending" }, text.route_pending);
+    }
     if (!route) return null;
     const end = (airport) => [airport.code, airport.location].filter(Boolean).join(" ");
     return el("div", { class: "secondary route-line" }, `${end(route.origin)} → ${end(route.destination)}`);

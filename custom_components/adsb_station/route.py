@@ -139,34 +139,30 @@ class RouteLookup:
         """Return the route of every callsign we know, asking about the rest.
 
         Within thirty seconds of the last question, the rest wait: for the
-        next poll, or with `wait`, for those thirty seconds to pass. Someone
-        who tapped an aircraft is still looking at it then; a poll is not.
+        next poll, or with `wait`, for their turn to come. Someone who tapped
+        an aircraft is still looking at it then; a poll is not.
 
         Never raises: a route is a nicety, and losing it must not cost you the
         aircraft entities that do come off your own receiver.
         """
-        now = dt_util.utcnow()
-        self._drop_expired(now)
-
-        known: dict[str, FlightRoute] = {}
-        pending: dict[str, FlightPosition] = {}
-        for flight in flights:
-            if (cached := self._cache.get(flight.callsign)) is not None:
-                if cached.route is not None:
-                    known[flight.callsign] = cached.route
-            else:
-                pending.setdefault(flight.callsign, flight)
-
-        if not pending:
-            return known
-
-        if self._asked_at is not None:
-            remaining = (self._asked_at + ROUTESET_MIN_INTERVAL - now).total_seconds()
-            if remaining > 0:
-                if not wait:
-                    return known
-                await asyncio.sleep(remaining)
-                return {**known, **await self.async_resolve(flights)}
+        while True:
+            now = dt_util.utcnow()
+            self._drop_expired(now)
+            known, pending = self._split(flights)
+            if not pending:
+                return known
+            remaining = (
+                0.0
+                if self._asked_at is None
+                else (self._asked_at + ROUTESET_MIN_INTERVAL - now).total_seconds()
+            )
+            if remaining <= 0:
+                break
+            if not wait:
+                return known
+            # A poll can take the turn while this sleeps. Then it is a turn
+            # later, and the cache may by then hold the answer anyway.
+            await asyncio.sleep(remaining)
 
         asking = list(pending.values())[:ROUTE_MAX_LOOKUPS_PER_POLL]
         if len(asking) < len(pending):
@@ -191,6 +187,20 @@ class RouteLookup:
             if route is not None:
                 known[flight.callsign] = route
         return known
+
+    def _split(
+        self, flights: Sequence[FlightPosition]
+    ) -> tuple[dict[str, FlightRoute], dict[str, FlightPosition]]:
+        """Return the routes already known, and the callsigns still to ask."""
+        known: dict[str, FlightRoute] = {}
+        pending: dict[str, FlightPosition] = {}
+        for flight in flights:
+            if (cached := self._cache.get(flight.callsign)) is not None:
+                if cached.route is not None:
+                    known[flight.callsign] = cached.route
+            else:
+                pending.setdefault(flight.callsign, flight)
+        return known, pending
 
     def _drop_expired(self, now: datetime) -> None:
         """Forget what we are no longer entitled to believe."""

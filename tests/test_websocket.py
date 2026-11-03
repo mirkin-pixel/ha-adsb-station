@@ -115,7 +115,9 @@ async def test_the_sky_is_sent_and_follows_every_poll(
         [52.01, 5.0, 2000],
         [52.02, 5.0, 2000],
     ]
-    assert [point[:3] for point in trails["484124"]] == [[53.0, 5.0, 35000]]
+    # TRA45 was not in the last poll. Its trail went with it, rather than
+    # lying on the map with no aircraft at the end of it.
+    assert "484124" not in trails
 
 
 async def test_an_unknown_device_is_an_error(

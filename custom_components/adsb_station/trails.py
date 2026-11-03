@@ -42,10 +42,17 @@ class SkyTrails:
 
         A point is only added when the aircraft moved: a poll that read the
         same position twice, or kept the last read, adds nothing.
+
+        An aircraft no longer heard with a position takes its trail with it.
+        The card draws an aircraft only where it is now, so a trail kept on
+        after it would end in nothing: a line across the map with no aircraft
+        to account for it.
         """
+        placed: set[str] = set()
         for summary in heard:
             if summary.position is None:
                 continue
+            placed.add(summary.hex)
             latitude, longitude = summary.position
             point: Point = (
                 round(latitude, _DECIMALS),
@@ -60,7 +67,7 @@ class SkyTrails:
         oldest = now - TRAIL_SECONDS
         for hex_code in list(self._points):
             trail = [point for point in self._points[hex_code] if point[3] >= oldest]
-            if trail:
+            if trail and hex_code in placed:
                 self._points[hex_code] = trail
             else:
                 del self._points[hex_code]
