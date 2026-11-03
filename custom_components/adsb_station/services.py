@@ -1,18 +1,7 @@
 """Services for the ADS-B Station integration.
 
-Most of them answer. Everything the two that look aircraft up return is
-already on an entity somewhere, in the attributes of the nearby list or the
-closest aircraft. What they add is being able to ask a question rather than
-having to know where the answer is kept: which aircraft is that, and what is
-up there right now that matches this.
-
-Both answer out of the last poll rather than going back to the decoder. A
-poll is fifteen seconds old at worst, an aircraft moves four kilometres in
-that time at cruising speed, and a service that fetched on demand would let an
-automation hammer a decoder that is already being read on a schedule.
-
-Two change something instead: watch and unwatch keep the watchlist, which is
-otherwise only edited under Configure.
+The lookups answer from the last poll, so automations cannot hammer the
+decoder. Watch and unwatch edit the watchlist.
 """
 
 from __future__ import annotations
@@ -33,10 +22,8 @@ from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util.json import JsonArrayType
 
-# Home Assistant 2026.10 replaced voluptuous with probatio, which keeps its API,
-# and puts it in place under the old name before anything is imported. So at
-# run time `voluptuous` is probatio there and voluptuous itself before it; only
-# the type checker has to be told which one Home Assistant's signatures mean.
+# Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
+# the type checker needs to be told.
 if TYPE_CHECKING:
     import probatio as vol
 else:
@@ -61,10 +48,8 @@ SERVICE_SPEAK: Final = "speak"
 SERVICE_WATCH: Final = "watch"
 SERVICE_UNWATCH: Final = "unwatch"
 
-# Where the sentences ship, and where Home Assistant reads them from. It
-# reads custom sentences out of the configuration directory and nowhere else,
-# so an integration cannot simply bring its own; copying them there is the
-# whole of what the service does.
+# Home Assistant reads custom sentences only from the configuration
+# directory, so the service copies them there.
 SENTENCES_DIRECTORY: Final = "sentences"
 CONFIG_SENTENCES_DIRECTORY: Final = "custom_sentences"
 SENTENCES_FILE: Final = f"{DOMAIN}.yaml"
@@ -125,13 +110,8 @@ def _station(
 ) -> tuple[AdsbStationDataUpdateCoordinator, AircraftStats]:
     """Return the station to answer out of, and what it last heard.
 
-    Both at once, because a station that has heard nothing cannot answer
-    either service, so the check belongs here rather than in each of them.
-
-    A station that only feeds somewhere has no aircraft of its own, and most
-    setups have one or two of those beside the one entry that carries the
-    receiver. Skipping them is what lets the field be left out: it only has to
-    be filled in by someone reading two antennas.
+    Feeder-only entries are skipped, so the station only has to be named
+    with two receivers.
     """
     entries: list[ConfigEntry] = hass.config_entries.async_loaded_entries(DOMAIN)
 
@@ -182,9 +162,7 @@ def _receiver_of(
 def _known_aircraft(aircraft: AircraftStats) -> dict[str, AircraftSummary]:
     """Return every aircraft of the last poll, by hex code.
 
-    Those in range are laid over the rest, because they are the same aircraft
-    with a route attached: routes are only looked up for the aircraft close
-    enough to matter, and that happens after the poll was summarised.
+    The nearby ones win, as only they carry a route.
     """
     known = {summary.hex: summary for summary in aircraft.heard}
     known.update({summary.hex: summary for summary in aircraft.nearby})
@@ -214,9 +192,7 @@ async def _async_look_up_aircraft(call: ServiceCall) -> ServiceResponse:
         ):
             return {"aircraft": _describe(coordinator, summary)}
 
-    # Not an error. An aircraft this station cannot hear is the ordinary
-    # answer to "is it up there", and an automation asking that has to be able
-    # to tell it apart from a call that went wrong.
+    # Not an error: "not heard" is a normal answer.
     return {"aircraft": None}
 
 
@@ -233,9 +209,7 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
 
     matching: list[AircraftSummary] = []
     for summary in _known_aircraft(aircraft).values():
-        # A filter an aircraft has nothing to answer with excludes it. Asking
-        # for everything under 10,000 feet cannot include the aircraft that
-        # never said how high it is.
+        # An aircraft without the filtered figure is excluded.
         if max_distance is not None and (
             summary.distance is None or summary.distance / 1000 > max_distance
         ):
@@ -260,11 +234,9 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
 
 
 def _watching_station(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
-    """Return the entry whose watchlist to change.
+    """Return the receiver entry whose watchlist to change.
 
-    The entry that carries the receiver, which is the only one with a
-    watchlist. Unlike a question, this does not need the receiver to have
-    answered: a list can be kept while the decoder is down for a reboot.
+    Works while the decoder is down, unlike the lookups.
     """
     entries: list[ConfigEntry] = hass.config_entries.async_loaded_entries(DOMAIN)
 
@@ -333,18 +305,10 @@ def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
 
 
 async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
-    """Copy the sentences Assist needs into the configuration directory.
+    """Copy the sentences Assist needs into `custom_sentences`.
 
-    Home Assistant reads custom sentences from `custom_sentences` under your
-    configuration and from nowhere else, so this writes into your
-    configuration rather than into its own directory. That is worth being
-    plain about: it is a file this integration puts in your folder, it
-    overwrites the same file on every call, and copying the two files by hand
-    does exactly the same thing. Writing into the configuration is an
-    administrator's call, so only an administrator can make this one.
-
-    Nothing is loaded by writing them. Assist reads its sentences at start,
-    so `conversation.reload` or a restart is what makes them work.
+    Overwrites the same files on every call; admin only. They take effect
+    after `conversation.reload` or a restart.
     """
     hass = call.hass
     source = Path(__file__).parent / SENTENCES_DIRECTORY
@@ -365,12 +329,8 @@ async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
 async def _async_speak(call: ServiceCall) -> ServiceResponse:
     """Return one of the spoken answers, ready to be said back.
 
-    The same five answers the voice questions give, reachable without any
-    sentence file: an automation with a sentence trigger writes its own
-    wording, calls this, and hands the result to `set_conversation_response`.
-    That keeps the awkward part of speaking — a callsign spelled out, an
-    airline named, a height rounded and written the way the language writes
-    numbers — in here rather than in everyone's template.
+    For automations with their own sentence trigger, so callsigns, airlines
+    and heights are phrased here rather than in each template.
     """
     coordinator, aircraft = _station(call.hass, call)
     language = language_of(call.data.get(ATTR_LANGUAGE) or call.hass.config.language)
@@ -389,9 +349,7 @@ async def _async_speak(call: ServiceCall) -> ServiceResponse:
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the services once, rather than once per station."""
-    # The ones that write into the configuration, or into the options, are
-    # for administrators only, as the options form is; the other three only
-    # read the last poll, so anyone may ask them.
+    # Services that write are admin only; the ones that read are open.
     async_register_admin_service(
         hass, DOMAIN, SERVICE_WATCH, _async_watch, schema=WATCH_SCHEMA
     )

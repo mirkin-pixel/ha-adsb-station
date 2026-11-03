@@ -1,32 +1,10 @@
-"""Where a flight came from and where it is going.
+"""Where a flight came from and where it is going, from routeset.
 
-Nothing an aircraft broadcasts says this. Mode S and ADS-B carry the callsign
-and nothing else about the flight, so `KLM1234` is all that reaches the
-antenna: the route behind that number lives in a database on the ground. Every
-map that shows you a route, tar1090 included, asks someone else for it.
-
-That makes this one of the two parts of the integration that leave your
-network, the other being [photos](photo.py), and it is why it stays off until
-you switch it on. The source is routeset, which is what tar1090 itself uses:
-it takes every callsign in one request, and because it is given the position
-as well it can say whether the route it found actually fits an aircraft seen
-there.
-
-That last part is what makes it worth trusting. A modern airline callsign is
-reused over the legs of a day, so a database keyed on the flight number alone
-answers with whichever leg it has on file, and half the time that is the one
-the aircraft has just flown. Measured against the track the aircraft is
-broadcasting, routeset points the right way for 99 of every 100 answers.
-
-The answer names the airline as well and it is not read. That name follows
-from the callsign, which means a table on your own disk can give it for every
-flight rather than for the ones a source happens to know.
-
-Only the aircraft inside your radius are looked up on their own, plus one
-you tap on the dashboard card, and answers are kept for the day, so a station
-watching a busy sky still asks a handful of questions an hour rather than one
-per aircraft per poll. Never more than one every thirty seconds, which is
-what routeset asks of anyone it has not approved.
+No broadcast carries a route, so this asks adsb.im's routeset, as tar1090
+does. It checks each route against the aircraft's position, which rules out
+the other legs a callsign flies that day. Only nearby and tapped aircraft
+are asked about, answers are cached, and requests are at least thirty
+seconds apart.
 """
 
 from __future__ import annotations
@@ -97,11 +75,7 @@ class FlightRoute:
 
 @dataclass(frozen=True, kw_only=True)
 class FlightPosition:
-    """A callsign, and where it was heard.
-
-    The position is what lets routeset tell a real match from a flight number
-    that is reused elsewhere in the world.
-    """
+    """A callsign, and where it was heard, for routeset to check the route."""
 
     callsign: str
     latitude: float | None = None
@@ -138,12 +112,8 @@ class RouteLookup:
     ) -> dict[str, FlightRoute]:
         """Return the route of every callsign we know, asking about the rest.
 
-        Within thirty seconds of the last question, the rest wait: for the
-        next poll, or with `wait`, for their turn to come. Someone who tapped
-        an aircraft is still looking at it then; a poll is not.
-
-        Never raises: a route is a nicety, and losing it must not cost you the
-        aircraft entities that do come off your own receiver.
+        Within thirty seconds of the last question the rest wait for the next
+        poll, or with `wait` (a tap on the card) for their turn. Never raises.
         """
         while True:
             now = dt_util.utcnow()
@@ -226,8 +196,8 @@ class RouteLookup:
     ) -> dict[str, FlightRoute]:
         """Ask about every callsign at once, in batches the API accepts.
 
-        A batch that fails takes the whole answer with it, which costs only a
-        poll: nothing is remembered, so the next one asks again.
+        A failed batch fails the whole answer; nothing is cached, so the next
+        poll asks again.
         """
         routes: dict[str, FlightRoute] = {}
         for start in range(0, len(flights), ROUTESET_MAX_PLANES):
@@ -242,11 +212,7 @@ class RouteLookup:
         planes = [
             {
                 "callsign": flight.callsign,
-                # The API insists on a position and judges the route against
-                # it, so an aircraft that broadcast none gets every route it
-                # finds thrown out as implausible rather than merely going
-                # unchecked. Only aircraft with a position are ever asked
-                # about, so this stands in for nothing in practice.
+                # Required by the API; in practice every flight asked has one.
                 "lat": flight.latitude or 0.0,
                 "lng": flight.longitude or 0.0,
             }
@@ -279,9 +245,7 @@ class RouteLookup:
 
 def _routeset_route(item: dict[str, Any]) -> FlightRoute | None:
     """Read one entry of a routeset answer."""
-    # The API says so itself when it has nothing, and says so again by judging
-    # the route it found too far from where the aircraft actually is. A wrong
-    # route on a notification is worse than no route at all.
+    # Unknown or implausible: no route beats a wrong one.
     if _text(item.get("airport_codes")) in (None, "unknown"):
         return None
     if item.get("plausible") is False:
@@ -299,11 +263,8 @@ def _routeset_route(item: dict[str, Any]) -> FlightRoute | None:
     ]
     if not airports:
         return None
-    # A flight with a stop on the way lists every leg. The two ends are what
-    # a route means to someone watching one of the legs go over.
-    # No airline: routeset answers with the designator it read off the front
-    # of the callsign, which is the same three letters we read there ourselves
-    # and can put a name to. A code where a name belongs is worse than either.
+    # With a stop on the way, the first and last airports. The airline is not
+    # read: routeset gives only the code, the shipped table gives the name.
     return FlightRoute(
         origin=airports[0],
         destination=airports[-1] if len(airports) > 1 else None,
@@ -330,11 +291,7 @@ def _coordinate(value: Any) -> float | None:
 
 
 def route_points(route: FlightRoute | None) -> dict[str, Any] | None:
-    """Describe a route for a map: both ends, each with where it is.
-
-    None unless both ends are known and placed, because a line from nowhere
-    is not a route.
-    """
+    """Describe a route for a map: both ends, each with where it is, or None."""
     if route is None or route.origin is None or route.destination is None:
         return None
     ends = []
@@ -360,11 +317,7 @@ def build_route_lookup(
 
 
 def route_attributes(route: FlightRoute | None) -> dict[str, Any]:
-    """Describe a route for the attributes of an aircraft.
-
-    Absent where unknown: an empty attribute reads as though the aircraft is
-    going nowhere, and a template can ask whether the key is there at all.
-    """
+    """Describe a route for the attributes of an aircraft, leaving out unknowns."""
     if route is None:
         return {}
     attributes: dict[str, Any] = {}
