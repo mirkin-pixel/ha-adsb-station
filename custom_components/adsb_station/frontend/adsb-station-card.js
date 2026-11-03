@@ -1,19 +1,9 @@
 /*
- * ADS-B Station card.
+ * ADS-B Station card, served by the integration on every dashboard.
  *
- * Served by the integration itself and loaded on every dashboard, so there is
- * nothing to download or add as a resource. It finds the station's entities by
- * what they are rather than by their IDs, which are in whatever language Home
- * Assistant was set to when they were made: every entity of this integration
- * carries a fixed translation key, and hass.entities says which is which.
- *
- * The sky on top is not an entity. The integration sends every aircraft with a
- * position over a websocket subscription while the card is open, and the card
- * remembers where each one has been for the trail behind it. Nothing of either
- * is recorded.
- *
- * Plain JavaScript on purpose. There is no build step, so what is in the
- * repository is exactly what runs, and it ships in the integration's zip.
+ * Entities are found by translation key, not by their language-dependent IDs.
+ * The sky comes over a websocket subscription while the card is open. Plain
+ * JavaScript with no build step, so the repository is exactly what runs.
  */
 
 const DOMAIN = "adsb_station";
@@ -95,13 +85,9 @@ const CLIMB_RATE_SHOWN = 500;
 const DEFAULT_MAX_NEARBY = 5;
 const MAP_STYLES = ["radar", "map", "none"];
 
-// How long a trail is. An aircraft that is no longer sent takes its trail
-// with it at once: it is not drawn, and a trail kept on after it would be a
-// line across the map with nothing at the end of it.
+// A trail goes with its aircraft at once, or it would end in nothing.
 const TRAIL_SECONDS = 300;
-// A tapped aircraft nobody knew the route of is asked about again when it is
-// tapped again this long after. The integration keeps a miss for an hour, so
-// that costs routeset nothing; it is for an answer lost on the way.
+// After "no route", a later tap asks again; the integration caches the miss.
 const ROUTE_RETRY_SECONDS = 60;
 // The radar's outer ring snaps to one of these, in kilometres, unless it is
 // fixed: to the aircraft in the sky now, or to the range records as well.
@@ -113,10 +99,7 @@ const DEFAULT_FIXED_RANGE = 100;
 const SECTORS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 const KILOMETRES = { km: 1, m: 0.001, mi: 1.609344, ft: 0.0003048, nmi: 1.852 };
 
-// From the ground up: warm and low, cool and high, so a glance tells an
-// approach from an overflight. Hue by altitude in feet, in between linear,
-// in steps that follow the phases of a flight: the circuit, the approach,
-// the climb, and cruise.
+// Warm and low to cool and high, in steps that follow the phases of a flight.
 const ALTITUDE_TOP = 45000;
 const ALTITUDE_HUES = [
   [0, 8],
@@ -130,9 +113,7 @@ const ALTITUDE_HUES = [
 ];
 const GROUND_COLOR = "#8c8c8c";
 
-// Drawn pointing north in a box of 24 around the origin, and turned to the
-// track. Three outlines are enough to tell the sky apart: an airliner, a light
-// aircraft with straight wings, and a helicopter with its rotor.
+// Pointing north in a 24 box around the origin, turned to the track.
 const SHAPES = {
   jet:
     "M0,-11 L1.5,-8 L1.5,-3 L10,2 L10,4 L1.5,1.5 L1,7 L4,9.5 L4,11 L0,10 " +
@@ -152,9 +133,7 @@ function strings(hass) {
 }
 
 function el(tag, attributes, ...children) {
-  // Everything that reaches the page goes through textContent or a property,
-  // never through innerHTML: the attributes come from aircraft and from other
-  // people's servers, and none of it is markup.
+  // Never innerHTML: the text comes from aircraft and other servers.
   const node = document.createElement(tag);
   return fill(node, attributes, children);
 }
@@ -234,9 +213,7 @@ function shapeOf(aircraft) {
   return { path: SHAPES.jet, scale: 1 };
 }
 
-// Only an https address is put on the page as a link or an image. Everything
-// the photo lookup hands over is, and anything else is left out rather than
-// followed.
+// Only https addresses become links or images.
 function safeUrl(value) {
   return typeof value === "string" && value.startsWith("https://") ? value : null;
 }
@@ -247,18 +224,13 @@ function numeric(state) {
   return Number.isFinite(value) ? value : null;
 }
 
-// The map under the sky, in the projection web map tiles are drawn in. The
-// zoom is whatever puts the radar's range at its reach, between whole zoom
-// levels too: the tiles of the level below are drawn larger to make up the
-// difference.
+// Web Mercator, at a fractional zoom: tiles of the level below are scaled up.
 const TILE_SIZE = 256;
 const EQUATOR_METRES_PER_PIXEL = 156543.03392;
 // OpenStreetMap's raster tiles stop here.
 const MAX_TILE_ZOOM = 19;
-// Home Assistant serves OpenStreetMap's tiles itself since 2026.9, behind a
-// token that its frontend asks for over the websocket and that is good for
-// half an hour. Before that there is no proxy, and the tiles come from
-// OpenStreetMap directly, as Home Assistant's own demo has them.
+// Through Home Assistant's tile proxy since 2026.9, with a token valid half an
+// hour; before that, straight from OpenStreetMap.
 const PROXY_TILES = (z, x, y, token) => `/api/map_tiles/raster/${z}/${x}/${y}.png?token=${encodeURIComponent(token)}`;
 const UPSTREAM_TILES = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const TOKEN_REFRESH = 20 * 60 * 1000;
@@ -365,9 +337,7 @@ class AdsbStationCard extends HTMLElement {
     this._trails = new Map();
     this._sky = null;
     this._selected = null;
-    // hex → the route asked for when it was tapped: "pending" while the
-    // answer is on its way, then its points, or null when there were none,
-    // with when the answer came.
+    // hex → "pending", or { points, at } with points null when there were none.
     this._routes = new Map();
   }
 
@@ -627,11 +597,7 @@ class AdsbStationCard extends HTMLElement {
     return this._range;
   }
 
-  // The same drawing either way: on the radar's own scope, or with map
-  // tiles under it. Home Assistant's map element can only draw entities and
-  // dotted lines, so the outlines, the labels and the coverage would all be
-  // lost on it; here the tiles are just the background of what is drawn
-  // anyway, and everything sits exactly where it belongs on them.
+  // One drawing for both: on the radar's scope, or on map tiles.
   _radar(text, streets) {
     const sky = this._sky;
     const size = 400;
@@ -640,9 +606,7 @@ class AdsbStationCard extends HTMLElement {
     const range = this._scale(sky);
     const origin = sky ? [sky.latitude, sky.longitude] : null;
 
-    // Kilometres to pixels, and a position to a point in the drawing. On the
-    // radar a plain flat projection around the station; on the map the one
-    // the tiles are drawn in, so the two line up.
+    // Flat around the station on the radar; the tiles' projection on the map.
     let perKm = reach / range;
     let project = (lat, lon) => {
       const east = (lon - origin[1]) * 111.32 * Math.cos((origin[0] * Math.PI) / 180);
@@ -768,10 +732,7 @@ class AdsbStationCard extends HTMLElement {
       .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
       .filter(({ at }) => inView(at));
 
-    // Around the station the aircraft crowd together, and callsigns written
-    // over each other read as none at all. The picked one is labelled first,
-    // then the nearest; a label that would cover one already placed is left
-    // off, and that aircraft can still be tapped for it.
+    // Picked first, then nearest; a label that would overlap one is left off.
     const labelled = new Set();
     const placed = [];
     const ranked = [...planes].sort(
@@ -826,9 +787,7 @@ class AdsbStationCard extends HTMLElement {
     return scope;
   }
 
-  // The map tiles for a view, as one group that is kept while the view, the
-  // token and the theme stay the same: drawn afresh on every poll, they would
-  // load again every time. Nothing until it is known where they come from.
+  // Kept while view, token and theme are unchanged, so tiles do not reload.
   _tiles(view) {
     const token = this._tileToken();
     if (token === undefined) return null;
@@ -899,11 +858,7 @@ class AdsbStationCard extends HTMLElement {
       .join(" · ");
   }
 
-  // The furthest the station has ever heard an aircraft in each of the eight
-  // sectors, in kilometres, clockwise from north: the shape of what the
-  // antenna can see, and where a roof or a hill is in the way. A sector
-  // without a record yet is drawn at the centre; with fewer than three
-  // records there is no shape to draw.
+  // Range record per sector in km, clockwise from north; needs at least three.
   _coverage() {
     const found = this._found;
     if (!found) return null;
@@ -1183,76 +1138,332 @@ class AdsbStationCard extends HTMLElement {
   }
 }
 
-const STYLE = `
-  ha-card { display: block; overflow: hidden; container-type: inline-size; }
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr); }
-  @container (min-width: 720px) {
-    .layout.with-sky { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
-    .layout.with-sky .sky { border-right: 1px solid var(--divider-color); border-bottom: none; }
+// Tags the stylesheet so Prettier formats it; String.raw returns it unchanged.
+const css = String.raw;
+
+const STYLE = css`
+  ha-card {
+    display: block;
+    overflow: hidden;
+    container-type: inline-size;
   }
-  .sky { padding: 12px 12px 8px; border-bottom: 1px solid var(--divider-color); }
-  .sky[hidden] { display: none; }
-  .radar { display: block; width: 100%; max-height: 440px; margin: 0 auto; }
-  .radar .scope { fill: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); stroke: var(--divider-color); }
-  .radar .ring { fill: none; stroke: var(--divider-color); }
-  .radar .near { fill: none; stroke: var(--primary-color); stroke-dasharray: 4 4; opacity: 0.7; }
-  .radar text { fill: var(--secondary-text-color); font-size: 11px; font-family: inherit; }
-  .radar .compass { text-anchor: middle; font-weight: 500; }
-  .radar .quiet { text-anchor: middle; font-size: 13px; }
-  .radar .home { fill: var(--primary-color); stroke: var(--card-background-color, #fff); stroke-width: 2; }
-  .radar .trails line { stroke-width: 2; stroke-linecap: round; opacity: 0.65; }
-  .radar .plane { cursor: pointer; }
-  .radar .plane path { stroke: var(--card-background-color, #000); stroke-width: 0.8; }
-  .radar .callsign { fill: var(--primary-text-color); font-size: 10.5px; font-weight: 500; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
-  .radar .route polyline { fill: none; stroke: var(--primary-text-color); stroke-width: 1.8; stroke-linejoin: round; }
-  .radar .route .flown { opacity: 0.55; }
-  .radar .route .ahead { stroke-dasharray: 5 4; opacity: 0.85; }
-  .radar .airport circle { fill: var(--card-background-color, #fff); stroke: var(--primary-text-color); stroke-width: 2; }
-  .radar .airport text { fill: var(--primary-text-color); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
-  .radar .halo { fill: none; stroke: var(--primary-text-color); stroke-width: 1.5; opacity: 0.6; }
-  .radar .land { fill: var(--secondary-background-color, #eee); }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @container (min-width: 720px) {
+    .layout.with-sky {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    }
+    .layout.with-sky .sky {
+      border-right: 1px solid var(--divider-color);
+      border-bottom: none;
+    }
+  }
+  .sky {
+    padding: 12px 12px 8px;
+    border-bottom: 1px solid var(--divider-color);
+  }
+  .sky[hidden] {
+    display: none;
+  }
+  .radar {
+    display: block;
+    width: 100%;
+    max-height: 440px;
+    margin: 0 auto;
+  }
+  .radar .scope {
+    fill: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
+    stroke: var(--divider-color);
+  }
+  .radar .ring {
+    fill: none;
+    stroke: var(--divider-color);
+  }
+  .radar .near {
+    fill: none;
+    stroke: var(--primary-color);
+    stroke-dasharray: 4 4;
+    opacity: 0.7;
+  }
+  .radar text {
+    fill: var(--secondary-text-color);
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .radar .compass {
+    text-anchor: middle;
+    font-weight: 500;
+  }
+  .radar .quiet {
+    text-anchor: middle;
+    font-size: 13px;
+  }
+  .radar .home {
+    fill: var(--primary-color);
+    stroke: var(--card-background-color, #fff);
+    stroke-width: 2;
+  }
+  .radar .trails line {
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.65;
+  }
+  .radar .plane {
+    cursor: pointer;
+  }
+  .radar .plane path {
+    stroke: var(--card-background-color, #000);
+    stroke-width: 0.8;
+  }
+  .radar .callsign {
+    fill: var(--primary-text-color);
+    font-size: 10.5px;
+    font-weight: 500;
+    paint-order: stroke;
+    stroke: var(--card-background-color, #fff);
+    stroke-width: 3px;
+  }
+  .radar .route polyline {
+    fill: none;
+    stroke: var(--primary-text-color);
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+  }
+  .radar .route .flown {
+    opacity: 0.55;
+  }
+  .radar .route .ahead {
+    stroke-dasharray: 5 4;
+    opacity: 0.85;
+  }
+  .radar .airport circle {
+    fill: var(--card-background-color, #fff);
+    stroke: var(--primary-text-color);
+    stroke-width: 2;
+  }
+  .radar .airport text {
+    fill: var(--primary-text-color);
+    font-size: 11px;
+    font-weight: 600;
+    paint-order: stroke;
+    stroke: var(--card-background-color, #fff);
+    stroke-width: 3px;
+  }
+  .radar .halo {
+    fill: none;
+    stroke: var(--primary-text-color);
+    stroke-width: 1.5;
+    opacity: 0.6;
+  }
+  .radar .land {
+    fill: var(--secondary-background-color, #eee);
+  }
   /* OpenStreetMap has no dark tiles; Home Assistant inverts them the same way. */
-  .radar .tiles.dark { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
-  .radar.streets .ring { stroke: rgba(0, 0, 0, 0.3); }
-  .radar.streets .distance { fill: var(--primary-text-color); paint-order: stroke; stroke: var(--card-background-color, #fff); stroke-width: 3px; }
-  .radar.streets .trails line { opacity: 0.85; stroke-width: 2.5; }
-  .attribution { text-align: right; font-size: 0.7em; color: var(--secondary-text-color); margin-top: 2px; }
-  .attribution a { color: inherit; }
-  .radar .coverage { fill: var(--primary-color); fill-opacity: 0.1; stroke: var(--primary-color); stroke-opacity: 0.45; stroke-linejoin: round; }
-  .legend { display: flex; align-items: flex-end; gap: 16px; margin-top: 8px; font-size: 0.75em; color: var(--secondary-text-color); }
-  .legend .keys { display: flex; flex-direction: column; gap: 2px; }
-  .legend .key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-  .legend .dot.ground { background: ${GROUND_COLOR}; }
-  .legend .area { width: 10px; height: 8px; border: 1px solid var(--primary-color); background: rgba(3, 169, 244, 0.15); border-radius: 2px; }
-  .legend .scale { flex: 1; min-width: 0; }
-  .legend .bar { height: 6px; border-radius: 3px; }
-  .legend .ticks { display: flex; justify-content: space-between; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .picked { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); }
-  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
-  .empty { display: flex; align-items: center; gap: 12px; padding: 16px; color: var(--secondary-text-color); }
-  .overhead { padding: 16px 16px 8px; }
-  .label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-text-color); margin-bottom: 8px; }
-  .photo img { display: block; width: 100%; max-height: 240px; object-fit: cover; border-radius: var(--ha-card-border-radius, 12px); }
-  .credit { font-size: 0.8em; color: var(--secondary-text-color); margin: 4px 0 12px; }
-  .credit a { color: inherit; }
-  .details { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
-  .details ha-icon { margin-top: 2px; }
-  .lines { min-width: 0; }
-  .primary { font-size: 1.1em; font-weight: 500; }
-  .secondary { color: var(--secondary-text-color); white-space: pre-wrap; }
-  .nearby { padding: 8px 16px; border-top: 1px solid var(--divider-color); }
-  .row { display: grid; grid-template-columns: 24px auto 1fr auto auto; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
-  .row ha-icon { --mdc-icon-size: 20px; }
-  .flight { font-weight: 500; }
-  .what { color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .figure { color: var(--secondary-text-color); text-align: right; font-variant-numeric: tabular-nums; }
-  .status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; padding: 12px 16px; border-top: 1px solid var(--divider-color); color: var(--secondary-text-color); font-size: 0.9em; }
-  .figures { cursor: pointer; font-variant-numeric: tabular-nums; }
-  .feed { margin-left: 10px; }
-  .feed { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--error-color, #db4437); }
-  .good .dot { background: var(--success-color, #43a047); }
-  .warn .dot { background: var(--warning-color, #ffa600); }
+  .radar .tiles.dark {
+    filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  }
+  .radar.streets .ring {
+    stroke: rgba(0, 0, 0, 0.3);
+  }
+  .radar.streets .distance {
+    fill: var(--primary-text-color);
+    paint-order: stroke;
+    stroke: var(--card-background-color, #fff);
+    stroke-width: 3px;
+  }
+  .radar.streets .trails line {
+    opacity: 0.85;
+    stroke-width: 2.5;
+  }
+  .attribution {
+    text-align: right;
+    font-size: 0.7em;
+    color: var(--secondary-text-color);
+    margin-top: 2px;
+  }
+  .attribution a {
+    color: inherit;
+  }
+  .radar .coverage {
+    fill: var(--primary-color);
+    fill-opacity: 0.1;
+    stroke: var(--primary-color);
+    stroke-opacity: 0.45;
+    stroke-linejoin: round;
+  }
+  .legend {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 0.75em;
+    color: var(--secondary-text-color);
+  }
+  .legend .keys {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .legend .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .legend .dot.ground {
+    background: ${GROUND_COLOR};
+  }
+  .legend .area {
+    width: 10px;
+    height: 8px;
+    border: 1px solid var(--primary-color);
+    background: rgba(3, 169, 244, 0.15);
+    border-radius: 2px;
+  }
+  .legend .scale {
+    flex: 1;
+    min-width: 0;
+  }
+  .legend .bar {
+    height: 6px;
+    border-radius: 3px;
+  }
+  .legend .ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .picked {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
+  }
+  .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .empty {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    color: var(--secondary-text-color);
+  }
+  .overhead {
+    padding: 16px 16px 8px;
+  }
+  .label {
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--secondary-text-color);
+    margin-bottom: 8px;
+  }
+  .photo img {
+    display: block;
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    border-radius: var(--ha-card-border-radius, 12px);
+  }
+  .credit {
+    font-size: 0.8em;
+    color: var(--secondary-text-color);
+    margin: 4px 0 12px;
+  }
+  .credit a {
+    color: inherit;
+  }
+  .details {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    cursor: pointer;
+  }
+  .details ha-icon {
+    margin-top: 2px;
+  }
+  .lines {
+    min-width: 0;
+  }
+  .primary {
+    font-size: 1.1em;
+    font-weight: 500;
+  }
+  .secondary {
+    color: var(--secondary-text-color);
+    white-space: pre-wrap;
+  }
+  .nearby {
+    padding: 8px 16px;
+    border-top: 1px solid var(--divider-color);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 24px auto 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+  .row ha-icon {
+    --mdc-icon-size: 20px;
+  }
+  .flight {
+    font-weight: 500;
+  }
+  .what {
+    color: var(--secondary-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .figure {
+    color: var(--secondary-text-color);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 6px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--divider-color);
+    color: var(--secondary-text-color);
+    font-size: 0.9em;
+  }
+  .figures {
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .feed {
+    margin-left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--error-color, #db4437);
+  }
+  .good .dot {
+    background: var(--success-color, #43a047);
+  }
+  .warn .dot {
+    background: var(--warning-color, #ffa600);
+  }
 `;
 
 if (!customElements.get(CARD)) {
