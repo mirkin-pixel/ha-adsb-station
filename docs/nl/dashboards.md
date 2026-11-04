@@ -8,7 +8,10 @@ De integratie brengt een eigen kaart mee: de lucht rond het station, het vliegtu
 type: custom:adsb-station-card
 ```
 
-<img src="../images/card.png" alt="De kaart met het laatste toestel overhead, een klimmende Ryanair Boeing 737 MAX 8 op 17.475 voet, en de cijfers van het station met een groen bolletje voor Flightradar24 en FlightAware" width="535">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/card-radar-dark-nl.png">
+  <img src="../images/card-radar-light-nl.png" alt="De stationskaart met de radar: dezelfde vliegtuigen rond het station zonder landkaart, met het toestel overhead, de vliegtuigen dichtbij en de cijfers van het station ernaast" width="880">
+</picture>
 
 Dit is de kaart met foto's uit. Staan ze aan, dan staat de foto boven de gegevens van het toestel; hier is hij weggelaten, omdat een foto van Planespotters alleen getoond mag worden waar de fotograaf erbij staat en hij terugverwijst, en een screenshot in deze repository is geen van beide.
 
