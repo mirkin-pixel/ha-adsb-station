@@ -854,6 +854,10 @@ class AdsbStationCard extends HTMLElement {
     const inView = streets
       ? ([x, y]) => x >= -2 && x <= size + 2 && y >= -2 && y <= size + 2
       : ([x, y]) => Math.hypot(x - centre, y - centre) <= reach + 2;
+    const distances = [
+      { km: range / 2, y: centre - (range / 2) * perKm - 4 },
+      { km: range, y: centre - range * perKm + 14 },
+    ].map(({ km, y }) => ({ x: centre + 4, y, text: `${this._number(km, 1)} km` }));
 
     const scope = svg("svg", {
       class: streets ? "radar streets" : "radar",
@@ -880,12 +884,7 @@ class AdsbStationCard extends HTMLElement {
         streets ? null : svg("line", { class: "ring", x1: centre - reach, y1: centre, x2: centre + reach, y2: centre }),
         streets ? null : svg("line", { class: "ring", x1: centre, y1: centre - reach, x2: centre, y2: centre + reach }),
       ),
-      svg(
-        "text",
-        { class: "distance", x: centre + 4, y: centre - (range / 2) * perKm - 4 },
-        `${this._number(range / 2, 1)} km`,
-      ),
-      svg("text", { class: "distance", x: centre + 4, y: centre - range * perKm + 14 }, `${this._number(range, 1)} km`),
+      ...distances.map(({ x, y, text }) => svg("text", { class: "distance", x, y }, text)),
     );
     const coverage = this._coverage();
     if (coverage) {
@@ -982,11 +981,13 @@ class AdsbStationCard extends HTMLElement {
       labelled.add(plane.hex);
     }
 
-    // Place names go where the aircraft and their callsigns leave room.
+    // Place names go where the aircraft, their callsigns and the ring
+    // distances leave room.
     if (tiles && this._basemapLayer && tiles === this._basemapLayer.node) {
       const marks = planes.map(({ at: [x, y] }) => [x - 12, y - 12, x + 12, y + 12]);
       const station = [centre - 9, centre - 9, centre + 9, centre + 9];
-      const names = placeNames(this._basemapLayer.places, size, [...placed, ...marks, station]);
+      const rings = distances.map(({ x, y, text }) => [x - 2, y - 11, x + 2 + 6.4 * text.length, y + 3]);
+      const names = placeNames(this._basemapLayer.places, size, [...placed, ...marks, station, ...rings]);
       tiles.after(svg("g", { class: "basemap", "clip-path": "url(#scope)" }, names));
     }
 
