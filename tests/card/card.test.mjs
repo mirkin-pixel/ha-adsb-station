@@ -206,8 +206,8 @@ const UTRECHT = [52.0, 5.03];
 
 // What one tile holds: water and streets at half the extent of the borders
 // and names, as OpenStreetMap's Shortbread tiles have them.
-function tileAround(z, x, y) {
-  const [px, py] = inTile(UTRECHT, z, x, y, 4096);
+function tileAround(z, x, y, at = UTRECHT) {
+  const [px, py] = inTile(at, z, x, y, 4096);
   const line = [move(1), zigzag(100), zigzag(100), draw(1), zigzag(800), zigzag(0)];
   const square = [move(1), zigzag(512), zigzag(512), draw(3), zigzag(1024), 0, 0, zigzag(1024), zigzag(-1024), 0, 15];
   const place = [move(1), zigzag(px), zigzag(py)];
@@ -233,9 +233,9 @@ function tileAround(z, x, y) {
   ]);
 }
 
-function tileFor(url) {
+function tileFor(url, at) {
   const [z, x, y] = /(\d+)\/(\d+)\/(\d+)\.mvt/.exec(url).slice(1).map(Number);
-  return tileAround(z, x, y);
+  return tileAround(z, x, y, at);
 }
 
 // A browser whose fetch plays Home Assistant's vector tile proxy.
@@ -940,6 +940,25 @@ const tests = {
     await settle();
     assert.ok(card.shadowRoot.querySelector(".basemap path.water"));
     assert.equal(card.shadowRoot.querySelector(".basemap text"), null);
+  },
+
+  async "leaves a place's name off where it would cover a ring's distance"() {
+    // Just above the 5 km ring, where its distance is written.
+    const under = [52.0 + 5.4 / 110.574, 5.013];
+    const { w } = vectorBrowser((url) => ({ ok: true, status: 200, body: tileFor(url, under) }));
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    hass.connection.sendMessagePromise = () => Promise.resolve({ token: "t0k" });
+    const card = render(w, hass, { map: "map", map_scale: "fixed", map_range: 10 });
+    link.send(SKY([LOW]));
+    await settle();
+    const root = card.shadowRoot;
+    assert.deepEqual(
+      [...root.querySelectorAll(".distance")].map((t) => t.textContent),
+      ["5 km", "10 km"],
+    );
+    assert.ok(root.querySelector(".basemap path.water"));
+    assert.equal(root.querySelector(".basemap text"), null);
   },
 
   async "puts the token in the address for Home Assistant 2026.9, which takes no header"() {
