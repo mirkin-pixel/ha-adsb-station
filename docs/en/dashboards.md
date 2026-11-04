@@ -8,7 +8,10 @@ The integration brings a card of its own: the sky around the station, the aircra
 type: custom:adsb-station-card
 ```
 
-<img src="../images/card.png" alt="The card with the last aircraft overhead, a Ryanair Boeing 737 MAX 8 climbing through 17,475 feet, and the station's figures with a green dot for Flightradar24 and FlightAware" width="535">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/card-radar-dark.png">
+  <img src="../images/card-radar-light.png" alt="The station card with its radar: the same aircraft drawn around the station without a map, with the aircraft overhead, the aircraft nearby and the station's figures beside it" width="880">
+</picture>
 
 This is the card with photos switched off. With them on, the photo sits above the aircraft's details; it is left out here because a photo from Planespotters may only be shown where it is credited and links back, and a screenshot in this repository would be neither.
 

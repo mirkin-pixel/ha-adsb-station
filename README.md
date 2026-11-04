@@ -12,6 +12,11 @@
 
 Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**: what your antenna hears, on your own network. No cloud account, no API key, no rate limits, and it keeps working when the internet is down.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-map-dark.png">
+  <img src="docs/images/card-map-light.png" alt="The station card on a map: aircraft around a station between Schiphol and Utrecht, each in the colour of its height with the trail of the last five minutes, a KLM Boeing 737-800 overhead on its way in to Schiphol, the aircraft nearby, and the station's figures" width="880">
+</picture>
+
 The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There are two exceptions to staying on your own network, both off unless you turn them on, and each has a section of its own: [where a flight is going](docs/en/routes.md) and [what it looks like](docs/en/photos.md) are the things your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
@@ -105,6 +110,11 @@ This is an unofficial integration and is not affiliated with Flightradar24, Flig
 ## Nederlands
 
 Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest: wat je antenne hoort, op je eigen netwerk. Geen cloudaccount, geen API-sleutel, geen limieten, en hij blijft werken als het internet eruit ligt.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-map-dark-nl.png">
+  <img src="docs/images/card-map-light-nl.png" alt="De stationskaart op een landkaart: vliegtuigen rond een station tussen Schiphol en Utrecht, elk in de kleur van zijn hoogte met het spoor van de laatste vijf minuten, een KLM Boeing 737-800 overhead op weg naar Schiphol, de vliegtuigen dichtbij en de cijfers van het station" width="880">
+</picture>
 
 De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er zijn twee uitzonderingen waarbij iets je netwerk verlaat. Die staan allebei uit tenzij je ze aanzet, en elk heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) en [hoe hij eruitziet](docs/nl/photos.md) zijn wat je antenne niet kan horen.
 
