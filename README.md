@@ -71,7 +71,7 @@ Requires Home Assistant 2025.7 or newer. Before 2026.3, Home Assistant shows a g
 
 Use this link to directly go to the repository in Marketplace
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=adsb_station)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
 
 _or_
 
@@ -176,7 +176,7 @@ Vereist Home Assistant 2025.7 of nieuwer. Vóór 2026.3 toont Home Assistant een
 
 Gebruik onderstaande link om de repository te bekijken in de Marketplacd
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=adsb_station)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
 
 _of_
 
