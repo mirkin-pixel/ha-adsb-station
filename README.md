@@ -69,9 +69,15 @@ Everything else lives in [`docs/en`](docs/en), a page at a time:
 
 Requires Home Assistant 2025.7 or newer. Before 2026.3, Home Assistant shows a generic icon in place of the integration's own; everything else is the same.
 
-#### Via HACS
+Use this link to directly go to the repository in Marketplace
 
-1. Open HACS in Home Assistant.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=adsb_station)
+
+_or_
+
+#### Via Marketplace
+
+1. Open Marketplace in Home Assistant.
 2. Search for **ADS-B Station** and click **Download**.
 3. Restart Home Assistant.
 
@@ -168,9 +174,15 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 
 Vereist Home Assistant 2025.7 of nieuwer. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
 
-#### Via HACS
+Gebruik onderstaande link om de repository te bekijken in de Marketplacd
 
-1. Open HACS in Home Assistant.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=adsb_station)
+
+_of_
+
+#### Via Marketplace
+
+1. Open Marketplace in Home Assistant.
 2. Zoek naar **ADS-B Station** en klik op **Download**.
 3. Herstart Home Assistant.
 
