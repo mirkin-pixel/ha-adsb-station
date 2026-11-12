@@ -82,6 +82,27 @@ async def test_unknown_values(
     assert _state(hass, "mlat") == STATE_UNKNOWN
 
 
+@pytest.mark.parametrize(("value", "expected"), [("YES", STATE_ON), ("NO", STATE_OFF)])
+async def test_mlat_as_fr24feed_writes_it(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    value: str,
+    expected: str,
+) -> None:
+    """Test the key fr24feed itself writes: "mlat-ok", YES or NO.
+
+    The 1.0.57 binary and its status script know no other; "mlat_ok" was
+    never seen on a real feeder.
+    """
+    monitor = {key: item for key, item in MOCK_MONITOR.items() if key != "mlat_ok"}
+    set_responses(aioclient_mock, monitor={**monitor, "mlat-ok": value})
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert _state(hass, "mlat") == expected
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
