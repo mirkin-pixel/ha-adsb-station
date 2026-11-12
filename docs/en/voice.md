@@ -1,6 +1,6 @@
 # Asking out loud
 
-"What is flying over?" is a better question to ask a room than to look up on a dashboard — you ask it while looking out of the window. Assist can answer five of them, from your own receiver, without a single request leaving your network.
+"What is flying over?" is a better question to ask a room than to look up on a dashboard — you ask it while looking out of the window. Assist can answer six of them, from your own receiver, without a single request leaving your network.
 
 | Ask | And it says |
 |---|---|
@@ -9,12 +9,15 @@
 | *What is the nearest aircraft?* | How far away it is, and in which direction |
 | *Are there any helicopters nearby?* | Military traffic, helicopters or drones in range |
 | *Where is it going?* | Where the aircraft overhead came from and is heading |
+| *What just flew over?* | Which aircraft came over last, how long ago and how high |
 
 Answers use the names from the [shipped tables](decoders.md#names-for-the-codes), so it says "KLM 123" and not "kilo lima mike one two three", and they follow the unit system of your Home Assistant rather than the language: metres and kilometres, or feet and miles.
 
 English and Dutch are spoken; a question in any other language is answered in English.
 
-There are two ways to wire this up, and they end at the same five answers.
+*What just flew over?* is for the aircraft you heard and only asked about once it had gone. It names the aircraft whose closest approach is the most recent one behind you, counted from that moment. One still on its way in has not come over yet, so for that one you hear what is overhead now. The station remembers an aircraft for ten minutes after it was last seen, and nothing over a restart, so after ten quiet minutes, or just after a restart, it says it has heard nothing come over.
+
+There are two ways to wire this up, and they end at the same six answers.
 
 ## An automation, with no files at all
 
@@ -35,13 +38,13 @@ automation:
     - set_conversation_response: "{{ spoken.speech }}"
 ```
 
-Nothing is written to your configuration directory, nothing needs a restart, and you can edit the sentences in the interface. `question` is one of `overhead`, `count`, `closest`, `traffic` or `route`; the traffic one also takes `kind`, which is `military`, `helicopter` or `drone`.
+Nothing is written to your configuration directory, nothing needs a restart, and you can edit the sentences in the interface. `question` is one of `overhead`, `count`, `closest`, `traffic`, `route` or `last_passage`; the traffic one also takes `kind`, which is `military`, `helicopter` or `drone`.
 
 The wording is still ours. `adsb_station.speak` hands back a finished sentence — the callsign spelled out or the airline named, the height rounded, the units and the decimal point right for the language — so the automation is three lines and not a template full of `round()`.
 
 ## The sentence files, so Assist knows the questions itself
 
-The other way needs no automations: Assist recognises all five out of the box, in both languages, including phrasings you did not think to write down.
+The other way needs no automations: Assist recognises all six out of the box, in both languages, including phrasings you did not think to write down.
 
 The catch is where those sentences have to live. Home Assistant reads them from your **configuration directory alone**, so an integration cannot bring its own; they ship inside it and have to be copied once.
 
@@ -59,5 +62,7 @@ Or let the integration copy them, if you would rather not go looking:
 Be plain about what that does: **it writes two files into your configuration directory** and overwrites them if they are already there. It is the same copy you would make by hand, and nothing else is touched. Because it writes into your configuration, only an administrator can run it.
 
 Either way Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
+
+The copy does not follow the integration. When an update adds a question, copy the files again, or run `adsb_station.install_sentences` again, and reload; until then Assist knows only the questions of the version you copied.
 
 If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](services.md) are there when it has to be exact.

@@ -58,6 +58,15 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
             "Route lookups are switched off, so I only know what is up there, "
             "not where it is going."
         ),
+        "came_over": "{aircraft} came over {ago}, {altitude}.",
+        # Said of the station, not the sky: after a restart it has simply
+        # not been listening that long.
+        "nothing_came_over": (
+            "I have heard nothing come over in the last {minutes} minutes."
+        ),
+        "just_now": "just now",
+        "a_minute_ago": "a minute ago",
+        "minutes_ago": "{count} minutes ago",
         "one_aircraft": "one aircraft",
         "n_aircraft": "{count} aircraft",
         "no_aircraft": "no aircraft",
@@ -85,6 +94,13 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
             "Het opzoeken van routes staat uit, dus ik weet alleen wat er "
             "hangt, niet waar het heen gaat."
         ),
+        "came_over": "{aircraft} vloog {ago} over, {altitude}.",
+        "nothing_came_over": (
+            "Ik heb de afgelopen {minutes} minuten niets horen overvliegen."
+        ),
+        "just_now": "net",
+        "a_minute_ago": "een minuut geleden",
+        "minutes_ago": "{count} minuten geleden",
         "one_aircraft": "één vliegtuig",
         "n_aircraft": "{count} vliegtuigen",
         "no_aircraft": "geen vliegtuigen",
@@ -182,6 +198,16 @@ def sector_word(sector: str | None, language: str) -> str | None:
         return None
     words = SECTORS.get(language, {})
     return words.get(sector) or SECTORS[DEFAULT_LANGUAGE].get(sector)
+
+
+def ago_of(seconds: float, language: str) -> str:
+    """Return how long ago something was, in whole minutes once it is one."""
+    minutes = int(seconds // 60)
+    if minutes < 1:
+        return say(language, "just_now")
+    if minutes == 1:
+        return say(language, "a_minute_ago")
+    return say(language, "minutes_ago", count=minutes)
 
 
 def counted(count: int, language: str) -> str:

@@ -154,9 +154,11 @@ class Passage:
     hex: str
     started_at: datetime
     last_seen: datetime
-    # The aircraft at its closest approach, and how close that was in metres.
+    # The aircraft at its closest approach, how close that was in metres, and
+    # on which poll.
     closest: AircraftSummary
     closest_distance: float
+    closest_at: datetime
     # As on the last poll that saw it.
     current: AircraftSummary
     current_distance: float
@@ -694,8 +696,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.sector_sensors: list[SectorRangeRecord] = []
         # Aircraft crossing the radius now, by hex, kept across polls.
         self.passages: dict[str, Passage] = {}
-        # The nearest of those on the last poll.
+        # The nearest of those on the last poll, and when that poll was.
         self.overhead: Passage | None = None
+        self.tracked_at: datetime | None = None
         self._previous_messages: tuple[int, float] | None = None
         # Seeded with the start, so a dongle gone from the first poll is noticed.
         self._sampled_at = dt_util.utcnow()
@@ -970,6 +973,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     last_seen=now,
                     closest=summary,
                     closest_distance=metres,
+                    closest_at=now,
                     current=summary,
                     current_distance=metres,
                     peak_rssi=summary.rssi,
@@ -986,6 +990,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if metres < passage.closest_distance:
                 passage.closest = summary
                 passage.closest_distance = metres
+                passage.closest_at = now
             if summary.rssi is not None and (
                 passage.peak_rssi is None or summary.rssi > passage.peak_rssi
             ):
@@ -997,6 +1002,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if in_view
             else None
         )
+        self.tracked_at = now
 
         # Forget passages gone longer than the gap.
         for hex_code in [
@@ -1005,6 +1011,60 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - passage.last_seen > PASSAGE_GAP
         ]:
             del self.passages[hex_code]
+
+    def _remembered(self) -> timedelta:
+        """Return how long a passage stays in memory after it was last seen.
+
+        The gap, and the poll after it that forgets it: with a slow interval
+        an aircraft is only known to be gone one poll after it went.
+        """
+        return PASSAGE_GAP + (self.update_interval or timedelta())
+
+    def in_view(self, now: datetime) -> bool:
+        """Return True while the last poll that followed the aircraft is recent.
+
+        With the decoder gone that poll stays the last one, and what it saw
+        is no longer up there.
+        """
+        return self.tracked_at is not None and now - self.tracked_at <= (
+            self._remembered()
+        )
+
+    def last_passed(self, now: datetime) -> tuple[Passage, datetime] | None:
+        """Return the aircraft that most recently came past, and when.
+
+        Past means gone, or seen further away than it once was. When is its
+        closest approach; for one that stayed longer than the gap after that
+        and then left, the moment it was last seen. Measured against the
+        clock rather than the last poll, so a memory polls no longer refresh
+        still ages.
+        """
+        in_view = self.in_view(now)
+        found: list[tuple[datetime, Passage]] = []
+        for passage in self.passages.values():
+            when = passage.closest_at
+            if in_view and passage.last_seen == self.tracked_at:
+                # Still in view: past once it is further off than it was, and
+                # overhead rather than past when that was long ago.
+                if passage.current_distance <= passage.closest_distance:
+                    continue
+                if now - when > PASSAGE_GAP:
+                    continue
+            elif now - passage.last_seen > self._remembered():
+                # What the next poll will forget, or would have.
+                continue
+            elif passage.last_seen - when > PASSAGE_GAP:
+                # It stayed; what is recent is that it left.
+                when = passage.last_seen
+            found.append((when, passage))
+
+        if not found:
+            return None
+        # The latest, and of two on the same poll the one that came closer.
+        when, passage = max(
+            found, key=lambda item: (item[0], -item[1].closest_distance)
+        )
+        return passage, when
 
     def _announce_approaching(self, stats: AircraftStats) -> None:
         """Fire an event for an aircraft that is about to come over.

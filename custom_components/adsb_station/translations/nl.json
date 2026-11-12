@@ -489,11 +489,11 @@
     },
     "speak": {
       "name": "Een antwoord uitspreken",
-      "description": "Geeft één van de vijf gesproken antwoorden als tekst terug, klaar voor een zin-trigger om terug te zeggen. Heeft geen zinsbestanden nodig.",
+      "description": "Geeft één van de zes gesproken antwoorden als tekst terug, klaar voor een zin-trigger om terug te zeggen. Heeft geen zinsbestanden nodig.",
       "fields": {
         "question": {
           "name": "Vraag",
-          "description": "Welke van de vijf beantwoord wordt: wat er overvliegt, hoeveel er zijn, welk toestel het dichtstbij is, of een soort verkeer in bereik is, of waar het toestel boven je heen gaat."
+          "description": "Welke van de zes beantwoord wordt: wat er overvliegt, hoeveel er zijn, welk toestel het dichtstbij is, of een soort verkeer in bereik is, waar het toestel boven je heen gaat, of wat er het laatst overvloog."
         },
         "kind": {
           "name": "Soort",

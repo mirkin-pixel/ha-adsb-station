@@ -66,6 +66,7 @@ speak:
             - closest
             - traffic
             - route
+            - last_passage
     kind:
       example: helicopter
       selector:
