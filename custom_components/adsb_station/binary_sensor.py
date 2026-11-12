@@ -61,6 +61,16 @@ def _as_bool(value: Any) -> bool | None:
     return None
 
 
+def _mlat_ok(payload: dict[str, Any]) -> Any:
+    """Return whether fr24feed says multilateration works, as it says it.
+
+    fr24feed writes "mlat-ok", YES or NO, like the other keys it shares with
+    its own status file. "mlat_ok" is read as well, so a sensor that ever
+    appeared under that name stays.
+    """
+    return payload.get("mlat-ok", payload.get("mlat_ok"))
+
+
 @dataclass(frozen=True, kw_only=True)
 class AdsbStationBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a binary sensor that reads the feeder's status document."""
@@ -89,10 +99,10 @@ FR24_BINARY_SENSORS: tuple[AdsbStationBinarySensorEntityDescription, ...] = (
         translation_key="mlat",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda payload: _as_bool(payload.get("mlat_ok")),
+        value_fn=lambda payload: _as_bool(_mlat_ok(payload)),
         # Not every build reports on multilateration. The x86 ones leave the
         # field out entirely rather than saying it is off.
-        supported_fn=lambda payload: "mlat_ok" in payload,
+        supported_fn=lambda payload: _mlat_ok(payload) is not None,
     ),
 )
 
