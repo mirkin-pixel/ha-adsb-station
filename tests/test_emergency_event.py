@@ -158,7 +158,8 @@ async def test_two_aircraft_are_two_events(
     set_responses(aioclient_mock, aircraft=poll(DISTRESS, second))
     assert await setup_integration(hass, mock_config_entry)
 
-    assert [event.data["reason"] for event in emergencies] == [
+    # Listeners are not promised the order the events were fired in
+    assert sorted(event.data["reason"] for event in emergencies) == [
         "emergency",
         "radio_failure",
     ]
