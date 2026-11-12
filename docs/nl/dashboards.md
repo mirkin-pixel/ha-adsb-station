@@ -46,6 +46,16 @@ Eén regel: vliegtuigen ontvangen, berichten per seconde, het maximale bereik en
 
 Plane Finder geeft zelf geen feedstatus, dus die heeft geen bolletje in plaats van een bolletje dat niets betekent.
 
+## De tabelkaart
+
+Elk toestel waarvan het station een positie heeft, als tabel om te sorteren en te doorzoeken. Het is een eigen kaart, dus hij kan staan waar er ruimte is: onder de stationskaart, over de volle breedte, of op een eigen pagina. In de kaartkiezer heet hij **ADS-B Station tabel**.
+
+```yaml
+type: custom:adsb-station-table-card
+```
+
+Vlucht, hoogte, afstand en richting, en type en signaal zodra de kaart breed genoeg is. Tik op een kop om erop te sorteren en nog eens om de volgorde om te draaien; wat onbekend is blijft onderaan. Het vak erboven zoekt op vlucht, registratie, hex en type, en houdt vast wat je typte terwijl de toestellen bewegen. Tik op een rij om hem te markeren. Hij kent `device_id` en `title`, net als de stationskaart, en leest hetzelfde abonnement, dus er komt niets van in de database.
+
 ## Vliegtuigen op de kaart
 
 Zet **Vliegtuigen op de kaart** aan onder **Configureren** en elk toestel binnen de nabijheidsstraal krijgt een eigen entiteit, getekend waar het is, zolang het er is. Er wordt niets extra's voor gelezen: de posities zitten al in elke poll, naast de afstanden waar de nabijheidssensoren op gebouwd zijn.

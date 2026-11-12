@@ -46,6 +46,16 @@ One line: aircraft received, messages per second, the maximum range, and S/N, ho
 
 Plane Finder reports no feed status of its own, so it has no dot rather than one that means nothing.
 
+## The table card
+
+Every aircraft the station has a position for, as a table you can sort and search. It is a card of its own, so it can go wherever there is room: under the station card, full width, or on a page of its own. In the card picker it is **ADS-B Station table**.
+
+```yaml
+type: custom:adsb-station-table-card
+```
+
+Flight, height, distance and direction, with type and signal once the card is wide enough. Tap a heading to sort by it and again to turn it round; whatever is unknown stays at the bottom. The box above searches flight, registration, hex and type, and keeps what you typed while the aircraft move. Tap a row to mark it. It takes `device_id` and `title`, as the station card does, and reads the same subscription, so nothing of it is written to the database.
+
 ## Aircraft on the map
 
 Switch **Aircraft on the map** on under **Configure** and every aircraft inside the nearby radius gets an entity of its own, drawn where it is, for as long as it is there. Nothing extra is read to do it: the positions are in every poll already, next to the distances the proximity sensors are built on.

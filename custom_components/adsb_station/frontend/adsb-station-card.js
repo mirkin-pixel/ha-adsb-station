@@ -8,6 +8,7 @@
 
 const DOMAIN = "adsb_station";
 const CARD = "adsb-station-card";
+const TABLE_CARD = "adsb-station-table-card";
 const SUBSCRIBE = `${DOMAIN}/subscribe_aircraft`;
 const LOOK_UP_ROUTE = `${DOMAIN}/look_up_route`;
 const SVG = "http://www.w3.org/2000/svg";
@@ -33,6 +34,15 @@ const STRINGS = {
     show_nearby: "Show the aircraft nearby",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
+    table_name: "ADS-B Station table",
+    table_description: "Every aircraft the station has a position for, to sort and search.",
+    search: "Search flight, registration or type",
+    col_flight: "Flight",
+    col_altitude: "Height",
+    col_distance: "Distance",
+    col_bearing: "Direction",
+    col_type: "Type",
+    col_rssi: "Signal (dBFS)",
     title: "Title",
     map: "Map",
     map_radar: "Radar",
@@ -67,6 +77,15 @@ const STRINGS = {
     show_nearby: "Toestellen dichtbij tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
+    table_name: "ADS-B Station tabel",
+    table_description: "Elk toestel waarvan het station een positie heeft, om te sorteren en te doorzoeken.",
+    search: "Zoek vlucht, registratie of type",
+    col_flight: "Vlucht",
+    col_altitude: "Hoogte",
+    col_distance: "Afstand",
+    col_bearing: "Richting",
+    col_type: "Type",
+    col_rssi: "Signaal (dBFS)",
     title: "Titel",
     map: "Kaart",
     map_radar: "Radar",
@@ -570,6 +589,9 @@ class AdsbStationCard extends HTMLElement {
     this._selected = null;
     // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
+    this._onlyTable = false;
+    this._sort = { key: "distance", descending: false };
+    this._query = "";
   }
 
   setConfig(config) {
@@ -681,7 +703,9 @@ class AdsbStationCard extends HTMLElement {
       this._card = el("ha-card");
       this._skyBox = el("div", { class: "sky" });
       this._body = el("div", { class: "body" });
-      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body));
+      // Built once and kept, so typing in the search box survives every push.
+      this._tableBox = el("div", { class: "table" });
+      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
       this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
     }
     if (this._config.title) this._card.setAttribute("header", this._config.title);
@@ -694,13 +718,15 @@ class AdsbStationCard extends HTMLElement {
     const body = [];
     if (!found) {
       body.push(el("div", { class: "empty" }, text.no_station));
-    } else {
+    } else if (!this._onlyTable) {
       body.push(this._overhead(found, text));
       if (this._config.show_nearby) body.push(this._nearby(found, text));
       if (this._config.show_status) body.push(this._status(found, text));
     }
     this._body.replaceChildren(...body.filter(Boolean));
     if (showSky) this._drawSky();
+    this._tableBox.hidden = !(found && this._onlyTable);
+    if (!this._tableBox.hidden) this._drawTable(text);
   }
 
   _moreInfo(entry) {
@@ -726,7 +752,9 @@ class AdsbStationCard extends HTMLElement {
 
   _follow(found) {
     const wanted =
-      found && this._config.map !== "none" && this.isConnected && this._hass.connection ? found.device : null;
+      found && (this._config.map !== "none" || this._onlyTable) && this.isConnected && this._hass.connection
+        ? found.device
+        : null;
     if (wanted === this._following) return;
     this._unsubscribe();
     if (!wanted) return;
@@ -786,6 +814,7 @@ class AdsbStationCard extends HTMLElement {
       if (!here.has(hex)) this._trails.delete(hex);
     }
     if (this._skyBox && !this._skyBox.hidden) this._drawSky();
+    if (this._tableBox && !this._tableBox.hidden) this._drawTable();
   }
 
   // --- The sky --------------------------------------------------------------
@@ -1191,8 +1220,10 @@ class AdsbStationCard extends HTMLElement {
 
   _select(hex) {
     this._selected = this._selected === hex ? null : hex;
-    if (this._selected) this._lookUpRoute(this._selected);
-    this._drawSky();
+    // A route is only asked for where it can be drawn.
+    if (this._selected && !this._skyBox.hidden) this._lookUpRoute(this._selected);
+    if (!this._skyBox.hidden) this._drawSky();
+    if (!this._tableBox.hidden) this._drawTable();
   }
 
   // Both ends of an aircraft's route with where they are, if known: sent
@@ -1413,6 +1444,96 @@ class AdsbStationCard extends HTMLElement {
         ),
       ),
     );
+  }
+
+  // --- Every aircraft, as a table --------------------------------------------
+
+  _columns(text) {
+    const figure = (value, show) => (typeof value === "number" ? show(value) : "");
+    return [
+      { key: "flight", sort: (p) => p.flight || p.hex, show: (p) => p.flight || p.hex },
+      { key: "altitude", sort: (p) => (p.on_ground ? 0 : p.altitude), show: (p) => this._height(p, text) || "" },
+      { key: "distance", sort: (p) => p.distance, show: (p) => this._distance(p.distance) || "" },
+      { key: "bearing", sort: (p) => p.bearing, show: (p) => figure(p.bearing, (b) => `${b}°`) },
+      { key: "type", sort: (p) => p.aircraft_type, show: (p) => p.aircraft_type || "", wide: true },
+      { key: "rssi", sort: (p) => p.rssi, show: (p) => figure(p.rssi, (r) => this._number(r, 1)), wide: true },
+    ];
+  }
+
+  _drawTable(text = strings(this._hass)) {
+    const columns = this._columns(text);
+    const cell = (column) =>
+      [column.wide && "wide", !["flight", "type"].includes(column.key) && "number"].filter(Boolean).join(" ") ||
+      undefined;
+    const language = this._hass.locale && this._hass.locale.language;
+    if (this._tableLanguage !== language) {
+      this._tableLanguage = language;
+      this._search = el("input", {
+        type: "search",
+        placeholder: text.search,
+        "aria-label": text.search,
+        oninput: (event) => {
+          this._query = event.target.value.trim().toLowerCase();
+          this._drawTable();
+        },
+      });
+      this._search.value = this._query;
+      this._head = el("tr");
+      this._rows = el("tbody");
+      this._tableBox.replaceChildren(
+        this._search,
+        el("div", { class: "scroll" }, el("table", {}, el("thead", {}, this._head), this._rows)),
+      );
+    }
+
+    const { key, descending } = this._sort;
+    this._head.replaceChildren(
+      ...columns.map((column) =>
+        el(
+          "th",
+          {
+            class: cell(column),
+            "aria-sort": column.key === key ? (descending ? "descending" : "ascending") : undefined,
+            onclick: () => {
+              this._sort = { key: column.key, descending: column.key === key && !descending };
+              this._drawTable();
+            },
+          },
+          text[`col_${column.key}`],
+          column.key === key ? (descending ? " ▾" : " ▴") : "",
+        ),
+      ),
+    );
+
+    const by = columns.find((column) => column.key === key).sort;
+    const unknown = (value) => value === undefined || value === null;
+    const query = this._query;
+    const planes = ((this._sky && this._sky.aircraft) || [])
+      .filter(
+        (p) =>
+          !query ||
+          [p.flight, p.registration, p.hex, p.aircraft_type].some((v) => v && v.toLowerCase().includes(query)),
+      )
+      .sort((a, b) => {
+        const [x, y] = [by(a), by(b)];
+        // Unknown last, whichever way round.
+        if (unknown(x) || unknown(y)) return unknown(x) - unknown(y);
+        const order = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+        return descending ? -order : order;
+      });
+
+    this._rows.replaceChildren(
+      ...planes.map((p) =>
+        el(
+          "tr",
+          { class: p.hex === this._selected ? "selected" : undefined, onclick: () => this._select(p.hex) },
+          columns.map((column) => el("td", { class: cell(column) }, column.show(p))),
+        ),
+      ),
+    );
+    if (!planes.length) {
+      this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, text.no_positions)));
+    }
   }
 
   // --- The station ----------------------------------------------------------
@@ -1799,6 +1920,69 @@ const STYLE = css`
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  .table {
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--divider-color);
+  }
+  .table[hidden] {
+    display: none;
+  }
+  .table input {
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    font: inherit;
+  }
+  .scroll {
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table th {
+    position: sticky;
+    top: 0;
+    background: var(--card-background-color);
+    color: var(--secondary-text-color);
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .table th,
+  .table td {
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .table td {
+    border-top: 1px solid var(--divider-color);
+  }
+  .table .number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .table tbody tr {
+    cursor: pointer;
+  }
+  .table tr.selected td {
+    background: var(--secondary-background-color);
+  }
+  .table .none {
+    color: var(--secondary-text-color);
+    text-align: center;
+  }
+  @container (max-width: 480px) {
+    .table .wide {
+      display: none;
+    }
+  }
   .status {
     display: flex;
     flex-wrap: wrap;
@@ -1834,6 +2018,39 @@ const STYLE = css`
     background: var(--warning-color, #ffa600);
   }
 `;
+
+// The same card with only the table, so it can go anywhere on a dashboard.
+class AdsbStationTableCard extends AdsbStationCard {
+  constructor() {
+    super();
+    this._onlyTable = true;
+  }
+
+  static getConfigForm() {
+    const form = super.getConfigForm();
+    return { ...form, schema: form.schema.filter((field) => ["device_id", "title"].includes(field.name)) };
+  }
+
+  setConfig(config) {
+    super.setConfig({ ...(config || {}), map: "none" });
+  }
+
+  getCardSize() {
+    return 6;
+  }
+}
+
+if (!customElements.get(TABLE_CARD)) {
+  customElements.define(TABLE_CARD, AdsbStationTableCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: TABLE_CARD,
+    name: STRINGS.en.table_name,
+    description: STRINGS.en.table_description,
+    preview: true,
+    documentationURL: "https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/dashboards.md",
+  });
+}
 
 if (!customElements.get(CARD)) {
   customElements.define(CARD, AdsbStationCard);
