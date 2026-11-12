@@ -1,22 +1,39 @@
 # Voorbeeldautomatiseringen
 
-Melding wanneer een vliegtuig in je bereik een noodsituatie meldt:
+## Een vliegtuig in nood
+
+Melding wanneer een vliegtuig in je bereik een noodsituatie meldt, op elke afstand en hoogte:
 
 ```yaml
 automation:
-  - alias: "ADS-B: noodsquawk"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.ads_b_station_noodsquawk
-        to: "on"
-    action:
-      - service: notify.mobile_app
+  - alias: "ADS-B: noodgeval"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_aircraft_emergency
+    actions:
+      - action: notify.mobile_app_telefoon
         data:
-          message: >-
-            Noodsquawk van
-            {{ state_attr('binary_sensor.ads_b_station_noodsquawk',
-                          'aircraft')[0].flight or 'een onbekend vliegtuig' }}.
+          title: "Noodgeval: {{ trigger.event.data.reason }}"
+          message: >
+            {{ trigger.event.data.flight or trigger.event.data.hex }},
+            {{ trigger.event.data.distance }} km verderop
+            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
 ```
+
+`adsb_station_aircraft_emergency` gaat één keer per vlucht af, net als de [watchlist](watchlist.md): een toestel dat een uur in nood blijft is één bericht, en hetzelfde toestel wordt pas opnieuw gemeld na tien minuten buiten bereik. Het event heeft dezelfde velden als de andere events, met de afstand in kilometers, plus `reason` en `squawk`. Anders dan de binary sensor `Noodsquawk`, die maar één keer aangaat zolang er een toestel in nood is, meldt het ook een tweede.
+
+`reason` is één woord, hetzelfde bij elke decoder:
+
+| `reason` | Squawk | ADS-B-status | Betekent |
+|---|---|---|---|
+| `emergency` | 7700 | `general` | Een algemene noodsituatie |
+| `hijack` | 7500 | `unlawful` | Kaping |
+| `radio_failure` | 7600 | `nordo` | Geen radioverbinding |
+| `downed` | | `downed` | Neergestort toestel |
+
+De ADS-B-status komt van readsb en dump1090-fa; fr24feed heeft alleen de squawk. Twee statussen tellen bewust niet mee: `lifeguard`, een ambulancevlucht die voorrang vraagt, en `minfuel`, een waarschuwing voordat er een noodgeval is. Geen van beide is een toestel in nood. Squawkt zo'n toestel ook 7700, dan telt het wel.
+
+Er is geen event voor het einde van een noodgeval: een toestel dat uit je bereik vliegt, is niet te onderscheiden van een toestel waarvan de nood voorbij is.
 
 Melding wanneer er iets overkomt, met wat het is en waar het heen gaat:
 

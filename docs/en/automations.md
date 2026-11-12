@@ -1,22 +1,39 @@
 # Example automations
 
-Notification when an aircraft in range declares an emergency:
+## An aircraft in distress
+
+Notification when an aircraft in range declares an emergency, at any distance or height:
 
 ```yaml
 automation:
-  - alias: "ADS-B: emergency squawk"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.ads_b_station_emergency_squawk
-        to: "on"
-    action:
-      - service: notify.mobile_app
+  - alias: "ADS-B: emergency"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_aircraft_emergency
+    actions:
+      - action: notify.mobile_app_phone
         data:
-          message: >-
-            Emergency squawk from
-            {{ state_attr('binary_sensor.ads_b_station_emergency_squawk',
-                          'aircraft')[0].flight or 'an unknown aircraft' }}.
+          title: "Emergency: {{ trigger.event.data.reason }}"
+          message: >
+            {{ trigger.event.data.flight or trigger.event.data.hex }},
+            {{ trigger.event.data.distance }} km away
+            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} feet{% endif %}.
 ```
+
+`adsb_station_aircraft_emergency` fires once per flight, like the [watchlist](watchlist.md): an aircraft that stays in distress for an hour is one message, and the same aircraft is announced again only after ten minutes out of range. It carries the same fields as the other events, with the distance in kilometres, plus `reason` and `squawk`. Unlike the `Emergency squawk` binary sensor, which only turns on once while any aircraft is in distress, it also tells you about a second one.
+
+`reason` is one word, the same whichever decoder you run:
+
+| `reason` | Squawk | ADS-B status | Means |
+|---|---|---|---|
+| `emergency` | 7700 | `general` | A general emergency |
+| `hijack` | 7500 | `unlawful` | Unlawful interference |
+| `radio_failure` | 7600 | `nordo` | Lost radio contact |
+| `downed` | | `downed` | Downed aircraft |
+
+The ADS-B status comes from readsb and dump1090-fa; fr24feed only has the squawk. Two statuses are left out on purpose: `lifeguard`, an ambulance flight asking for priority, and `minfuel`, a warning before any emergency. Neither is an aircraft in distress. One that also squawks 7700 still counts.
+
+There is no event for the end of an emergency: an aircraft that leaves your range cannot be told from one whose emergency is over.
 
 Notification when something goes over, saying what it is and where it is headed:
 

@@ -42,7 +42,9 @@ from .const import (
     DEGREE_METRES,
     DOMAIN,
     EMERGENCY_SQUAWKS,
+    EMERGENCY_STATUSES,
     EVENT_AIRCRAFT_APPROACHING,
+    EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
     EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
@@ -196,6 +198,8 @@ class EmergencyAircraft:
     flight: str | None
     squawk: str | None
     reason: str
+    # How far, how high and what it is, for the event and the attributes.
+    summary: AircraftSummary
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -637,11 +641,14 @@ def receivers(
 
 
 def _emergency_reason(entry: dict[str, Any]) -> str | None:
-    """Return why an aircraft counts as an emergency, or None."""
-    # dump1090-fa states it outright; every decoder gives us the squawk.
-    reported = _as_text(entry.get("emergency"))
-    if reported is not None and reported.lower() not in ("none", "no"):
-        return reported.lower()
+    """Return why an aircraft counts as an emergency, or None.
+
+    readsb and dump1090-fa state it outright; every decoder gives the squawk,
+    which still counts when the status is one that is not distress.
+    """
+    reported = (_as_text(entry.get("emergency")) or "").lower()
+    if (reason := EMERGENCY_STATUSES.get(reported)) is not None:
+        return reason
     return EMERGENCY_SQUAWKS.get(str(entry.get("squawk", "")).strip())
 
 
@@ -721,6 +728,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.started_with_data = dict(config_entry.data)
         # When each watched aircraft was last seen, so one flight is one message.
         self._announced: dict[str, datetime] = {}
+        # The same for aircraft in distress.
+        self._distressed: dict[str, datetime] = {}
         # Polls in a row each aircraft has been approaching, and its last warning.
         self._approaching: dict[str, int] = {}
         self._warned: dict[str, datetime] = {}
@@ -948,6 +957,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._track_passages(stats)
         self._announce_watched(stats)
         self._announce_approaching(stats)
+        self._announce_emergencies(stats)
         return stats
 
     def _track_passages(self, stats: AircraftStats) -> None:
@@ -1152,6 +1162,36 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         ]:
             del self._announced[hex_code]
 
+    def _announce_emergencies(self, stats: AircraftStats) -> None:
+        """Fire an event for each aircraft in distress, at any distance or height.
+
+        Once per flight, as the watchlist does. Only its start: an aircraft
+        that leaves range cannot be told from one whose emergency is over.
+        """
+        now = dt_util.utcnow()
+        for emergency in stats.emergencies:
+            seen = self._distressed.get(emergency.hex)
+            self._distressed[emergency.hex] = now
+            if seen is not None and now - seen <= self._remembered():
+                continue
+            self.hass.bus.async_fire(
+                EVENT_AIRCRAFT_EMERGENCY,
+                {
+                    "entry_id": self.config_entry.entry_id,
+                    "station": self.config_entry.title,
+                    "reason": emergency.reason,
+                    "squawk": emergency.squawk,
+                    **aircraft_attributes(emergency.summary, include_distance=True),
+                },
+            )
+
+        for hex_code in [
+            hex_code
+            for hex_code, seen in self._distressed.items()
+            if now - seen > self._remembered()
+        ]:
+            del self._distressed[hex_code]
+
     def _announce(self, passage: Passage, metres: float) -> None:
         """Fire the event for a passage that has just begun.
 
@@ -1349,16 +1389,6 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         emergencies: list[EmergencyAircraft] = []
 
         for entry in aircraft:
-            if (reason := _emergency_reason(entry)) is not None:
-                emergencies.append(
-                    EmergencyAircraft(
-                        hex=str(entry.get("hex", "")),
-                        flight=_as_text(entry.get("flight")),
-                        squawk=_as_text(entry.get("squawk")),
-                        reason=reason,
-                    )
-                )
-
             metres: float | None = None
             if (position := _position(entry)) is not None:
                 metres = distance(origin_latitude, origin_longitude, *position)
@@ -1390,6 +1420,17 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                         seconds_to_closest=seconds,
                     )
             heard.append(summary)
+
+            if (reason := _emergency_reason(entry)) is not None:
+                emergencies.append(
+                    EmergencyAircraft(
+                        hex=str(entry.get("hex", "")),
+                        flight=_as_text(entry.get("flight")),
+                        squawk=_as_text(entry.get("squawk")),
+                        reason=reason,
+                        summary=summary,
+                    )
+                )
 
             # First matching line wins, so one aircraft is one match.
             squawk = _as_text(entry.get("squawk")) or ""

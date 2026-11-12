@@ -122,6 +122,21 @@ EMERGENCY_SQUAWKS: dict[str, str] = {
     "7700": "emergency",
 }
 
+# The ADS-B status that readsb and dump1090-fa report next to the squawk, under
+# the same reasons, so an automation checks one word whichever decoder it is.
+# Lifeguard asks for priority for a medical flight and minimum fuel warns
+# before any emergency: neither is an aircraft in distress, so both are left
+# out, as is "reserved".
+EMERGENCY_STATUSES: dict[str, str] = {
+    "general": "emergency",
+    "unlawful": "hijack",
+    "nordo": "radio_failure",
+    "downed": "downed",
+}
+
+# Fired once per aircraft in distress, on the first poll it is heard so.
+EVENT_AIRCRAFT_EMERGENCY = f"{DOMAIN}_aircraft_emergency"
+
 DEFAULT_AIRCRAFT_PORT = 8080
 DEFAULT_HTTP_PORT = 80
 
