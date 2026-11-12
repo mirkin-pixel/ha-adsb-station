@@ -719,7 +719,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.started_with = dict(config_entry.options)
         # And a reconfigured station, which always does.
         self.started_with_data = dict(config_entry.data)
-        # Last announcement per watched aircraft, so one flight is one message.
+        # When each watched aircraft was last seen, so one flight is one message.
         self._announced: dict[str, datetime] = {}
         # Polls in a row each aircraft has been approaching, and its last warning.
         self._approaching: dict[str, int] = {}
@@ -1122,10 +1122,14 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         """Fire an event for each watched aircraft in range, at any distance."""
         now = dt_util.utcnow()
         for match in stats.watched:
-            announced = self._announced.get(match.summary.hex)
-            if announced is not None and now - announced <= PASSAGE_GAP:
-                continue
+            # Last seen rather than last announced, so one that stays in
+            # range for an hour is still one message.
+            # The gap plus a poll, or at the slowest interval every poll would
+            # look like a return.
+            seen = self._announced.get(match.summary.hex)
             self._announced[match.summary.hex] = now
+            if seen is not None and now - seen <= self._remembered():
+                continue
             self.hass.bus.async_fire(
                 EVENT_WATCHLIST_MATCH,
                 {
@@ -1141,8 +1145,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Gone longer than the gap: announce it again when it returns.
         for hex_code in [
             hex_code
-            for hex_code, announced in self._announced.items()
-            if now - announced > PASSAGE_GAP
+            for hex_code, seen in self._announced.items()
+            if now - seen > self._remembered()
         ]:
             del self._announced[hex_code]
 

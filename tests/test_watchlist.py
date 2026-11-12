@@ -16,8 +16,8 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_WATCHLIST,
-    DEFAULT_SCAN_INTERVAL,
     EVENT_WATCHLIST_MATCH,
+    MAX_SCAN_INTERVAL,
     PASSAGE_GAP,
 )
 
@@ -138,19 +138,38 @@ async def test_one_flypast_is_one_message(
     aioclient_mock: AiohttpClientMocker,
     matches: list[Event],
 ) -> None:
-    """Test that an aircraft in range over many polls is announced once."""
+    """Test that an aircraft in range for a long time is announced once.
+
+    As the docs promise: not repeated while it stays in the air, and again
+    once it has been gone for ten minutes.
+    """
     await watching(hass, mock_config_entry, aioclient_mock, "484123")
     assert len(matches) == 1
 
-    freezer.tick(timedelta(seconds=DEFAULT_SCAN_INTERVAL + 1))
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    async def poll_after(after: timedelta) -> None:
+        freezer.tick(after)
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    # In range for well over the gap, seen every minute
+    for _ in range(15):
+        await poll_after(timedelta(minutes=1))
     assert len(matches) == 1
 
-    # Gone long enough to be a new arrival, and worth hearing about again
-    freezer.tick(PASSAGE_GAP + timedelta(minutes=1))
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    # Out of range for just under the gap, then back: the same flight
+    set_responses(aioclient_mock, aircraft=poll(HELICOPTER))
+    await poll_after(timedelta(minutes=1))
+    await poll_after(PASSAGE_GAP - timedelta(minutes=2))
+    set_responses(aioclient_mock, aircraft=poll(FAR_AWAY, HELICOPTER))
+    await poll_after(timedelta(minutes=1))
+    assert len(matches) == 1
+
+    # Gone for longer than the gap, then back: worth hearing about again
+    set_responses(aioclient_mock, aircraft=poll(HELICOPTER))
+    await poll_after(timedelta(minutes=1))
+    await poll_after(PASSAGE_GAP + timedelta(minutes=1))
+    set_responses(aioclient_mock, aircraft=poll(FAR_AWAY, HELICOPTER))
+    await poll_after(timedelta(minutes=1))
     assert len(matches) == 2
 
 
@@ -191,3 +210,28 @@ async def test_the_options_flow_refuses_a_line_it_cannot_read(
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_WATCHLIST: "unreadable_watchlist"}
     assert result["description_placeholders"] == {"lines": "!!"}
+
+
+async def test_one_flypast_is_one_message_at_the_slowest_interval(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    matches: list[Event],
+) -> None:
+    """Test the slowest interval, where polls are as far apart as the gap.
+
+    The next poll is planned once the last one is done, so in practice they
+    are a little further apart than the interval.
+    """
+    await watching(hass, mock_config_entry, aioclient_mock, "484123")
+    mock_config_entry.runtime_data.update_interval = timedelta(
+        seconds=MAX_SCAN_INTERVAL
+    )
+
+    for _ in range(4):
+        freezer.tick(timedelta(seconds=MAX_SCAN_INTERVAL + 1))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    assert len(matches) == 1
