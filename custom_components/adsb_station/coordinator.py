@@ -53,6 +53,7 @@ from .const import (
     KNOTS_TO_METRES_PER_SECOND,
     MAX_PLAUSIBLE_RANGE,
     MISSED_READS_TOLERATED,
+    OUTLINE_INTERVAL,
     PASSAGE_GAP,
     RADIO_HORIZON_ALLOWANCE,
     RADIO_HORIZON_METRES_PER_ROOT_FOOT,
@@ -742,6 +743,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._stats_out = False
         self._antenna: tuple[float, float] | None = None
         self._receiver_reads_left = RECEIVER_READ_ATTEMPTS
+        # readsb's coverage shape, when receiver.json says it writes one.
+        self._has_outline = False
+        self._outline_at: datetime | None = None
+        self.outline: list[tuple[float, float]] | None = None
         self.watchlist = watchlist_of(config_entry, reference.models)
         # To tell a watchlist-only change from one that needs a reload.
         self.started_with = dict(config_entry.options)
@@ -972,6 +977,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._aircraft_misses = 0
 
         await self._async_read_receiver()
+        await self._async_read_outline()
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
         stats = await self._async_add_photos(stats)
         # After routes and photos, so the events carry them.
@@ -1361,6 +1367,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             return
 
         self._receiver_reads_left = 0
+        self._has_outline = data.get("outlineJson") is True
 
         # Without a feeder, this names the decoder on the device page.
         version = _as_text(data.get("version"))
@@ -1378,6 +1385,29 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         self._antenna = position
         _LOGGER.debug("Measuring range from the receiver position in receiver.json")
+
+    async def _async_read_outline(self) -> None:
+        """Read the last day's coverage shape, now and then, keeping the last."""
+        now = dt_util.utcnow()
+        if not self._has_outline or (
+            self._outline_at is not None and now - self._outline_at < OUTLINE_INTERVAL
+        ):
+            return
+        self._outline_at = now
+        try:
+            data = await self.client.async_get_outline()
+        except AdsbStationError as err:
+            _LOGGER.debug("Could not read outline.json: %s", err)
+            return
+        day = (data.get("actualRange") or {}).get("last24h") or {}
+        points = [
+            position
+            for point in day.get("points") or []
+            if isinstance(point, list)
+            and len(point) >= 2
+            and (position := _position({"lat": point[0], "lon": point[1]}))
+        ]
+        self.outline = points or None
 
     def _build_aircraft_stats(self, data: dict[str, Any]) -> AircraftStats:
         """Turn a raw aircraft.json document into the figures we expose.
