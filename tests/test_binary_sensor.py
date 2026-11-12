@@ -147,8 +147,14 @@ async def test_no_emergency(
         ({"hex": "484126", "flight": "KLM99", "squawk": "7700"}, "emergency"),
         ({"hex": "484126", "squawk": "7600"}, "radio_failure"),
         ({"hex": "484126", "squawk": " 7500 "}, "hijack"),
-        # dump1090-fa states it outright instead of leaving it to the squawk
-        ({"hex": "484126", "emergency": "lifeguard"}, "lifeguard"),
+        # readsb and dump1090-fa state it outright, under the same reasons as
+        # the squawk, so one word means one thing whichever decoder it is
+        ({"hex": "484126", "emergency": "general"}, "emergency"),
+        ({"hex": "484126", "emergency": "unlawful"}, "hijack"),
+        ({"hex": "484126", "emergency": "NORDO"}, "radio_failure"),
+        ({"hex": "484126", "emergency": "downed"}, "downed"),
+        # A status that is no distress does not hide a squawk that is
+        ({"hex": "484126", "emergency": "lifeguard", "squawk": "7700"}, "emergency"),
     ],
 )
 async def test_emergency_detected(
@@ -177,22 +183,66 @@ async def test_emergency_detected(
             "flight": entry.get("flight"),
             "squawk": (entry.get("squawk") or "").strip() or None,
             "reason": expected_reason,
+            "distance": None,
+            "altitude": None,
+            "aircraft_type": None,
         }
     ]
 
 
-async def test_emergency_field_saying_none(
+async def test_emergency_tells_how_far_and_how_high(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Test that an explicit 'none' is not treated as an emergency."""
+    """Test the distance, height and type next to the reason."""
     set_responses(
         aioclient_mock,
         aircraft={
             "now": 1636387404.0,
             "messages": 10,
-            "aircraft": [{"hex": "484126", "emergency": "none", "squawk": "1000"}],
+            "aircraft": [
+                {
+                    "hex": "484126",
+                    "squawk": "7700",
+                    "lat": 52.1,
+                    "lon": 5.0,
+                    "alt_baro": 12000,
+                    "t": "B738",
+                }
+            ],
+        },
+    )
+
+    assert await setup_integration(hass, mock_config_entry)
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MOCK_ALIAS}_emergency"
+    )
+    [aircraft] = hass.states.get(entity_id).attributes["aircraft"]
+    assert aircraft["distance"] == 11.1
+    assert aircraft["altitude"] == 12000
+    assert aircraft["aircraft_type"] == "B738"
+
+
+@pytest.mark.parametrize(
+    "status",
+    # Priority for a medical flight, a warning before any emergency, and unused
+    ["none", "lifeguard", "minfuel", "reserved"],
+)
+async def test_emergency_field_saying_none(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    status: str,
+) -> None:
+    """Test that a status that is no distress is not an emergency."""
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [{"hex": "484126", "emergency": status, "squawk": "1000"}],
         },
     )
 

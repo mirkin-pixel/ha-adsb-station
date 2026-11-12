@@ -204,7 +204,8 @@ places, and those stay as they are until the next major version:
   `adsb_station.look_up_aircraft`, `list_aircraft`, `speak` and
   `install_sentences`.
 - **Events keep their name and their data.** `adsb_station_aircraft_passage`,
-  `adsb_station_watchlist_match` and `adsb_station_aircraft_approaching`.
+  `adsb_station_watchlist_match`, `adsb_station_aircraft_approaching` and
+  `adsb_station_aircraft_emergency`.
 - **A configured station keeps working.** An older entry is migrated in
   place, as every version before 1.0 already did, and never has to be
   removed and set up again.

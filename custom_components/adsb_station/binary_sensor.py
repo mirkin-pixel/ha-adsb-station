@@ -258,6 +258,14 @@ class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
                     "flight": entry.flight,
                     "squawk": entry.squawk,
                     "reason": entry.reason,
+                    # Kilometres across the ground, None without a position.
+                    "distance": (
+                        None
+                        if entry.summary.distance is None
+                        else round(entry.summary.distance / 1000, 1)
+                    ),
+                    "altitude": entry.summary.altitude,
+                    "aircraft_type": entry.summary.aircraft_type,
                 }
                 for entry in aircraft.emergencies
             ]
