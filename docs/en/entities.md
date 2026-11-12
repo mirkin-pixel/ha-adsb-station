@@ -9,7 +9,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Aircraft with position | Sensor | Of those, the number with a known position |
 | Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, averaged over the statistics interval |
-| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes. A decoder with an aircraft database adds registration, type and a military marker |
+| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes, and where to look: `bearing`, the compass direction in degrees, and `elevation`, the angle above the horizon. A decoder with an aircraft database adds registration, type and a military marker |
 | Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](routes.md) |

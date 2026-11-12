@@ -199,6 +199,7 @@ FEET_TO_METRES = 0.3048
 KNOTS_TO_METRES_PER_SECOND = 0.514444
 # Length of a degree of latitude.
 DEGREE_METRES = 111_320.0
+EARTH_RADIUS_METRES = 6_371_000.0
 
 # Approach predictions assume a straight line at constant speed; these limits
 # keep that guess from being announced as fact.

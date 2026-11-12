@@ -41,6 +41,7 @@ from .const import (
     DEFAULT_STATISTICS_INTERVAL,
     DEGREE_METRES,
     DOMAIN,
+    EARTH_RADIUS_METRES,
     EMERGENCY_SQUAWKS,
     EMERGENCY_STATUSES,
     EVENT_AIRCRAFT_APPROACHING,
@@ -135,6 +136,9 @@ class AircraftSummary:
     airline_code: str | None = None
     # Lets routeset tell this flight from the same number elsewhere.
     position: tuple[float, float] | None = None
+    # Where to look from the antenna, in degrees: compass and above the horizon.
+    bearing: float | None = None
+    elevation: float | None = None
     # Only for nearby aircraft, when routes are on.
     route: FlightRoute | None = None
     # For nearby and watched aircraft, when photos are on.
@@ -457,14 +461,25 @@ def sector_from(
     return None if position is None else sector_of(_bearing(*origin, *position))
 
 
+def _elevation(metres: float | None, altitude: float | None) -> float | None:
+    """Return the angle above the horizon from sea level, the curve included."""
+    if metres is None or altitude is None:
+        return None
+    angle = metres / EARTH_RADIUS_METRES
+    above = EARTH_RADIUS_METRES + altitude * FEET_TO_METRES
+    return degrees(atan2(above * cos(angle) - EARTH_RADIUS_METRES, above * sin(angle)))
+
+
 def _summarise(
     entry: dict[str, Any],
     metres: float | None,
     position: tuple[float, float] | None = None,
     reference: ReferenceTables = EMPTY_REFERENCE,
+    bearing: float | None = None,
 ) -> AircraftSummary:
     """Turn one aircraft.json entry into the shape we expose."""
     flight = _as_text(entry.get("flight"))
+    altitude = _altitude(entry)
     aircraft_type = _as_text(entry.get("t"))
     hex_code = str(entry.get("hex", ""))
     military = _military_flag(entry)
@@ -473,7 +488,9 @@ def _summarise(
         flight=flight,
         distance=metres,
         position=position,
-        altitude=_altitude(entry),
+        bearing=bearing,
+        elevation=_elevation(metres, altitude),
+        altitude=altitude,
         speed=_ground_speed(entry),
         track=_as_float(entry.get("track")),
         vertical_rate=_vertical_rate(entry),
@@ -520,6 +537,10 @@ def aircraft_attributes(
             None if summary.distance is None else round(summary.distance / 1000, 1)
         )
     # Left out rather than empty when unknown.
+    if summary.bearing is not None:
+        attributes["bearing"] = round(summary.bearing)
+    if summary.elevation is not None:
+        attributes["elevation"] = round(summary.elevation, 1)
     if summary.registration is not None:
         attributes["registration"] = summary.registration
     if summary.aircraft_type is not None:
@@ -1409,7 +1430,12 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 else:
                     with_position += 1
 
-            summary = _summarise(entry, metres, position, self.reference)
+            bearing = (
+                None
+                if position is None
+                else _bearing(origin_latitude, origin_longitude, *position)
+            )
+            summary = _summarise(entry, metres, position, self.reference, bearing)
             if (approach := approach_of(self.origin, summary)) is not None:
                 passing, seconds = approach
                 if seconds <= APPROACH_HORIZON.total_seconds():
@@ -1456,7 +1482,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             ):
                 fastest, fastest_knots = summary, summary.speed
 
-            if metres is None or position is None:
+            if metres is None or position is None or bearing is None:
                 continue
             if furthest_metres is None or metres > furthest_metres:
                 furthest, furthest_metres = summary, metres
@@ -1467,7 +1493,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if metres <= radius and _under(summary, ceiling):
                 nearby.append(summary)
 
-            sector = sector_of(_bearing(origin_latitude, origin_longitude, *position))
+            sector = sector_of(bearing)
             if sector not in sector_metres or metres > sector_metres[sector]:
                 by_sector[sector], sector_metres[sector] = summary, metres
 
