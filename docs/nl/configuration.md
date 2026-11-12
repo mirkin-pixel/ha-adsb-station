@@ -3,6 +3,7 @@
 1. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen**.
 2. Zoek naar **ADS-B Station**.
 3. Kies waar deze entry voor is:
+   - **Deze host doorzoeken op feeders**: typ één keer het adres, en de feeders die daar draaien staan klaar om uit te kiezen: fr24feed op `8754`, PiAware op `8080`, `80` of `8082`, pfclient op `30053`. Een feeder die al is ingesteld wordt overgeslagen. Zoek opnieuw voor de volgende. Antwoordt er niets nieuws, dan kies je zelf, zoals hieronder.
    - **Flightradar24-feeder (fr24feed)**: het adres van de machine waarop hij draait, en de poort van de statuspagina, standaard `8754`.
    - **FlightAware-feeder (PiAware)**: idem, standaard poort `8080`. Staat er een andere webserver op die poort, dan kan `status.json` elders staan; op een station met tar1090 achter nginx is poort 80 het proberen waard.
    - **Plane Finder-feeder (pfclient)**: idem, standaard poort `30053`.

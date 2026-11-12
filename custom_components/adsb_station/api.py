@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, TypeGuard
 
 import aiohttp
 
@@ -127,6 +127,39 @@ async def async_detect_aircraft_url(
     return None
 
 
+def is_status_of(feeder_type: str, data: Any) -> TypeGuard[dict[str, Any]]:
+    """Return True if this is the status document of that kind of feeder."""
+    return isinstance(data, dict) and bool(FEEDERS[feeder_type].markers & data.keys())
+
+
+async def async_detect_feeders(
+    session: aiohttp.ClientSession, host: str
+) -> list[tuple[str, int, dict[str, Any]]]:
+    """Return each kind of feeder found on a host, on the first port it answers."""
+    tries = [
+        (key, port)
+        for key, kind in FEEDERS.items()
+        for port in (kind.port, *kind.other_ports)
+    ]
+
+    async def status(key: str, port: int) -> dict[str, Any] | None:
+        try:
+            data = await async_fetch_json(
+                session, build_feeder_url(host, port, key), timeout=DETECT_TIMEOUT
+            )
+        except AdsbStationError:
+            return None
+        return data if is_status_of(key, data) else None
+
+    found: dict[str, tuple[int, dict[str, Any]]] = {}
+    for (key, port), data in zip(
+        tries, await asyncio.gather(*(status(*t) for t in tries)), strict=True
+    ):
+        if data is not None and key not in found:
+            found[key] = (port, data)
+    return [(key, port, data) for key, (port, data) in found.items()]
+
+
 async def async_detect_statistics(
     session: aiohttp.ClientSession, aircraft_url: str
 ) -> tuple[str | None, list[str]]:
@@ -245,14 +278,10 @@ class AdsbStationClient:
         if (url := self.feeder_url) is None or self.feeder_type is None:
             raise AdsbStationInvalidResponseError("No feeder configured")
         data = await async_fetch_json(self._session, url)
-        if not isinstance(data, dict):
+        if not is_status_of(self.feeder_type, data):
             raise AdsbStationInvalidResponseError(
-                f"Unexpected feeder status response: {data!r}"
-            )
-        kind = FEEDERS[self.feeder_type]
-        if not kind.markers & data.keys():
-            raise AdsbStationInvalidResponseError(
-                f"{url} does not look like a {kind.model} status page"
+                f"{url} does not look like a {FEEDERS[self.feeder_type].model} "
+                "status page"
             )
         return data
 

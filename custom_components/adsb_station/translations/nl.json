@@ -5,6 +5,34 @@
         "title": "ADS-B-station",
         "description": "Wat draait er op je ontvanger? Alles wat een aircraft.json aanbiedt werkt: dump1090, dump1090-fa met SkyAware, readsb met tar1090. Kies de Flightradar24-feeder er alleen bij als je daadwerkelijk fr24feed draait.",
         "menu_options": {
+          "search": "Deze host doorzoeken op feeders",
+          "fr24feed": "Flightradar24-feeder (fr24feed)",
+          "piaware": "FlightAware-feeder (PiAware)",
+          "planefinder": "Plane Finder-feeder (pfclient)",
+          "receiver": "Alleen een ADS-B-ontvanger"
+        }
+      },
+      "search": {
+        "title": "Feeders zoeken",
+        "description": "Vul het adres in van de machine waarop je feeders draaien. Home Assistant zoekt fr24feed, PiAware en pfclient op hun gebruikelijke poorten.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "Het IP-adres of de hostnaam van het apparaat, bijvoorbeeld 192.168.5.7."
+        }
+      },
+      "found": {
+        "title": "Gevonden feeders",
+        "description": "Kies de feeder die je wilt toevoegen. Zoek opnieuw om er nog een toe te voegen.",
+        "data": {
+          "feeder": "Feeder"
+        }
+      },
+      "nothing_found": {
+        "title": "Niets nieuws gevonden",
+        "description": "Op {host} antwoordde geen feeder die nog niet is ingesteld. Kies zelf wat daar draait.",
+        "menu_options": {
           "fr24feed": "Flightradar24-feeder (fr24feed)",
           "piaware": "FlightAware-feeder (PiAware)",
           "planefinder": "Plane Finder-feeder (pfclient)",

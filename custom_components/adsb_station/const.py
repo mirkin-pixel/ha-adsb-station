@@ -29,6 +29,8 @@ class FeederKind:
     model: str
     # The device name until the feeder reports a better one.
     default_name: str
+    # Where else the search looks: docker-piaware serves 80, adsb.im 8082.
+    other_ports: tuple[int, ...] = ()
 
 
 FEEDERS: dict[str, FeederKind] = {
@@ -49,6 +51,7 @@ FEEDERS: dict[str, FeederKind] = {
         manufacturer="FlightAware",
         model="PiAware",
         default_name="PiAware feeder",
+        other_ports=(80, 8082),
     ),
     FEEDER_PLANEFINDER: FeederKind(
         key=FEEDER_PLANEFINDER,
