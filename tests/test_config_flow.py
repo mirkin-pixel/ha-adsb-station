@@ -14,6 +14,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
+from custom_components import adsb_station
 from custom_components.adsb_station.api import build_candidate_urls
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
@@ -312,6 +313,82 @@ async def test_reconfigure(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert mock_config_entry.data[CONF_HOST] == new_host
+
+
+async def test_reconfigure_reloads_once_through_the_listener(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a reconfigured station is reloaded once, and quietly.
+
+    Reloading from the flow as well as from the update listener reloads the
+    entry twice, and Home Assistant warns about it since 2026.6.
+    """
+    assert await setup_integration(hass, mock_config_entry)
+    before = mock_config_entry.runtime_data
+    new_host = "192.168.5.8"
+    mock_api.get(f"http://{new_host}:{DEFAULT_PORT}/monitor.json", json=MOCK_MONITOR)
+
+    with patch(
+        "custom_components.adsb_station.async_setup_entry",
+        wraps=adsb_station.async_setup_entry,
+    ) as setup:
+        result = await mock_config_entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_HOST: new_host, CONF_PORT: DEFAULT_PORT}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_AIRCRAFT_URL: AIRCRAFT_URL}
+        )
+        await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert setup.call_count == 1
+    # The reloaded station reads the new address
+    assert mock_config_entry.runtime_data is not before
+    assert mock_config_entry.runtime_data.client.host == new_host
+    assert "update listener" not in caplog.text
+
+
+async def test_reconfigure_a_station_that_did_not_load(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the reason to reconfigure at all: the station moved address.
+
+    Setup failed, so no update listener was ever registered; the flow still
+    has to bring the entry up at its new address.
+    """
+    aioclient_mock.get(FEEDER_URL, exc=aiohttp.ClientError())
+    mock_config_entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_config_entry.state is config_entries.ConfigEntryState.SETUP_RETRY
+
+    new_host = "192.168.5.8"
+    new_data = f"http://{new_host}:8080/dump1090/data"
+    aioclient_mock.get(
+        f"http://{new_host}:{DEFAULT_PORT}/monitor.json", json=MOCK_MONITOR
+    )
+    aioclient_mock.get(f"{new_data}/aircraft.json", json=MOCK_AIRCRAFT)
+    aioclient_mock.get(f"{new_data}/stats.json", json=MOCK_STATS)
+    aioclient_mock.get(f"{new_data}/receiver.json", status=404)
+
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: new_host, CONF_PORT: DEFAULT_PORT}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_AIRCRAFT_URL: f"{new_data}/aircraft.json"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.state is config_entries.ConfigEntryState.LOADED
+    assert mock_config_entry.runtime_data.client.host == new_host
 
 
 async def test_reconfigure_to_another_feeder(

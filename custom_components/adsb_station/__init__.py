@@ -133,8 +133,14 @@ async def async_unload_entry(
 async def async_options_updated(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> None:
-    """Apply changed options: the watchlist in place, anything else by reload."""
+    """Apply a change: the watchlist in place, anything else by reload.
+
+    Reconfiguring changes the data, and comes through here as well.
+    """
     coordinator = entry.runtime_data
+    if dict(entry.data) != coordinator.started_with_data:
+        await hass.config_entries.async_reload(entry.entry_id)
+        return
     before, after = coordinator.started_with, dict(entry.options)
     changed = {
         key for key in before.keys() | after.keys() if before.get(key) != after.get(key)
