@@ -86,6 +86,14 @@ const overheadState = (attributes, state = attributes.flight) => ({ state, attri
 
 // A websocket that hands the card's subscription to the test, which then
 // plays the integration and sends it the sky.
+function renderTable(window, hass, config = {}) {
+  const card = window.document.createElement("adsb-station-table-card");
+  window.document.body.append(card);
+  card.setConfig(config);
+  card.hass = hass;
+  return card;
+}
+
 function connect(hass) {
   const link = { subscriptions: [], unsubscribed: 0 };
   hass.connection = {
@@ -257,19 +265,25 @@ const settle = async () => {
 };
 
 const tests = {
-  "shows no table unless asked"() {
+  "keeps the table on a card of its own"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     connect(hass);
-    const card = render(w, hass);
-    assert.ok(card.shadowRoot.querySelector(".table").hidden);
+    assert.ok(render(w, hass).shadowRoot.querySelector(".table").hidden, "not on the station card");
+
+    const card = renderTable(w, hass);
+    assert.ok(!card.shadowRoot.querySelector(".table").hidden);
+    assert.equal(card.shadowRoot.querySelector(".body").textContent, "", "nothing overhead, nearby or status");
+    assert.ok(card.shadowRoot.querySelector(".sky").hidden);
+    const form = w.customElements.get("adsb-station-table-card").getConfigForm();
+    assert.equal(JSON.stringify(form.schema.map((field) => field.name)), JSON.stringify(["device_id", "title"]));
   },
 
   async "lists every aircraft in a table, even without a map"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    const card = render(w, hass, { map: "none", show_table: true });
+    const card = renderTable(w, hass);
     assert.equal(link.subscriptions.length, 1, "the table needs the sky too");
     link.send(SKY([{ ...HIGH, bearing: 77 }, { ...LOW, bearing: 0, aircraft_type: "B738", rssi: -12.3 }, ROTOR]));
 
@@ -316,7 +330,7 @@ const tests = {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    const card = render(w, hass, { show_table: true });
+    const card = renderTable(w, hass);
     link.send(SKY([LOW, HIGH, ROTOR]));
 
     const search = card.shadowRoot.querySelector(".table input");
@@ -340,17 +354,23 @@ const tests = {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    const card = render(w, hass, { show_table: true });
+    let asked = 0;
+    hass.callWS = () => {
+      asked += 1;
+      return new Promise(() => {});
+    };
+    const card = renderTable(w, hass);
     link.send(SKY([LOW, HIGH]));
     card.shadowRoot.querySelector(".table tbody tr").click();
     assert.equal(card.shadowRoot.querySelector(".table tr.selected").firstChild.textContent, "KLM1234");
+    assert.equal(asked, 0, "no route asked for without a map to draw it on");
   },
 
   "speaks Dutch in the table"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
-    const card = render(w, hass, { show_table: true });
+    const card = renderTable(w, hass);
     link.send(SKY([LOW]));
     assert.equal(card.shadowRoot.querySelector(".table input").placeholder, "Zoek vlucht, registratie of type");
     assert.match(card.shadowRoot.querySelector(".table thead").textContent, /Vlucht.*Hoogte.*Afstand.*Richting/);
@@ -359,8 +379,11 @@ const tests = {
   "registers itself for the card picker"() {
     const w = browser();
     assert.ok(w.customElements.get("adsb-station-card"));
-    assert.equal(w.customCards.length, 1);
-    assert.equal(w.customCards[0].type, "adsb-station-card");
+    assert.ok(w.customElements.get("adsb-station-table-card"));
+    assert.equal(
+      JSON.stringify(w.customCards.map((entry) => entry.type).sort()),
+      JSON.stringify(["adsb-station-card", "adsb-station-table-card"]),
+    );
   },
 
   "finds the station by translation key, whatever the IDs are"() {
@@ -529,7 +552,6 @@ const tests = {
         "show_nearby",
         "max_nearby",
         "show_status",
-        "show_table",
       ]),
     );
     w.__adsbStationHass = { locale: { language: "nl" } };

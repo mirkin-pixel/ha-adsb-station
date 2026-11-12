@@ -27,7 +27,6 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
 | `max_nearby` | `5` | Hoeveel daarvan maximaal |
 | `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde, maximaal bereik en signaal-ruisverhouding, en een bolletje per netwerk voor Flightradar24 en FlightAware |
-| `show_table` | `false` | Elk toestel met een positie in een tabel: vlucht, hoogte, afstand en richting, en op een bredere kaart ook type en signaal. Tik op een kop om erop te sorteren, nog eens om de volgorde om te draaien; het vak erboven zoekt op vlucht, registratie, hex en type. Werkt ook zonder kaart |
 
 Op een breed dashboard staat de lucht links en de rest ernaast; op een telefoon staan ze onder elkaar.
 
@@ -46,6 +45,16 @@ Met `map: map` wordt dezelfde lucht op een kaart getekend: de silhouetten, de la
 Eén regel: vliegtuigen ontvangen, berichten per seconde, het maximale bereik en S/N, hoe ver het signaal boven de ruis uitkomt; dat is het cijfer om op te letten na het wijzigen van de gain of de antenne. Klik op een ervan voor de entiteit erachter.
 
 Plane Finder geeft zelf geen feedstatus, dus die heeft geen bolletje in plaats van een bolletje dat niets betekent.
+
+## De tabelkaart
+
+Elk toestel waarvan het station een positie heeft, als tabel om te sorteren en te doorzoeken. Het is een eigen kaart, dus hij kan staan waar er ruimte is: onder de stationskaart, over de volle breedte, of op een eigen pagina. In de kaartkiezer heet hij **ADS-B Station tabel**.
+
+```yaml
+type: custom:adsb-station-table-card
+```
+
+Vlucht, hoogte, afstand en richting, en type en signaal zodra de kaart breed genoeg is. Tik op een kop om erop te sorteren en nog eens om de volgorde om te draaien; wat onbekend is blijft onderaan. Het vak erboven zoekt op vlucht, registratie, hex en type, en houdt vast wat je typte terwijl de toestellen bewegen. Tik op een rij om hem te markeren. Hij kent `device_id` en `title`, net als de stationskaart, en leest hetzelfde abonnement, dus er komt niets van in de database.
 
 ## Vliegtuigen op de kaart
 

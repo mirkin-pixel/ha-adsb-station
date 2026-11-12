@@ -8,6 +8,7 @@
 
 const DOMAIN = "adsb_station";
 const CARD = "adsb-station-card";
+const TABLE_CARD = "adsb-station-table-card";
 const SUBSCRIBE = `${DOMAIN}/subscribe_aircraft`;
 const LOOK_UP_ROUTE = `${DOMAIN}/look_up_route`;
 const SVG = "http://www.w3.org/2000/svg";
@@ -33,7 +34,8 @@ const STRINGS = {
     show_nearby: "Show the aircraft nearby",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
-    show_table: "Show a table of every aircraft",
+    table_name: "ADS-B Station table",
+    table_description: "Every aircraft the station has a position for, to sort and search.",
     search: "Search flight, registration or type",
     col_flight: "Flight",
     col_altitude: "Height",
@@ -75,7 +77,8 @@ const STRINGS = {
     show_nearby: "Toestellen dichtbij tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
-    show_table: "Tabel met alle toestellen tonen",
+    table_name: "ADS-B Station tabel",
+    table_description: "Elk toestel waarvan het station een positie heeft, om te sorteren en te doorzoeken.",
     search: "Zoek vlucht, registratie of type",
     col_flight: "Vlucht",
     col_altitude: "Hoogte",
@@ -570,7 +573,6 @@ class AdsbStationCard extends HTMLElement {
           selector: { number: { min: 1, max: 20, mode: "box" } },
         },
         { name: "show_status", selector: { boolean: {} } },
-        { name: "show_table", selector: { boolean: {} } },
       ],
       computeLabel: (schema) => {
         const text = strings(window.__adsbStationHass);
@@ -587,6 +589,7 @@ class AdsbStationCard extends HTMLElement {
     this._selected = null;
     // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
+    this._onlyTable = false;
     this._sort = { key: "distance", descending: false };
     this._query = "";
   }
@@ -596,7 +599,6 @@ class AdsbStationCard extends HTMLElement {
       map: "radar",
       show_nearby: true,
       show_status: true,
-      show_table: false,
       max_nearby: DEFAULT_MAX_NEARBY,
       ...(config || {}),
     };
@@ -716,14 +718,14 @@ class AdsbStationCard extends HTMLElement {
     const body = [];
     if (!found) {
       body.push(el("div", { class: "empty" }, text.no_station));
-    } else {
+    } else if (!this._onlyTable) {
       body.push(this._overhead(found, text));
       if (this._config.show_nearby) body.push(this._nearby(found, text));
       if (this._config.show_status) body.push(this._status(found, text));
     }
     this._body.replaceChildren(...body.filter(Boolean));
     if (showSky) this._drawSky();
-    this._tableBox.hidden = !(found && this._config.show_table);
+    this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
   }
 
@@ -750,7 +752,7 @@ class AdsbStationCard extends HTMLElement {
 
   _follow(found) {
     const wanted =
-      found && (this._config.map !== "none" || this._config.show_table) && this.isConnected && this._hass.connection
+      found && (this._config.map !== "none" || this._onlyTable) && this.isConnected && this._hass.connection
         ? found.device
         : null;
     if (wanted === this._following) return;
@@ -1218,7 +1220,8 @@ class AdsbStationCard extends HTMLElement {
 
   _select(hex) {
     this._selected = this._selected === hex ? null : hex;
-    if (this._selected) this._lookUpRoute(this._selected);
+    // A route is only asked for where it can be drawn.
+    if (this._selected && !this._skyBox.hidden) this._lookUpRoute(this._selected);
     if (!this._skyBox.hidden) this._drawSky();
     if (!this._tableBox.hidden) this._drawTable();
   }
@@ -2015,6 +2018,39 @@ const STYLE = css`
     background: var(--warning-color, #ffa600);
   }
 `;
+
+// The same card with only the table, so it can go anywhere on a dashboard.
+class AdsbStationTableCard extends AdsbStationCard {
+  constructor() {
+    super();
+    this._onlyTable = true;
+  }
+
+  static getConfigForm() {
+    const form = super.getConfigForm();
+    return { ...form, schema: form.schema.filter((field) => ["device_id", "title"].includes(field.name)) };
+  }
+
+  setConfig(config) {
+    super.setConfig({ ...(config || {}), map: "none" });
+  }
+
+  getCardSize() {
+    return 6;
+  }
+}
+
+if (!customElements.get(TABLE_CARD)) {
+  customElements.define(TABLE_CARD, AdsbStationTableCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: TABLE_CARD,
+    name: STRINGS.en.table_name,
+    description: STRINGS.en.table_description,
+    preview: true,
+    documentationURL: "https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/dashboards.md",
+  });
+}
 
 if (!customElements.get(CARD)) {
   customElements.define(CARD, AdsbStationCard);

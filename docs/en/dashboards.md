@@ -27,7 +27,6 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
 | `show_status` | `true` | Aircraft received, message rate, maximum range and signal to noise, and a dot per network for Flightradar24 and FlightAware |
-| `show_table` | `false` | Every aircraft with a position in a table: flight, height, distance and direction, with type and signal on a wider card. Tap a heading to sort by it, again to turn it round; the box above searches flight, registration, hex and type. Works without a map too |
 
 On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 
@@ -46,6 +45,16 @@ With `map: map` the same sky is drawn on a map under it: the outlines, the label
 One line: aircraft received, messages per second, the maximum range, and S/N, how far the signal stands above the noise, which is the figure to watch after changing the gain or the antenna. Click any of them for the entity behind it.
 
 Plane Finder reports no feed status of its own, so it has no dot rather than one that means nothing.
+
+## The table card
+
+Every aircraft the station has a position for, as a table you can sort and search. It is a card of its own, so it can go wherever there is room: under the station card, full width, or on a page of its own. In the card picker it is **ADS-B Station table**.
+
+```yaml
+type: custom:adsb-station-table-card
+```
+
+Flight, height, distance and direction, with type and signal once the card is wide enough. Tap a heading to sort by it and again to turn it round; whatever is unknown stays at the bottom. The box above searches flight, registration, hex and type, and keeps what you typed while the aircraft move. Tap a row to mark it. It takes `device_id` and `title`, as the station card does, and reads the same subscription, so nothing of it is written to the database.
 
 ## Aircraft on the map
 
