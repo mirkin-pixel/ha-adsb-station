@@ -257,6 +257,105 @@ const settle = async () => {
 };
 
 const tests = {
+  "shows no table unless asked"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    connect(hass);
+    const card = render(w, hass);
+    assert.ok(card.shadowRoot.querySelector(".table").hidden);
+  },
+
+  async "lists every aircraft in a table, even without a map"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map: "none", show_table: true });
+    assert.equal(link.subscriptions.length, 1, "the table needs the sky too");
+    link.send(SKY([{ ...HIGH, bearing: 77 }, { ...LOW, bearing: 0, aircraft_type: "B738", rssi: -12.3 }, ROTOR]));
+
+    const rows = () =>
+      [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) =>
+        [...row.children].map((td) => td.textContent),
+      );
+    const heads = () => [...card.shadowRoot.querySelectorAll(".table th")];
+    // Nearest first, to start with
+    assert.deepEqual(
+      rows().map((row) => row[0]),
+      ["KLM1234", "LIFE01", "RYR5"],
+    );
+    assert.deepEqual(rows()[0], ["KLM1234", "1,500 ft", "2.2 km", "0°", "B738", "-12.3"]);
+    assert.equal(rows()[1][3], "", "a bearing it does not have is left empty");
+
+    // A tap on a heading sorts by it, a second tap turns it round
+    heads()[1].click();
+    assert.deepEqual(
+      rows().map((row) => row[0]),
+      ["LIFE01", "KLM1234", "RYR5"],
+    );
+    heads()[1].click();
+    assert.deepEqual(
+      rows().map((row) => row[0]),
+      ["RYR5", "KLM1234", "LIFE01"],
+    );
+    assert.equal(heads()[1].getAttribute("aria-sort"), "descending");
+
+    // Unknown last, whichever way round
+    heads()[3].click();
+    assert.deepEqual(
+      rows().map((row) => row[0]),
+      ["KLM1234", "RYR5", "LIFE01"],
+    );
+    heads()[3].click();
+    assert.deepEqual(
+      rows().map((row) => row[0]),
+      ["RYR5", "KLM1234", "LIFE01"],
+    );
+  },
+
+  "searches without losing the box on the next push"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { show_table: true });
+    link.send(SKY([LOW, HIGH, ROTOR]));
+
+    const search = card.shadowRoot.querySelector(".table input");
+    search.value = "ph-bx";
+    search.dispatchEvent(new w.Event("input"));
+    const flights = () =>
+      [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) => row.firstChild.textContent);
+    assert.deepEqual(flights(), ["KLM1234"], "found by registration");
+
+    link.send(SKY([LOW, HIGH, ROTOR]));
+    card.hass = { ...hass };
+    assert.equal(card.shadowRoot.querySelector(".table input"), search, "the same box, so it keeps its focus");
+    assert.deepEqual(flights(), ["KLM1234"]);
+
+    search.value = "nothing like it";
+    search.dispatchEvent(new w.Event("input"));
+    assert.match(card.shadowRoot.querySelector(".table tbody").textContent, /No aircraft with a position/);
+  },
+
+  "marks the row tapped, as on the radar"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { show_table: true });
+    link.send(SKY([LOW, HIGH]));
+    card.shadowRoot.querySelector(".table tbody tr").click();
+    assert.equal(card.shadowRoot.querySelector(".table tr.selected").firstChild.textContent, "KLM1234");
+  },
+
+  "speaks Dutch in the table"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const card = render(w, hass, { show_table: true });
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.querySelector(".table input").placeholder, "Zoek vlucht, registratie of type");
+    assert.match(card.shadowRoot.querySelector(".table thead").textContent, /Vlucht.*Hoogte.*Afstand.*Richting/);
+  },
+
   "registers itself for the card picker"() {
     const w = browser();
     assert.ok(w.customElements.get("adsb-station-card"));
@@ -430,6 +529,7 @@ const tests = {
         "show_nearby",
         "max_nearby",
         "show_status",
+        "show_table",
       ]),
     );
     w.__adsbStationHass = { locale: { language: "nl" } };

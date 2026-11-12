@@ -27,6 +27,7 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
 | `max_nearby` | `5` | Hoeveel daarvan maximaal |
 | `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde, maximaal bereik en signaal-ruisverhouding, en een bolletje per netwerk voor Flightradar24 en FlightAware |
+| `show_table` | `false` | Elk toestel met een positie in een tabel: vlucht, hoogte, afstand en richting, en op een bredere kaart ook type en signaal. Tik op een kop om erop te sorteren, nog eens om de volgorde om te draaien; het vak erboven zoekt op vlucht, registratie, hex en type. Werkt ook zonder kaart |
 
 Op een breed dashboard staat de lucht links en de rest ernaast; op een telefoon staan ze onder elkaar.
 

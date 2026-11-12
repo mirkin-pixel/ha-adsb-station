@@ -33,6 +33,14 @@ const STRINGS = {
     show_nearby: "Show the aircraft nearby",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
+    show_table: "Show a table of every aircraft",
+    search: "Search flight, registration or type",
+    col_flight: "Flight",
+    col_altitude: "Height",
+    col_distance: "Distance",
+    col_bearing: "Direction",
+    col_type: "Type",
+    col_rssi: "Signal (dBFS)",
     title: "Title",
     map: "Map",
     map_radar: "Radar",
@@ -67,6 +75,14 @@ const STRINGS = {
     show_nearby: "Toestellen dichtbij tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
+    show_table: "Tabel met alle toestellen tonen",
+    search: "Zoek vlucht, registratie of type",
+    col_flight: "Vlucht",
+    col_altitude: "Hoogte",
+    col_distance: "Afstand",
+    col_bearing: "Richting",
+    col_type: "Type",
+    col_rssi: "Signaal (dBFS)",
     title: "Titel",
     map: "Kaart",
     map_radar: "Radar",
@@ -554,6 +570,7 @@ class AdsbStationCard extends HTMLElement {
           selector: { number: { min: 1, max: 20, mode: "box" } },
         },
         { name: "show_status", selector: { boolean: {} } },
+        { name: "show_table", selector: { boolean: {} } },
       ],
       computeLabel: (schema) => {
         const text = strings(window.__adsbStationHass);
@@ -570,6 +587,8 @@ class AdsbStationCard extends HTMLElement {
     this._selected = null;
     // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
+    this._sort = { key: "distance", descending: false };
+    this._query = "";
   }
 
   setConfig(config) {
@@ -577,6 +596,7 @@ class AdsbStationCard extends HTMLElement {
       map: "radar",
       show_nearby: true,
       show_status: true,
+      show_table: false,
       max_nearby: DEFAULT_MAX_NEARBY,
       ...(config || {}),
     };
@@ -681,7 +701,9 @@ class AdsbStationCard extends HTMLElement {
       this._card = el("ha-card");
       this._skyBox = el("div", { class: "sky" });
       this._body = el("div", { class: "body" });
-      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body));
+      // Built once and kept, so typing in the search box survives every push.
+      this._tableBox = el("div", { class: "table" });
+      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
       this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
     }
     if (this._config.title) this._card.setAttribute("header", this._config.title);
@@ -701,6 +723,8 @@ class AdsbStationCard extends HTMLElement {
     }
     this._body.replaceChildren(...body.filter(Boolean));
     if (showSky) this._drawSky();
+    this._tableBox.hidden = !(found && this._config.show_table);
+    if (!this._tableBox.hidden) this._drawTable(text);
   }
 
   _moreInfo(entry) {
@@ -726,7 +750,9 @@ class AdsbStationCard extends HTMLElement {
 
   _follow(found) {
     const wanted =
-      found && this._config.map !== "none" && this.isConnected && this._hass.connection ? found.device : null;
+      found && (this._config.map !== "none" || this._config.show_table) && this.isConnected && this._hass.connection
+        ? found.device
+        : null;
     if (wanted === this._following) return;
     this._unsubscribe();
     if (!wanted) return;
@@ -786,6 +812,7 @@ class AdsbStationCard extends HTMLElement {
       if (!here.has(hex)) this._trails.delete(hex);
     }
     if (this._skyBox && !this._skyBox.hidden) this._drawSky();
+    if (this._tableBox && !this._tableBox.hidden) this._drawTable();
   }
 
   // --- The sky --------------------------------------------------------------
@@ -1192,7 +1219,8 @@ class AdsbStationCard extends HTMLElement {
   _select(hex) {
     this._selected = this._selected === hex ? null : hex;
     if (this._selected) this._lookUpRoute(this._selected);
-    this._drawSky();
+    if (!this._skyBox.hidden) this._drawSky();
+    if (!this._tableBox.hidden) this._drawTable();
   }
 
   // Both ends of an aircraft's route with where they are, if known: sent
@@ -1413,6 +1441,96 @@ class AdsbStationCard extends HTMLElement {
         ),
       ),
     );
+  }
+
+  // --- Every aircraft, as a table --------------------------------------------
+
+  _columns(text) {
+    const figure = (value, show) => (typeof value === "number" ? show(value) : "");
+    return [
+      { key: "flight", sort: (p) => p.flight || p.hex, show: (p) => p.flight || p.hex },
+      { key: "altitude", sort: (p) => (p.on_ground ? 0 : p.altitude), show: (p) => this._height(p, text) || "" },
+      { key: "distance", sort: (p) => p.distance, show: (p) => this._distance(p.distance) || "" },
+      { key: "bearing", sort: (p) => p.bearing, show: (p) => figure(p.bearing, (b) => `${b}°`) },
+      { key: "type", sort: (p) => p.aircraft_type, show: (p) => p.aircraft_type || "", wide: true },
+      { key: "rssi", sort: (p) => p.rssi, show: (p) => figure(p.rssi, (r) => this._number(r, 1)), wide: true },
+    ];
+  }
+
+  _drawTable(text = strings(this._hass)) {
+    const columns = this._columns(text);
+    const cell = (column) =>
+      [column.wide && "wide", !["flight", "type"].includes(column.key) && "number"].filter(Boolean).join(" ") ||
+      undefined;
+    const language = this._hass.locale && this._hass.locale.language;
+    if (this._tableLanguage !== language) {
+      this._tableLanguage = language;
+      this._search = el("input", {
+        type: "search",
+        placeholder: text.search,
+        "aria-label": text.search,
+        oninput: (event) => {
+          this._query = event.target.value.trim().toLowerCase();
+          this._drawTable();
+        },
+      });
+      this._search.value = this._query;
+      this._head = el("tr");
+      this._rows = el("tbody");
+      this._tableBox.replaceChildren(
+        this._search,
+        el("div", { class: "scroll" }, el("table", {}, el("thead", {}, this._head), this._rows)),
+      );
+    }
+
+    const { key, descending } = this._sort;
+    this._head.replaceChildren(
+      ...columns.map((column) =>
+        el(
+          "th",
+          {
+            class: cell(column),
+            "aria-sort": column.key === key ? (descending ? "descending" : "ascending") : undefined,
+            onclick: () => {
+              this._sort = { key: column.key, descending: column.key === key && !descending };
+              this._drawTable();
+            },
+          },
+          text[`col_${column.key}`],
+          column.key === key ? (descending ? " ▾" : " ▴") : "",
+        ),
+      ),
+    );
+
+    const by = columns.find((column) => column.key === key).sort;
+    const unknown = (value) => value === undefined || value === null;
+    const query = this._query;
+    const planes = ((this._sky && this._sky.aircraft) || [])
+      .filter(
+        (p) =>
+          !query ||
+          [p.flight, p.registration, p.hex, p.aircraft_type].some((v) => v && v.toLowerCase().includes(query)),
+      )
+      .sort((a, b) => {
+        const [x, y] = [by(a), by(b)];
+        // Unknown last, whichever way round.
+        if (unknown(x) || unknown(y)) return unknown(x) - unknown(y);
+        const order = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+        return descending ? -order : order;
+      });
+
+    this._rows.replaceChildren(
+      ...planes.map((p) =>
+        el(
+          "tr",
+          { class: p.hex === this._selected ? "selected" : undefined, onclick: () => this._select(p.hex) },
+          columns.map((column) => el("td", { class: cell(column) }, column.show(p))),
+        ),
+      ),
+    );
+    if (!planes.length) {
+      this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, text.no_positions)));
+    }
   }
 
   // --- The station ----------------------------------------------------------
@@ -1798,6 +1916,69 @@ const STYLE = css`
     color: var(--secondary-text-color);
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+  .table {
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--divider-color);
+  }
+  .table[hidden] {
+    display: none;
+  }
+  .table input {
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    font: inherit;
+  }
+  .scroll {
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table th {
+    position: sticky;
+    top: 0;
+    background: var(--card-background-color);
+    color: var(--secondary-text-color);
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .table th,
+  .table td {
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .table td {
+    border-top: 1px solid var(--divider-color);
+  }
+  .table .number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .table tbody tr {
+    cursor: pointer;
+  }
+  .table tr.selected td {
+    background: var(--secondary-background-color);
+  }
+  .table .none {
+    color: var(--secondary-text-color);
+    text-align: center;
+  }
+  @container (max-width: 480px) {
+    .table .wide {
+      display: none;
+    }
   }
   .status {
     display: flex;

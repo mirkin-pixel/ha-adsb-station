@@ -27,6 +27,7 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
 | `show_status` | `true` | Aircraft received, message rate, maximum range and signal to noise, and a dot per network for Flightradar24 and FlightAware |
+| `show_table` | `false` | Every aircraft with a position in a table: flight, height, distance and direction, with type and signal on a wider card. Tap a heading to sort by it, again to turn it round; the box above searches flight, registration, hex and type. Works without a map too |
 
 On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 
