@@ -35,8 +35,8 @@ automation:
       data:
         message: >
           {{ trigger.event.data.watching }} is in de lucht:
-          {{ trigger.event.data.flight or trigger.event.data.hex }},
-          {{ trigger.event.data.distance }} km ver.
+          {{ trigger.event.data.flight or trigger.event.data.hex }}
+          {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km ver{% endif %}.
 ```
 
 Het event draagt de regel die matchte, `matched_on` om te zeggen welk deel van het toestel hij raakte, en verder alles wat de vliegtuigattributen dragen. Eén toestel is één bericht, hoeveel regels het ook noemen, en het wordt niet herhaald zolang het toestel in de lucht blijft — dezelfde tien minuten die een passage gebruikt. Tien minuten nadat het wegvalt is terugkomen weer iets om te horen.

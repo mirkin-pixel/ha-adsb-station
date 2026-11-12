@@ -162,8 +162,8 @@ automation:
         data:
           title: "{{ trigger.event.data.watching }} is in de lucht"
           message: >
-            {{ trigger.event.data.flight or trigger.event.data.hex }},
-            {{ trigger.event.data.distance }} km ver
+            {{ trigger.event.data.flight or trigger.event.data.hex }}
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km ver{% endif %}
             {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
 ```
 

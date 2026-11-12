@@ -35,8 +35,8 @@ automation:
       data:
         message: >
           {{ trigger.event.data.watching }} is up:
-          {{ trigger.event.data.flight or trigger.event.data.hex }},
-          {{ trigger.event.data.distance }} km out.
+          {{ trigger.event.data.flight or trigger.event.data.hex }}
+          {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km out{% endif %}.
 ```
 
 The event carries the line that matched, `matched_on` to say which part of the aircraft it hit, and everything else the aircraft attributes carry. One aircraft is one message, however many lines name it, and it is not repeated while the aircraft stays in the air — the same ten minute gap a passage uses. Ten minutes after it drops out, coming back is worth being told about again.

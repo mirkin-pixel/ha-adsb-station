@@ -162,8 +162,8 @@ automation:
         data:
           title: "{{ trigger.event.data.watching }} is up"
           message: >
-            {{ trigger.event.data.flight or trigger.event.data.hex }},
-            {{ trigger.event.data.distance }} km away
+            {{ trigger.event.data.flight or trigger.event.data.hex }}
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km away{% endif %}
             {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} feet{% endif %}.
 ```
 
