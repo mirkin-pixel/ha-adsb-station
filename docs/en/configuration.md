@@ -9,7 +9,7 @@
    - **ADS-B receiver only**: for a station that feeds nowhere, or as the entry that carries the decoder.
 4. Every path then offers the receiver. Attach it to one entry and leave it empty on the others, or the aircraft figures are counted several times over.
 
-These paths are probed automatically, on port 8080 where fr24feed and PiAware serve them and on port 80 where readsb with tar1090 does:
+These paths are probed automatically, on port 8080 where fr24feed and PiAware serve them and on port 80 where readsb with tar1090 does. Port 8504 is tried for `/data/aircraft.json`, where tar1090 also serves it when lighttpd is the web server:
 
 ```
 /dump1090/data/aircraft.json
