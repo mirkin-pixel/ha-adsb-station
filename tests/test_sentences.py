@@ -19,6 +19,7 @@ import yaml
 from custom_components.adsb_station.intent import (
     INTENT_CLOSEST,
     INTENT_COUNT,
+    INTENT_LAST_PASSAGE,
     INTENT_OVERHEAD,
     INTENT_ROUTE,
     INTENT_TRAFFIC,
@@ -45,6 +46,8 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
         ("what is flying over", INTENT_OVERHEAD, None),
         ("what is above me right now", INTENT_OVERHEAD, None),
         ("is there anything overhead", INTENT_OVERHEAD, None),
+        # Present tense stays with the question about now
+        ("what is that plane", INTENT_OVERHEAD, None),
         ("how many aircraft are there", INTENT_COUNT, None),
         ("how many planes are nearby", INTENT_COUNT, None),
         ("how busy is the sky", INTENT_COUNT, None),
@@ -57,11 +60,19 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
         ("any military traffic", INTENT_TRAFFIC, "military"),
         ("where is it going", INTENT_ROUTE, None),
         ("what is the route of the aircraft overhead", INTENT_ROUTE, None),
+        ("what was that", INTENT_LAST_PASSAGE, None),
+        ("what plane was that", INTENT_LAST_PASSAGE, None),
+        ("what just flew over", INTENT_LAST_PASSAGE, None),
+        ("what just went over the house", INTENT_LAST_PASSAGE, None),
+        ("what's just gone over", INTENT_LAST_PASSAGE, None),
+        ("what was the last plane to go over", INTENT_LAST_PASSAGE, None),
+        ("did something just fly over", INTENT_LAST_PASSAGE, None),
     ],
     "nl": [
         ("wat vliegt er over", INTENT_OVERHEAD, None),
         ("wat vliegt er boven ons", INTENT_OVERHEAD, None),
         ("hangt er iets boven me", INTENT_OVERHEAD, None),
+        ("wat is dat voor vliegtuig", INTENT_OVERHEAD, None),
         ("hoeveel vliegtuigen zijn er", INTENT_COUNT, None),
         ("hoeveel toestellen zijn er in de buurt", INTENT_COUNT, None),
         ("hoe druk is het in de lucht", INTENT_COUNT, None),
@@ -74,6 +85,14 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
         ("zijn er drones", INTENT_TRAFFIC, "drone"),
         ("waar gaat hij heen", INTENT_ROUTE, None),
         ("waar komt het vliegtuig boven me vandaan", INTENT_ROUTE, None),
+        ("wat vloog er net over", INTENT_LAST_PASSAGE, None),
+        ("welk vliegtuig kwam daar zojuist over", INTENT_LAST_PASSAGE, None),
+        ("wat vloog er net over ons heen", INTENT_LAST_PASSAGE, None),
+        ("wat is er net overgevlogen", INTENT_LAST_PASSAGE, None),
+        ("vloog er net iets over", INTENT_LAST_PASSAGE, None),
+        ("wat was dat", INTENT_LAST_PASSAGE, None),
+        ("wat was dat voor vliegtuig", INTENT_LAST_PASSAGE, None),
+        ("welk toestel was dat net", INTENT_LAST_PASSAGE, None),
     ],
 }
 
@@ -95,6 +114,7 @@ def test_the_files_parse(language: str) -> None:
         INTENT_CLOSEST,
         INTENT_TRAFFIC,
         INTENT_ROUTE,
+        INTENT_LAST_PASSAGE,
     }
 
 

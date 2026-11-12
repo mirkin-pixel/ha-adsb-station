@@ -489,11 +489,11 @@
     },
     "speak": {
       "name": "Speak an answer",
-      "description": "Returns one of the five spoken answers as text, ready for a sentence trigger to say back. Needs no sentence files.",
+      "description": "Returns one of the six spoken answers as text, ready for a sentence trigger to say back. Needs no sentence files.",
       "fields": {
         "question": {
           "name": "Question",
-          "description": "Which of the five to answer: what is overhead, how many are up there, which is closest, whether a kind of traffic is in range, or where the aircraft overhead is going."
+          "description": "Which of the six to answer: what is overhead, how many are up there, which is closest, whether a kind of traffic is in range, where the aircraft overhead is going, or what came over last."
         },
         "kind": {
           "name": "Kind",

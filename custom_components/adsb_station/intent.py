@@ -1,4 +1,4 @@
-"""Five spoken questions for Assist, answered from the last poll.
+"""Six spoken questions for Assist, answered from the last poll.
 
 The sentences ship as files and must be copied into the configuration
 directory, by hand or with `adsb_station.install_sentences`.
@@ -10,8 +10,10 @@ from typing import Any, Final
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
+from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_system import UnitSystem
 
+from .const import PASSAGE_GAP
 from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     AircraftStats,
@@ -20,6 +22,7 @@ from .coordinator import (
     sector_from,
 )
 from .speech import (
+    ago_of,
     altitude_of,
     counted,
     distance_of,
@@ -34,6 +37,7 @@ INTENT_COUNT: Final = "AdsbStationCount"
 INTENT_CLOSEST: Final = "AdsbStationClosest"
 INTENT_TRAFFIC: Final = "AdsbStationTraffic"
 INTENT_ROUTE: Final = "AdsbStationRoute"
+INTENT_LAST_PASSAGE: Final = "AdsbStationLastPassage"
 
 # Military is a marker; the others are broadcast emitter categories.
 TRAFFIC_KINDS: Final[dict[str, str | None]] = {
@@ -264,6 +268,47 @@ class RouteIntent(_AdsbStationIntent):
         )
 
 
+class LastPassageIntent(_AdsbStationIntent):
+    """What just came over, asked once it has gone."""
+
+    intent_type = INTENT_LAST_PASSAGE
+    description = "Says which aircraft came over last, and how long ago"
+
+    def answer(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        aircraft: AircraftStats,
+        language: str,
+        units: UnitSystem,
+        slots: dict[str, Any],
+    ) -> str:
+        """Answer with the last aircraft past its closest approach.
+
+        One still on its way in has not come over yet: that is what is
+        overhead now, in the present tense.
+        """
+        now = dt_util.utcnow()
+        if (found := coordinator.last_passed(now)) is None:
+            if coordinator.overhead is not None and coordinator.in_view(now):
+                return QUESTIONS["overhead"].answer(
+                    coordinator, aircraft, language, units, slots
+                )
+            return say(
+                language,
+                "nothing_came_over",
+                minutes=round(PASSAGE_GAP.total_seconds() / 60),
+            )
+
+        passage, when = found
+        return say(
+            language,
+            "came_over",
+            aircraft=name_of(passage.closest, language),
+            ago=ago_of((now - when).total_seconds(), language),
+            altitude=altitude_of(passage.closest, language, units),
+        )
+
+
 def _place(airport: Any) -> str | None:
     """Return what to call one end of a route out loud: the city, not the code."""
     if airport is None:
@@ -278,6 +323,7 @@ QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
     "closest": ClosestIntent(),
     "traffic": TrafficIntent(),
     "route": RouteIntent(),
+    "last_passage": LastPassageIntent(),
 }
 
 

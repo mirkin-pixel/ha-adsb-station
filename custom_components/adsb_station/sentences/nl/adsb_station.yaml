@@ -31,6 +31,16 @@ intents:
           - "waar (gaat|vliegt) (hij|die|dat vliegtuig|dat toestel) (heen|naartoe)"
           - "waar komt (het vliegtuig|het toestel) (boven me|hierboven) vandaan"
           - "wat is de route van (het vliegtuig|het toestel) (boven me|hierboven)"
+  AdsbStationLastPassage:
+    data:
+      - sentences:
+          - "(wat|welk vliegtuig|welk toestel) (vloog|kwam) (er|daar|hier) [net |zojuist |zonet |daarnet ]over[heen]"
+          - "wat (vloog|kwam) er [net |zojuist |zonet |daarnet ]over (me|ons|het huis)[ heen]"
+          - "wat is (er|daar|hier) (net|zojuist|zonet|daarnet) (overgevlogen|overgekomen)"
+          - "(vloog|kwam) (er|daar|hier) (net|zojuist|zonet|daarnet) (iets|wat|een vliegtuig) over[heen]"
+          - "wat was dat[ net| zojuist| zonet| daarnet]"
+          - "wat was dat [net |zojuist |zonet |daarnet ]voor [een ](vliegtuig|toestel)"
+          - "(welk|wat voor|wat voor een) (vliegtuig|toestel) was dat[ net| zojuist| zonet| daarnet]"
 lists:
   kind:
     values:

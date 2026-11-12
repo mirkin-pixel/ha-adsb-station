@@ -24,6 +24,7 @@ from custom_components.adsb_station.const import (
 from custom_components.adsb_station.intent import (
     INTENT_CLOSEST,
     INTENT_COUNT,
+    INTENT_LAST_PASSAGE,
     INTENT_OVERHEAD,
     INTENT_ROUTE,
     INTENT_TRAFFIC,
@@ -318,6 +319,7 @@ async def test_the_sentences_match_their_intents() -> None:
         INTENT_CLOSEST,
         INTENT_TRAFFIC,
         INTENT_ROUTE,
+        INTENT_LAST_PASSAGE,
     }
     directory = (
         Path(__file__).parent.parent

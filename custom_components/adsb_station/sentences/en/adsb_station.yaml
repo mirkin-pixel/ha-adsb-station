@@ -31,6 +31,16 @@ intents:
           - "where is (it|that plane|that aircraft) (going|flying)[ to]"
           - "where (is|does) the (plane|aircraft) (overhead|above me) (going|come from)"
           - "what is the route of the (plane|aircraft) overhead"
+  AdsbStationLastPassage:
+    data:
+      - sentences:
+          - "what was that[ plane| aircraft][ just now]"
+          - "(what|which) (plane|aircraft) was that[ just now]"
+          - "what [just ](flew|went|came) over[head| me| us| the house][ just now]"
+          - "(what|which) (plane|aircraft) [just ](flew|went|came) over[head| me| us| the house][ just now]"
+          - "(what has|what's) just (flown|gone|come) over[head| me| us| the house]"
+          - "what was the last (plane|aircraft)[ over| overhead| to (fly|go|come) over| that (flew|went|came) over]"
+          - "did (anything|something|a plane|an aircraft) just (fly|go|come) over[head| me| us| the house]"
 lists:
   kind:
     values:
