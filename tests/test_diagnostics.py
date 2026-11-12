@@ -108,7 +108,14 @@ async def test_diagnostics_do_not_give_the_house_away(
             "now": 1636387404.0,
             "messages": 1000,
             "aircraft": [
-                {"hex": "484123", "flight": "KLM123", "lat": 51.98812, "lon": 5.12401}
+                # In distress as well, which puts it in the download once more
+                {
+                    "hex": "484123",
+                    "flight": "KLM123",
+                    "lat": 51.98812,
+                    "lon": 5.12401,
+                    "squawk": "7700",
+                }
             ],
         },
     )
@@ -120,6 +127,8 @@ async def test_diagnostics_do_not_give_the_house_away(
     assert diagnostics["range_measured_from"] == [52.0, 5.1]
     assert diagnostics["aircraft"]["closest"]["position"] == [52.0, 5.1]
     assert diagnostics["aircraft"]["nearby"][0]["position"] == [52.0, 5.1]
+    [emergency] = diagnostics["aircraft"]["emergencies"]
+    assert emergency["summary"]["position"] == [52.0, 5.1]
     written = json.dumps(diagnostics, default=str)
     for exact in ("51.98", "5.12"):
         assert exact not in written

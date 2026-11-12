@@ -134,7 +134,7 @@ EMERGENCY_STATUSES: dict[str, str] = {
     "downed": "downed",
 }
 
-# Fired once per aircraft in distress, on the first poll it is heard so.
+# Fired once per flight in distress, on the first poll it is heard so.
 EVENT_AIRCRAFT_EMERGENCY = f"{DOMAIN}_aircraft_emergency"
 
 DEFAULT_AIRCRAFT_PORT = 8080

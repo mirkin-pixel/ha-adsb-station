@@ -15,8 +15,8 @@ automation:
         data:
           title: "Noodgeval: {{ trigger.event.data.reason }}"
           message: >
-            {{ trigger.event.data.flight or trigger.event.data.hex }},
-            {{ trigger.event.data.distance }} km verderop
+            {{ trigger.event.data.flight or trigger.event.data.hex }}
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km verderop{% endif %}
             {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
 ```
 
