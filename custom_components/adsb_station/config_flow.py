@@ -30,6 +30,7 @@ from .api import (
     AdsbStationConnectionError,
     AdsbStationError,
     async_detect_aircraft_url,
+    async_detect_feeders,
     async_detect_statistics,
 )
 from .const import (
@@ -69,6 +70,18 @@ _LOGGER = logging.getLogger(__name__)
 
 # A bare decoder has no feed alias, so it is known by its address.
 RECEIVER_UNIQUE_ID_PREFIX = "receiver:"
+
+
+def _feeder_unique_id(
+    feeder_type: str, host: str, port: int, payload: dict[str, Any]
+) -> str:
+    """Return how a feeder is known: fr24feed by its alias, the rest by address."""
+    if feeder_type == FEEDER_FR24:
+        alias = str(payload.get("feed_alias") or "").strip()
+        # Unprefixed, so entries predating the other feeders keep their entities.
+        return alias or f"{host}:{port}"
+    return f"{feeder_type}:{host}:{port}"
+
 
 FEEDER_SCHEMA = vol.Schema(
     {
@@ -170,12 +183,76 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self._aircraft_url = ""
         self._stats_url: str | None = None
         self._features: list[str] = []
+        # What a search found, by the value of its option: kind and port.
+        self._found: dict[str, tuple[str, int]] = {}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Ask what this station runs."""
-        return self.async_show_menu(step_id="user", menu_options=[*FEEDERS, "receiver"])
+        return self.async_show_menu(
+            step_id="user", menu_options=["search", *FEEDERS, "receiver"]
+        )
+
+    async def async_step_search(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Look for every kind of feeder on one host."""
+        if user_input is None:
+            return self.async_show_form(step_id="search", data_schema=RECEIVER_SCHEMA)
+        self._host = str(user_input[CONF_HOST]).strip()
+        configured = self._async_current_ids(include_ignore=False)
+        self._found = {
+            f"{key}:{port}": (key, port)
+            for key, port, payload in await async_detect_feeders(
+                async_get_clientsession(self.hass), self._host
+            )
+            if _feeder_unique_id(key, self._host, port, payload) not in configured
+        }
+        if not self._found:
+            return await self.async_step_nothing_found()
+        return await self.async_step_found()
+
+    async def async_step_nothing_found(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Leave the choice to the user, with the host already filled in."""
+        return self.async_show_menu(
+            step_id="nothing_found",
+            menu_options=[*FEEDERS, "receiver"],
+            description_placeholders={"host": self._host},
+        )
+
+    async def async_step_found(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Let the user pick one of the feeders found."""
+        if user_input is not None:
+            key, port = self._found[user_input["feeder"]]
+            return await self._async_feeder_step(
+                key, {CONF_HOST: self._host, CONF_PORT: port}
+            )
+        options = [
+            selector.SelectOptionDict(
+                value=value, label=f"{FEEDERS[key].model} ({self._host}:{port})"
+            )
+            for value, (key, port) in self._found.items()
+        ]
+        return self.async_show_form(
+            step_id="found",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("feeder", default=options[0]["value"]): (
+                        selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=options,
+                                mode=selector.SelectSelectorMode.LIST,
+                            )
+                        )
+                    )
+                }
+            ),
+        )
 
     async def async_step_fr24feed(
         self, user_input: dict[str, Any] | None = None
@@ -207,17 +284,14 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             payload, error = await self._async_validate_feeder(host, port, feeder_type)
             if error is None:
                 self._feeder_type = feeder_type
-                # Only fr24feed publishes an identity of its own. The others are
-                # known by where they run, the way a bare receiver is.
-                alias = ""
-                if feeder_type == FEEDER_FR24:
-                    alias = str(payload.get("feed_alias") or "").strip()
-                    # Unprefixed, because entries predating the other feeders
-                    # were identified this way and must keep their entities.
-                    fallback = f"{host}:{port}"
-                else:
-                    fallback = f"{feeder_type}:{host}:{port}"
-                await self.async_set_unique_id(alias or fallback)
+                alias = (
+                    str(payload.get("feed_alias") or "").strip()
+                    if feeder_type == FEEDER_FR24
+                    else ""
+                )
+                await self.async_set_unique_id(
+                    _feeder_unique_id(feeder_type, host, port, payload)
+                )
                 if self.source == SOURCE_RECONFIGURE:
                     if alias:
                         self._abort_if_unique_id_mismatch(reason="wrong_feeder")
@@ -329,13 +403,13 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_HOST: entry.data[CONF_HOST],
                 CONF_PORT: entry.data[CONF_PORT],
             }
-        return {CONF_PORT: port}
+        return {CONF_PORT: port} | ({CONF_HOST: self._host} if self._host else {})
 
     def _receiver_defaults(self) -> dict[str, Any]:
         """Return the values to prefill the receiver step with."""
         if self.source == SOURCE_RECONFIGURE:
             return {CONF_HOST: self._get_reconfigure_entry().data[CONF_HOST]}
-        return {}
+        return {CONF_HOST: self._host} if self._host else {}
 
     async def _async_suggest_aircraft_url(self) -> str:
         """Return the current URL, or probe the receiver for one."""

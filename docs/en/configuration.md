@@ -3,6 +3,7 @@
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **ADS-B Station**.
 3. Choose what this entry is for:
+   - **Search this host for feeders**: type the address once, and the feeders found there are listed to pick from: fr24feed on `8754`, PiAware on `8080`, `80` or `8082`, pfclient on `30053`. One that is already set up is left out. Search again for the next one. When nothing new answers, you choose by hand below.
    - **Flightradar24 feeder (fr24feed)**: the address of the machine running it, and the port of its status page, `8754` by default.
    - **FlightAware feeder (PiAware)**: likewise, port `8080` by default. A station whose web server was taken over by something else may serve `status.json` elsewhere; on one running tar1090 behind nginx it is worth trying port 80.
    - **Plane Finder feeder (pfclient)**: likewise, port `30053` by default.

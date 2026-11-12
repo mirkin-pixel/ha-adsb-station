@@ -69,6 +69,7 @@ async def _choose(hass: HomeAssistant, step: str) -> dict[str, Any]:
     assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "user"
     assert set(result["menu_options"]) == {
+        "search",
         "fr24feed",
         "piaware",
         "planefinder",
