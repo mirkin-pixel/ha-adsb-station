@@ -717,6 +717,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.watchlist = watchlist_of(config_entry, reference.models)
         # To tell a watchlist-only change from one that needs a reload.
         self.started_with = dict(config_entry.options)
+        # And a reconfigured station, which always does.
+        self.started_with_data = dict(config_entry.data)
         # Last announcement per watched aircraft, so one flight is one message.
         self._announced: dict[str, datetime] = {}
         # Polls in a row each aircraft has been approaching, and its last warning.

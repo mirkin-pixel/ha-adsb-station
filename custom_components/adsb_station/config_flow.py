@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -440,9 +441,15 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_RECEIVER_FEATURES: self._features if aircraft_url else [],
         }
         if self.source == SOURCE_RECONFIGURE:
-            return self.async_update_reload_and_abort(
-                self._get_reconfigure_entry(), data=data
-            )
+            entry = self._get_reconfigure_entry()
+            if entry.state is not ConfigEntryState.LOADED:
+                # Never set up, so there is no update listener to reload it;
+                # a station that moved address is the usual reason to be here.
+                return self.async_update_reload_and_abort(entry, data=data)
+            # The update listener reloads a loaded entry when its data
+            # changed; reloading here as well would reload it twice.
+            self.hass.config_entries.async_update_entry(entry, data=data)
+            return self.async_abort(reason="reconfigure_successful")
         return self.async_create_entry(title=self._title, data=data)
 
     @staticmethod
