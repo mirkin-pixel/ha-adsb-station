@@ -968,7 +968,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 continue
 
             passage = self.passages.get(summary.hex)
-            if passage is None or now - passage.last_seen > PASSAGE_GAP:
+            # The gap plus a poll: at the slowest interval polls are as far
+            # apart as the gap, and every one would start a new passage.
+            if passage is None or now - passage.last_seen > self._remembered():
                 passage = Passage(
                     hex=summary.hex,
                     started_at=now,
@@ -1010,7 +1012,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         for hex_code in [
             hex_code
             for hex_code, passage in self.passages.items()
-            if now - passage.last_seen > PASSAGE_GAP
+            if now - passage.last_seen > self._remembered()
         ]:
             del self.passages[hex_code]
 

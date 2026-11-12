@@ -17,6 +17,7 @@ from custom_components.adsb_station.const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
     DEFAULT_SCAN_INTERVAL,
     EVENT_AIRCRAFT_PASSAGE,
+    MAX_SCAN_INTERVAL,
     PASSAGE_BOARD_LENGTH,
     PASSAGE_GAP,
 )
@@ -543,3 +544,28 @@ async def test_heard_today_counts_each_aircraft_once(
     set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
     await next_poll(hass, freezer, after=timedelta(days=1))
     assert hass.states.get("sensor.t_ehxx23_heard_today").state == "1"
+
+
+async def test_one_passage_at_the_slowest_interval(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    passages: list[Event],
+) -> None:
+    """Test an aircraft that stays in range at the slowest interval.
+
+    The next poll is planned once the last one is done, so polls are a
+    little further apart than the interval, and here than the gap.
+    """
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    assert await setup_integration(hass, mock_config_entry)
+    mock_config_entry.runtime_data.update_interval = timedelta(
+        seconds=MAX_SCAN_INTERVAL
+    )
+
+    for _ in range(4):
+        await next_poll(hass, freezer, timedelta(seconds=MAX_SCAN_INTERVAL + 1))
+
+    assert len(passages) == 1
+    assert hass.states.get("sensor.t_ehxx23_passages_today").state == "1"
