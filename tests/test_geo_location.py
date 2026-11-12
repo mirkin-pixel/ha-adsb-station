@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.components.recorder.db_schema import StateAttributes
+from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 import pytest
@@ -278,3 +281,43 @@ async def test_the_marker_follows_the_aircraft(
     await _refresh(hass)
 
     assert hass.states.get("geo_location.klm123").attributes["icon"] == "mdi:airplane"
+
+
+async def test_the_recorder_keeps_only_what_it_must(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test what the recorder would write for an aircraft on the map.
+
+    A position every poll for every aircraft in range is a lot of rows for a
+    marker that is gone in minutes. Asked of the recorder's own function, so
+    a name Home Assistant does not read cannot pass.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_MAP_AIRCRAFT: True}
+    )
+    set_responses(
+        aioclient_mock,
+        aircraft=_poll(
+            {
+                "hex": "484123",
+                "flight": "KLM123",
+                "lat": NEARBY_LATITUDE,
+                "lon": NEARBY_LONGITUDE,
+                "alt_baro": 2000,
+            }
+        ),
+    )
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("geo_location.klm123")
+    assert "latitude" in state.attributes
+    written = StateAttributes.shared_attrs_bytes_from_event(
+        Event(EVENT_STATE_CHANGED, {"new_state": state}), None
+    )
+
+    # Only what Home Assistant keeps for every entity: the name and the unit
+    assert set(json.loads(written)) <= {"friendly_name", "unit_of_measurement"}

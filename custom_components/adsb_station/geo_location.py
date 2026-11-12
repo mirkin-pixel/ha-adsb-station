@@ -93,7 +93,8 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     _attr_source = DOMAIN
     _attr_unit_of_measurement = UnitOfLength.KILOMETERS
     # The map reads the live state; recording every position is not worth it.
-    _attr_unrecorded_attributes = frozenset({MATCH_ALL})
+    # Without _attr_: Home Assistant reads this name, as a class attribute.
+    _unrecorded_attributes = frozenset({MATCH_ALL})
 
     def __init__(
         self,
