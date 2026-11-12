@@ -86,11 +86,18 @@ Linux, so the same `pytest` runs in both places.
 
 | File | What lives there |
 |---|---|
+| `__init__.py` | Setting an entry up, migrating an older one, and applying a change to it |
 | `api.py` | Reading the local endpoints, and detecting which ones exist |
 | `coordinator.py` | One poll cycle, and everything derived from it |
-| `route.py` | The optional route lookup, and the only code that leaves your network |
+| `route.py`, `photo.py` | The optional route and photo lookups, the only code that leaves your network |
 | `reference.py` | The shipped tables that name an airline code and a type code |
-| `sensor.py`, `binary_sensor.py`, `button.py` | The entities |
+| `entity.py` | The base the entities share |
+| `sensor.py`, `binary_sensor.py`, `button.py`, `text.py` | The entities |
+| `geo_location.py` | The aircraft on the map, one entity each while in range |
+| `services.py`, `watchlist.py` | The actions, and editing the watchlist from them and from the text boxes |
+| `intent.py`, `speech.py` | The spoken questions, and the words of their answers |
+| `card.py`, `websocket.py`, `trails.py` | Serving the dashboard card, the sky it subscribes to, and the trails behind the aircraft |
+| `diagnostics.py` | The diagnostics download |
 | `config_flow.py` | Setting a station up, reconfiguring it, and its options |
 | `const.py` | Constants, and the table of feeder kinds |
 
@@ -175,7 +182,7 @@ region, because that is all Home Assistant's language is matched on here: a
   part needs a native or daily speaker more than any other.
 
 **Not part of a translation:** the pages under `docs/` and the README. They are
-thirteen pages per language and are kept in English and Dutch only.
+fourteen pages per language and are kept in English and Dutch only.
 
 The checks in [Checks](#checks) tell you whether what is there fits, and
 `python scripts/translation_status.py` what is still left, before you open the
