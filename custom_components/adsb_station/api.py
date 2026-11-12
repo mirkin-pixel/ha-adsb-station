@@ -16,6 +16,7 @@ from .const import (
     FEATURE_GAIN,
     FEATURE_POSITIONS,
     FEEDERS,
+    OUTLINE_FILENAME,
     RECEIVER_FILENAME,
     STATS_FILENAME,
 )
@@ -309,12 +310,21 @@ class AdsbStationClient:
 
     async def async_get_receiver(self) -> dict[str, Any]:
         """Fetch receiver.json, which holds the position of the antenna."""
+        return await self._async_get_beside(RECEIVER_FILENAME)
+
+    async def async_get_outline(self) -> dict[str, Any]:
+        """Fetch outline.json, the furthest position per degree."""
+        return await self._async_get_beside(OUTLINE_FILENAME)
+
+    async def _async_get_beside(self, filename: str) -> dict[str, Any]:
+        """Fetch a JSON document next to aircraft.json."""
         if not self.aircraft_url:
-            raise AdsbStationInvalidResponseError("No receiver.json URL configured")
-        url = sibling_url(self.aircraft_url, RECEIVER_FILENAME)
-        data = await async_fetch_json(self._session, url)
+            raise AdsbStationInvalidResponseError(f"No {filename} URL configured")
+        data = await async_fetch_json(
+            self._session, sibling_url(self.aircraft_url, filename)
+        )
         if not isinstance(data, dict):
             raise AdsbStationInvalidResponseError(
-                f"Unexpected receiver.json response: {data!r}"
+                f"Unexpected {filename} response: {data!r}"
             )
         return data

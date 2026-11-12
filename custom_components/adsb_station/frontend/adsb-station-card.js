@@ -28,6 +28,7 @@ const STRINGS = {
     received: "received",
     station: "Station",
     coverage: "furthest heard",
+    coverage_day: "furthest heard, last 24 h",
     no_positions: "No aircraft with a position",
     compass: ["N", "E", "S", "W"],
     sky: "Aircraft around the station",
@@ -71,6 +72,7 @@ const STRINGS = {
     received: "ontvangen",
     station: "Station",
     coverage: "verst gehoord",
+    coverage_day: "verst gehoord, laatste 24 uur",
     no_positions: "Geen toestellen met een positie",
     compass: ["N", "O", "Z", "W"],
     sky: "Toestellen rond het station",
@@ -848,7 +850,7 @@ class AdsbStationCard extends HTMLElement {
       sky ? sky.radius || 0 : 0,
       ...((sky && sky.aircraft) || []).map((plane) => plane.distance || 0),
       // The records as well, so the whole shape of the coverage fits.
-      ...(mode === "coverage" ? this._coverage() || [] : []),
+      ...(mode === "coverage" ? this._outlineKm(sky) || this._coverage() || [] : []),
     );
     // Held until the sky clearly fits a smaller ring, so one aircraft at the
     // edge coming and going does not make the whole radar breathe.
@@ -916,7 +918,16 @@ class AdsbStationCard extends HTMLElement {
       ...distances.map(({ x, y, text }) => svg("text", { class: "distance", x, y }, text)),
     );
     const coverage = this._coverage();
-    if (coverage) {
+    const outline = sky && Array.isArray(sky.outline) && sky.outline.length > 2 ? sky.outline : null;
+    if (outline) {
+      // readsb's own shape, a point per degree, where the decoder keeps one.
+      const corners = outline.map(([lat, lon]) =>
+        project(lat, lon)
+          .map((v) => v.toFixed(1))
+          .join(","),
+      );
+      scope.append(svg("polygon", { class: "coverage", points: corners.join(" "), "clip-path": "url(#scope)" }));
+    } else if (coverage) {
       const corners = coverage.map((km, i) => {
         const bearing = (i * 45 * Math.PI) / 180;
         const out = km * perKm;
@@ -1203,6 +1214,13 @@ class AdsbStationCard extends HTMLElement {
       .join(" · ");
   }
 
+  // How far each point of readsb's outline lies, in km, or null without one.
+  _outlineKm(sky) {
+    if (!sky || !Array.isArray(sky.outline) || sky.outline.length < 3) return null;
+    const across = 111.32 * Math.cos((sky.latitude * Math.PI) / 180);
+    return sky.outline.map(([lat, lon]) => Math.hypot((lon - sky.longitude) * across, (lat - sky.latitude) * 110.574));
+  }
+
   // Range record per sector in km, clockwise from north; needs at least three.
   _coverage() {
     const found = this._found;
@@ -1267,7 +1285,11 @@ class AdsbStationCard extends HTMLElement {
         "div",
         { class: "keys" },
         el("span", { class: "key" }, el("span", { class: "dot ground" }), text.on_ground),
-        this._coverage() ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage) : null,
+        this._outlineKm(this._sky)
+          ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage_day)
+          : this._coverage()
+            ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage)
+            : null,
       ),
       el(
         "div",

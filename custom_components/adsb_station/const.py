@@ -117,6 +117,9 @@ DB_FLAG_LADD = 8
 # Next to aircraft.json in the same data directory.
 STATS_FILENAME = "stats.json"
 RECEIVER_FILENAME = "receiver.json"
+# readsb's furthest position per degree over the last day, for the map.
+OUTLINE_FILENAME = "outline.json"
+OUTLINE_INTERVAL = timedelta(minutes=5)
 
 # fr24feed's fork has no "emergency" field, only the squawk.
 EMERGENCY_SQUAWKS: dict[str, str] = {

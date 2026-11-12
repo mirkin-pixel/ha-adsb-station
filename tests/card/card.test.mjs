@@ -265,6 +265,44 @@ const settle = async () => {
 };
 
 const tests = {
+  "draws readsb's own outline instead of the eight records"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    // A square 40 km out, as a decoder would send a point per degree
+    const outline = [
+      [52.36, 5.0],
+      [52.0, 5.58],
+      [51.64, 5.0],
+      [52.0, 4.42],
+    ];
+    link.send({ ...SKY([LOW]), outline });
+    const shape = card.shadowRoot.querySelector(".radar .coverage");
+    assert.equal(shape.getAttribute("points").split(" ").length, 4);
+    assert.match(card.shadowRoot.querySelector(".legend").textContent, /furthest heard, last 24 h/);
+
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.querySelector(".radar .coverage"), null, "no records in this house either");
+    assert.doesNotMatch(card.shadowRoot.querySelector(".legend").textContent, /furthest heard/);
+  },
+
+  async "fits the outline when scaled to the coverage"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_scale: "coverage" });
+    link.send({
+      ...SKY([LOW]),
+      outline: [
+        [52.9, 5.0],
+        [52.0, 5.1],
+        [51.9, 5.0],
+      ],
+    });
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /100 km/, "100 km out takes the 100 km ring");
+  },
+
   "keeps the table on a card of its own"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
