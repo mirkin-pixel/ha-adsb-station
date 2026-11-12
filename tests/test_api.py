@@ -152,6 +152,8 @@ def test_candidate_urls_cover_port_80() -> None:
 
     assert f"http://{MOCK_HOST}/tar1090/data/aircraft.json" in urls
     assert f"http://{MOCK_HOST}/data/aircraft.json" in urls
+    assert f"http://{MOCK_HOST}/dump1090/data/aircraft.json" in urls
+    assert f"http://{MOCK_HOST}:8504/data/aircraft.json" in urls
     # Port 80 is the http default and must not be written out, or the URL is
     # no longer equal to the one a user would type
     assert not any(":80/" in url for url in urls)

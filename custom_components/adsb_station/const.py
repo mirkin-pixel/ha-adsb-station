@@ -122,11 +122,7 @@ EMERGENCY_SQUAWKS: dict[str, str] = {
     "7700": "emergency",
 }
 
-# The ADS-B status that readsb and dump1090-fa report next to the squawk, under
-# the same reasons, so an automation checks one word whichever decoder it is.
-# Lifeguard asks for priority for a medical flight and minimum fuel warns
-# before any emergency: neither is an aircraft in distress, so both are left
-# out, as is "reserved".
+# Under the squawk's reasons; lifeguard, minfuel and reserved are no distress.
 EMERGENCY_STATUSES: dict[str, str] = {
     "general": "emergency",
     "unlawful": "hijack",
@@ -139,6 +135,8 @@ EVENT_AIRCRAFT_EMERGENCY = f"{DOMAIN}_aircraft_emergency"
 
 DEFAULT_AIRCRAFT_PORT = 8080
 DEFAULT_HTTP_PORT = 80
+# Where tar1090's installer also serves the map when lighttpd is the web server.
+TAR1090_PORT = 8504
 
 DEFAULT_SCAN_INTERVAL = 15
 MIN_SCAN_INTERVAL = 5
@@ -264,4 +262,6 @@ AIRCRAFT_URL_CANDIDATES: tuple[tuple[int, str], ...] = (
     (DEFAULT_AIRCRAFT_PORT, "/dump1090-fa/data/aircraft.json"),
     (DEFAULT_HTTP_PORT, "/skyaware/data/aircraft.json"),
     (DEFAULT_HTTP_PORT, "/dump1090-fa/data/aircraft.json"),
+    (DEFAULT_HTTP_PORT, "/dump1090/data/aircraft.json"),
+    (TAR1090_PORT, "/data/aircraft.json"),
 )

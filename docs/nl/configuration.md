@@ -9,7 +9,7 @@
    - **Alleen een ADS-B-ontvanger**: voor een station dat nergens aan voedt, of als de entry die de decoder draagt.
 4. Elk pad biedt daarna de ontvanger aan. Koppel die aan één entry en laat hem bij de andere leeg, anders tellen de vliegtuigcijfers dubbel.
 
-Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware ze aanbieden en op poort 80 waar readsb met tar1090 dat doet:
+Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware ze aanbieden en op poort 80 waar readsb met tar1090 dat doet. Poort 8504 wordt geprobeerd voor `/data/aircraft.json`, waar tar1090 hem ook aanbiedt als lighttpd de webserver is:
 
 ```
 /dump1090/data/aircraft.json
