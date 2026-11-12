@@ -13,7 +13,7 @@ body:
         first part.
 
         The page texts under `docs/` are deliberately not on this list. They
-        are thirteen pages per language and are kept in English and Dutch only.
+        are fourteen pages per language and are kept in English and Dutch only.
 
   - type: input
     id: language
