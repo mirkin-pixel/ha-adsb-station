@@ -9,7 +9,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
 | Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, gemiddeld over de ververstijd voor statistieken |
-| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
+| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen, en waar je moet kijken: `bearing`, de kompasrichting in graden, en `elevation`, de hoek boven de horizon. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
 | Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](routes.md) kunnen dragen |
