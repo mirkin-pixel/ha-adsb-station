@@ -34,6 +34,7 @@ function hassWith({ overhead, nearby = [], language = "en", extraStates = {} } =
     "sensor.t_etur47_signaal_ruis": entity("sensor.t_etur47_signaal_ruis", "signal_to_noise"),
     "binary_sensor.t_etur47_feed": entity("binary_sensor.t_etur47_feed", "feed"),
     "sensor.piaware_feeder_feed": entity("sensor.piaware_feeder_feed", "piaware_feed", PIAWARE),
+    "sensor.t_etur47_passages_vandaag": entity("sensor.t_etur47_passages_vandaag", "passages_today"),
     "sensor.unrelated": { entity_id: "sensor.unrelated", platform: "other" },
   };
   const st = (state, attributes = {}) => ({ state, attributes, last_updated: "t" });
@@ -265,6 +266,63 @@ const settle = async () => {
 };
 
 const tests = {
+  "lists what came over today, newest first"() {
+    const w = browser();
+    const passages = [
+      {
+        at: "2026-11-13T14:32:00+00:00",
+        hex: "484506",
+        flight: "KLM1234",
+        altitude: 3200,
+        distance: 1.8,
+        duration: 95,
+        aircraft_type: "B738",
+      },
+      { at: "2026-11-13T09:05:00+00:00", hex: "4851a7", flight: "LIFE01", altitude: 900, distance: 0.4, duration: 600 },
+      { at: "2026-11-13T11:47:00+00:00", hex: "484124", altitude: 36000, distance: 6.1, duration: 40 },
+    ];
+    const hass = hassWith({
+      overhead: overheadState(KLM),
+      extraStates: { "sensor.t_etur47_passages_vandaag": { state: "3", attributes: { passages }, last_updated: "t" } },
+    });
+    const link = connect(hass);
+    const card = renderTable(w, hass, { list: "passages" });
+    assert.equal(link.subscriptions.length, 0, "the board needs no sky");
+
+    const rows = () =>
+      [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) =>
+        [...row.children].map((td) => td.textContent),
+      );
+    assert.deepEqual(JSON.stringify(rows().map((row) => row[1])), JSON.stringify(["KLM1234", "484124", "LIFE01"]));
+    assert.equal(rows()[0][5], "2 min");
+    assert.equal(rows()[1][5], "40 s");
+    assert.match(
+      card.shadowRoot.querySelector(".table thead").textContent,
+      /Time.*Flight.*Height.*Distance.*Type.*In view/,
+    );
+
+    // Sorted like the other list, and searched the same way
+    card.shadowRoot.querySelectorAll(".table th")[3].click();
+    assert.equal(rows()[0][1], "LIFE01", "closest first");
+    const search = card.shadowRoot.querySelector(".table input");
+    search.value = "b738";
+    search.dispatchEvent(new w.Event("input"));
+    assert.equal(rows().length, 1);
+  },
+
+  "says so when nothing came over"() {
+    const w = browser();
+    const hass = hassWith({
+      overhead: overheadState(KLM),
+      language: "nl",
+      extraStates: {
+        "sensor.t_etur47_passages_vandaag": { state: "0", attributes: { passages: [] }, last_updated: "t" },
+      },
+    });
+    const card = renderTable(w, hass, { list: "passages" });
+    assert.match(card.shadowRoot.querySelector(".table tbody").textContent, /Er is vandaag nog niets overgekomen/);
+  },
+
   "draws readsb's own outline instead of the eight records"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
@@ -314,7 +372,10 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".body").textContent, "", "nothing overhead, nearby or status");
     assert.ok(card.shadowRoot.querySelector(".sky").hidden);
     const form = w.customElements.get("adsb-station-table-card").getConfigForm();
-    assert.equal(JSON.stringify(form.schema.map((field) => field.name)), JSON.stringify(["device_id", "title"]));
+    assert.equal(
+      JSON.stringify(form.schema.map((field) => field.name)),
+      JSON.stringify(["device_id", "title", "list"]),
+    );
   },
 
   async "lists every aircraft in a table, even without a map"() {

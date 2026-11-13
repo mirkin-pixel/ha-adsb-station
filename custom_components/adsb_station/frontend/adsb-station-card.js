@@ -44,6 +44,12 @@ const STRINGS = {
     col_bearing: "Direction",
     col_type: "Type",
     col_rssi: "Signal (dBFS)",
+    col_at: "Time",
+    col_duration: "In view",
+    list: "Show",
+    list_now: "What is in the air now",
+    list_passages: "What came over today",
+    no_passages: "Nothing has come over yet today",
     title: "Title",
     map: "Map",
     map_radar: "Radar",
@@ -88,6 +94,12 @@ const STRINGS = {
     col_bearing: "Richting",
     col_type: "Type",
     col_rssi: "Signaal (dBFS)",
+    col_at: "Tijd",
+    col_duration: "In beeld",
+    list: "Tonen",
+    list_now: "Wat er nu in de lucht is",
+    list_passages: "Wat er vandaag overkwam",
+    no_passages: "Er is vandaag nog niets overgekomen",
     title: "Titel",
     map: "Kaart",
     map_radar: "Radar",
@@ -120,6 +132,8 @@ const ROUTE_WAIT_SECONDS = 60;
 // fixed: to the aircraft in the sky now, or to the range records as well.
 const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
 const SCALES = ["aircraft", "coverage", "fixed"];
+// What the table card lists: the sky now, or the passage board.
+const LISTS = ["now", "passages"];
 const DEFAULT_FIXED_RANGE = 100;
 // The compass sectors the station keeps a range record for, clockwise from
 // north, each centred on its direction.
@@ -657,6 +671,7 @@ class AdsbStationCard extends HTMLElement {
       device,
       overhead: overhead[0],
       nearby: on("aircraft_nearby"),
+      passages: on("passages_today"),
       received: on("aircraft_received"),
       rate: on("message_rate"),
       range: on("max_range"),
@@ -678,6 +693,7 @@ class AdsbStationCard extends HTMLElement {
       ? [
           found.overhead,
           found.nearby,
+          found.passages,
           found.received,
           found.rate,
           found.range,
@@ -754,7 +770,10 @@ class AdsbStationCard extends HTMLElement {
 
   _follow(found) {
     const wanted =
-      found && (this._config.map !== "none" || this._onlyTable) && this.isConnected && this._hass.connection
+      found &&
+      (this._config.map !== "none" || (this._onlyTable && !this._passages())) &&
+      this.isConnected &&
+      this._hass.connection
         ? found.device
         : null;
     if (wanted === this._following) return;
@@ -1470,8 +1489,25 @@ class AdsbStationCard extends HTMLElement {
 
   // --- Every aircraft, as a table --------------------------------------------
 
+  _passages() {
+    return this._onlyTable && this._config.list === "passages";
+  }
+
   _columns(text) {
     const figure = (value, show) => (typeof value === "number" ? show(value) : "");
+    if (this._passages()) {
+      const language = this._hass.locale && this._hass.locale.language;
+      const time = (at) => new Date(at).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
+      const minutes = (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`);
+      return [
+        { key: "at", sort: (p) => p.at, show: (p) => (p.at ? time(p.at) : "") },
+        { key: "flight", sort: (p) => p.flight || p.hex, show: (p) => p.flight || p.hex },
+        { key: "altitude", sort: (p) => p.altitude, show: (p) => this._height(p, text) || "" },
+        { key: "distance", sort: (p) => p.distance, show: (p) => this._distance(p.distance) || "" },
+        { key: "type", sort: (p) => p.aircraft_type, show: (p) => p.aircraft_type || "", wide: true },
+        { key: "duration", sort: (p) => p.duration, show: (p) => figure(p.duration, minutes), wide: true },
+      ];
+    }
     return [
       { key: "flight", sort: (p) => p.flight || p.hex, show: (p) => p.flight || p.hex },
       { key: "altitude", sort: (p) => (p.on_ground ? 0 : p.altitude), show: (p) => this._height(p, text) || "" },
@@ -1485,7 +1521,7 @@ class AdsbStationCard extends HTMLElement {
   _drawTable(text = strings(this._hass)) {
     const columns = this._columns(text);
     const cell = (column) =>
-      [column.wide && "wide", !["flight", "type"].includes(column.key) && "number"].filter(Boolean).join(" ") ||
+      [column.wide && "wide", !["flight", "type", "at"].includes(column.key) && "number"].filter(Boolean).join(" ") ||
       undefined;
     const language = this._hass.locale && this._hass.locale.language;
     if (this._tableLanguage !== language) {
@@ -1530,7 +1566,11 @@ class AdsbStationCard extends HTMLElement {
     const by = columns.find((column) => column.key === key).sort;
     const unknown = (value) => value === undefined || value === null;
     const query = this._query;
-    const planes = ((this._sky && this._sky.aircraft) || [])
+    const board = this._passages() && this._state(this._found && this._found.passages);
+    const source = this._passages()
+      ? (board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []
+      : (this._sky && this._sky.aircraft) || [];
+    const planes = source
       .filter(
         (p) =>
           !query ||
@@ -1554,7 +1594,8 @@ class AdsbStationCard extends HTMLElement {
       ),
     );
     if (!planes.length) {
-      this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, text.no_positions)));
+      const none = this._passages() ? text.no_passages : text.no_positions;
+      this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, none)));
     }
   }
 
@@ -2050,11 +2091,23 @@ class AdsbStationTableCard extends AdsbStationCard {
 
   static getConfigForm() {
     const form = super.getConfigForm();
-    return { ...form, schema: form.schema.filter((field) => ["device_id", "title"].includes(field.name)) };
+    const text = strings(window.__adsbStationHass);
+    const list = {
+      name: "list",
+      selector: {
+        select: { mode: "dropdown", options: LISTS.map((value) => ({ value, label: text[`list_${value}`] })) },
+      },
+    };
+    return { ...form, schema: [...form.schema.filter((field) => ["device_id", "title"].includes(field.name)), list] };
   }
 
   setConfig(config) {
-    super.setConfig({ ...(config || {}), map: "none" });
+    const list = config && LISTS.includes(config.list) ? config.list : "now";
+    // A board reads newest first; the sky nearest first.
+    if (list !== (this._config && this._config.list)) {
+      this._sort = list === "passages" ? { key: "at", descending: true } : { key: "distance", descending: false };
+    }
+    super.setConfig({ ...(config || {}), list, map: "none" });
   }
 
   getCardSize() {
