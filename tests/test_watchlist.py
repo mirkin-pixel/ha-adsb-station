@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
@@ -16,11 +17,18 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_WATCHLIST,
+    DOMAIN,
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
     MAX_SCAN_INTERVAL,
     PASSAGE_GAP,
 )
+from custom_components.adsb_station.coordinator import (
+    _matches,
+    _summarise,
+    watchlist_of,
+)
+from custom_components.adsb_station.reference import kind_of, line_key
 
 from .conftest import set_responses, setup_integration
 
@@ -255,3 +263,54 @@ async def test_one_flypast_is_one_message_at_the_slowest_interval(
 
     assert len(matches) == 1
     assert lost == []
+
+
+@pytest.mark.parametrize(
+    ("line", "kind"),
+    [
+        ("KLM*", "prefix"),
+        ("PH-B*", "prefix"),
+        ("Military", "military"),
+        ("helicopter", "helicopter"),
+        ("country:US", "country"),
+        ("COUNTRY: nl", "country"),
+        # Too short, a * in the middle, a country that is not two letters
+        ("K*", None),
+        ("KL*M", None),
+        ("country:USA", None),
+        ("type:B738", None),
+    ],
+)
+def test_the_shape_of_a_group(line: str, kind: str | None) -> None:
+    """Test the lines that stand for more than one aircraft, and the misspelt."""
+    assert kind_of(line, {}) == kind
+
+
+@pytest.mark.parametrize(
+    ("line", "entry", "matched_on"),
+    [
+        ("PH-B*", {"hex": "484123", "r": "PH-BXA"}, "registration"),
+        ("KLM*", {"hex": "484123", "flight": "KLM123"}, "flight"),
+        ("military", {"hex": "484123", "dbFlags": 1}, "military"),
+        ("helicopter", {"hex": "480123", "category": "A7"}, "category"),
+        ("country:nl", {"hex": "484123"}, "country"),
+        ("KLM*", {"hex": "484123", "flight": "TRA45"}, None),
+        ("military", {"hex": "484123", "dbFlags": 0}, None),
+        ("helicopter", {"hex": "484123", "category": "A3"}, None),
+    ],
+)
+def test_a_group_matches(
+    line: str, entry: dict[str, Any], matched_on: str | None
+) -> None:
+    """Test what each group matches on, and what it leaves alone."""
+    summary = replace(_summarise(entry, None), country="NL")
+    [watched] = watchlist_of(
+        MockConfigEntry(domain=DOMAIN, options={CONF_WATCHLIST: line}), {}
+    )
+    assert _matches(watched, summary, "") == matched_on
+
+
+def test_a_star_makes_another_line() -> None:
+    """Test that KLM* is not KLM written another way, as PH-BXA is PHBXA."""
+    assert line_key("PH-BXA") == line_key("phbxa")
+    assert line_key("KLM*") != line_key("KLM")

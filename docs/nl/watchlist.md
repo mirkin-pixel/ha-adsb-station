@@ -21,7 +21,18 @@ Een regel kan vier dingen zijn, en zijn vorm zegt welke:
 | `EC35` | Een vliegtuigtype uit de [meegeleverde tabel](decoders.md#namen-bij-de-codes) |
 | `7700` | Een squawkcode |
 
-Hoofdletters, streepjes en spaties maken niets uit. Een regel die in geen van de vier past wordt geweigerd bij het opslaan, en de melding noemt hem — een watchlist die stilzwijgend nooit matcht is erger dan een die niet wil opslaan.
+Een regel kan ook voor een groep toestellen staan:
+
+| Geschreven als | Matcht |
+|---|---|
+| `KLM*`, `PH-B*` | Elke callsign of registratie die zo begint: alle KLM-vluchten, elke registratie die met PH-B begint |
+| `military` | Elk militair toestel, volgens de database van readsb of anders de adresblokken voor militairen |
+| `helicopter` | Elke helikopter, volgens de categorie die hij uitzendt |
+| `country:US` | Elk toestel dat in dat land geregistreerd is, volgens de tweeletterige code van zijn adresblok |
+
+Een groep wordt per toestel gematcht, dus elk toestel erin is een eigen bericht: `KLM*` bij Schiphol wordt een drukke lijst.
+
+Hoofdletters, streepjes en spaties maken niets uit. Een regel die in geen van deze past wordt geweigerd bij het opslaan, en de melding noemt hem — een watchlist die stilzwijgend nooit matcht is erger dan een die niet wil opslaan.
 
 Matcht er iets, dan gaat **Watchlist in bereik** aan en vuurt er een event:
 
