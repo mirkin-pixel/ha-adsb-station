@@ -89,6 +89,8 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     assert planes["KLM123"]["track"] == 90
     assert planes["TRA45"]["altitude"] == 35000
     assert planes["TRA45"]["distance"] == 111.3
+    # By the traffic counters' kinds, for the card's buttons.
+    assert planes["KLM123"]["kind"] == "airline"
 
     moved = {
         **MOCK_AIRCRAFT,

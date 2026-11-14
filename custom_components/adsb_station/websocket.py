@@ -15,7 +15,11 @@ from homeassistant.helpers import device_registry as dr
 import voluptuous as vol
 
 from .const import DOMAIN
-from .coordinator import AdsbStationDataUpdateCoordinator, aircraft_attributes
+from .coordinator import (
+    AdsbStationDataUpdateCoordinator,
+    aircraft_attributes,
+    traffic_kind,
+)
 from .route import FlightPosition, RouteLookupError, route_points
 
 SUBSCRIBE_AIRCRAFT = f"{DOMAIN}/subscribe_aircraft"
@@ -66,6 +70,8 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
             continue
         plane = {
             **aircraft_attributes(summary, include_distance=True),
+            # As the traffic counters count it, for the card's filters.
+            "kind": traffic_kind(summary),
             "latitude": summary.position[0],
             "longitude": summary.position[1],
         }
