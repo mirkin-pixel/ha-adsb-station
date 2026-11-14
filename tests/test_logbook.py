@@ -13,6 +13,7 @@ from custom_components.adsb_station.const import (
     EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
 )
 from custom_components.adsb_station.logbook import async_describe_events
@@ -42,6 +43,12 @@ def _described(hass: HomeAssistant) -> dict[str, Callable[[Event], dict[str, str
             EVENT_WATCHLIST_MATCH,
             {**AIRCRAFT, "flight": None, "registration": "EI-DCL"},
             "hoorde EI-DCL van de watchlist, op 11,1 km",
+        ),
+        (
+            "nl",
+            EVENT_WATCHLIST_LOST,
+            {**AIRCRAFT, "duration": 1380},
+            "hoort RYR1YY van de watchlist niet meer na 23 min",
         ),
         (
             "en",

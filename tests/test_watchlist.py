@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_WATCHLIST,
+    EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
     MAX_SCAN_INTERVAL,
     PASSAGE_GAP,
@@ -48,6 +49,14 @@ HELICOPTER = {
 def poll(*aircraft: dict[str, Any]) -> dict[str, Any]:
     """Return an aircraft.json holding exactly these aircraft."""
     return {"now": 1636387404.0, "messages": 1000, "aircraft": list(aircraft)}
+
+
+@pytest.fixture
+def lost(hass: HomeAssistant) -> list[Event]:
+    """Collect every event for a watched aircraft gone out of range."""
+    events: list[Event] = []
+    hass.bus.async_listen(EVENT_WATCHLIST_LOST, events.append)
+    return events
 
 
 @pytest.fixture
@@ -137,6 +146,7 @@ async def test_one_flypast_is_one_message(
     mock_config_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
     matches: list[Event],
+    lost: list[Event],
 ) -> None:
     """Test that an aircraft in range for a long time is announced once.
 
@@ -163,14 +173,22 @@ async def test_one_flypast_is_one_message(
     set_responses(aioclient_mock, aircraft=poll(FAR_AWAY, HELICOPTER))
     await poll_after(timedelta(minutes=1))
     assert len(matches) == 1
+    assert lost == []
 
     # Gone for longer than the gap, then back: worth hearing about again
     set_responses(aioclient_mock, aircraft=poll(HELICOPTER))
     await poll_after(timedelta(minutes=1))
     await poll_after(PASSAGE_GAP + timedelta(minutes=1))
+    # Said once the gap has passed, not the moment it drops out
+    [gone] = lost
+    assert gone.data["watching"] == "484123"
+    assert gone.data["flight"] == "KLM123"
+    # From the first poll to the last one it was heard: 15 + 1 + 8 + 1 minutes
+    assert gone.data["duration"] == 25 * 60
     set_responses(aioclient_mock, aircraft=poll(FAR_AWAY, HELICOPTER))
     await poll_after(timedelta(minutes=1))
     assert len(matches) == 2
+    assert len(lost) == 1
 
 
 async def test_one_aircraft_is_one_message_however_many_lines_match(
@@ -218,6 +236,7 @@ async def test_one_flypast_is_one_message_at_the_slowest_interval(
     mock_config_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
     matches: list[Event],
+    lost: list[Event],
 ) -> None:
     """Test the slowest interval, where polls are as far apart as the gap.
 
@@ -235,3 +254,4 @@ async def test_one_flypast_is_one_message_at_the_slowest_interval(
         await hass.async_block_till_done()
 
     assert len(matches) == 1
+    assert lost == []
