@@ -35,16 +35,24 @@ TO_REDACT = {
 _DECIMALS = 1
 
 
-def _coarse(value: Any) -> Any:
-    """Say of every aircraft only whether it has a position, wherever it sits.
+# Where an aircraft is from the antenna. Its hex and the time give its
+# position away on any public tracker, and from there the antenna's.
+_GEOMETRY = {
+    "distance",
+    "bearing",
+    "elevation",
+    "closest_passing_distance",
+    "seconds_to_closest",
+}
 
-    Rounded positions next to exact distances and bearings still give the
-    antenna away, once there are a few aircraft to compare.
-    """
+
+def _coarse(value: Any) -> Any:
+    """Leave out where every aircraft is, and where it is from the antenna."""
     if isinstance(value, dict):
         return {
             key: (item is not None if key == "position" else _coarse(item))
             for key, item in value.items()
+            if key not in _GEOMETRY
         }
     if isinstance(value, (list, tuple)):
         return [_coarse(item) for item in value]
