@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 import logging
 from math import atan2, cos, degrees, hypot, radians, sin, sqrt
+import sqlite3
 from typing import Any, Protocol
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,12 +19,14 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
 
+from .aircraft_db import database_of
 from .api import AdsbStationClient, AdsbStationError, read_gain
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
     APPROACH_HORIZON,
     APPROACH_POLLS,
     CATEGORY_ROTORCRAFT,
+    CONF_AIRCRAFT_DATABASE,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
@@ -739,6 +742,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             async_get_clientsession(hass),
             config_entry.options.get(CONF_LOOK_UP_PHOTOS, DEFAULT_LOOK_UP_PHOTOS),
         )
+        self.database = (
+            database_of(hass)
+            if config_entry.options.get(CONF_AIRCRAFT_DATABASE)
+            else None
+        )
+        # Whether aircraft.json itself names aircraft, so one is not needed.
+        self.decoder_has_database = False
         # Registered by the sector sensors, for the reset button.
         self.sector_sensors: list[SectorRangeRecord] = []
         # Aircraft crossing the radius now, by hex, kept across polls.
@@ -996,6 +1006,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         await self._async_read_receiver()
         await self._async_read_outline()
+        data = await self._async_fill_from_database(data)
         stats = await self._async_add_routes(self._build_aircraft_stats(data))
         stats = await self._async_add_photos(stats)
         # After routes and photos, so the events carry them.
@@ -1004,6 +1015,38 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._announce_approaching(stats)
         self._announce_emergencies(stats)
         return stats
+
+    async def _async_fill_from_database(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Name the aircraft the decoder does not, from the downloaded table."""
+        aircraft = [entry for entry in data["aircraft"] if isinstance(entry, dict)]
+        if any("r" in entry or "t" in entry for entry in aircraft):
+            self.decoder_has_database = True
+        if self.database is None:
+            return data
+        self.database.async_refresh_if_due()
+        # A ~ marks an address that is not an aircraft's own.
+        unnamed = [
+            str(entry["hex"]).lower()
+            for entry in aircraft
+            if "r" not in entry and "t" not in entry and entry.get("hex")
+            if not str(entry["hex"]).startswith("~")
+        ]
+        if not unnamed:
+            return data
+        try:
+            found = await self.hass.async_add_executor_job(
+                self.database.lookup, unnamed
+            )
+        except (OSError, sqlite3.Error) as err:
+            _LOGGER.debug("Could not read the aircraft database: %s", err)
+            return data
+        return {
+            **data,
+            "aircraft": [
+                {**found.get(str(entry.get("hex", "")).lower(), {}), **entry}
+                for entry in aircraft
+            ],
+        }
 
     def _track_passages(self, stats: AircraftStats) -> None:
         """Follow the aircraft crossing the radius, and announce new ones.

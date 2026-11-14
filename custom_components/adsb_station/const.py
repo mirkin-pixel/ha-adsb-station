@@ -255,6 +255,8 @@ ROUTE_MAX_LOOKUPS_PER_POLL = 25
 # Photos come from an outside service too, so they are off by default.
 CONF_LOOK_UP_PHOTOS = "look_up_photos"
 DEFAULT_LOOK_UP_PHOTOS = False
+# Downloaded registrations and types, for a decoder without a database.
+CONF_AIRCRAFT_DATABASE = "aircraft_database"
 
 PHOTO_URL = "https://api.planespotters.net/pub/photos/hex/{hex}"
 # Planespotters and routeset refuse requests that do not say who is asking.

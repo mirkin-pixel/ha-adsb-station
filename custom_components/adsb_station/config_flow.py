@@ -34,6 +34,7 @@ from .api import (
     async_detect_statistics,
 )
 from .const import (
+    CONF_AIRCRAFT_DATABASE,
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_PHOTOS,
@@ -549,6 +550,8 @@ class AdsbStationOptionsFlow(OptionsFlow):
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
                 CONF_LOOK_UP_PHOTOS: user_input[CONF_LOOK_UP_PHOTOS],
             }
+            if user_input.get(CONF_AIRCRAFT_DATABASE):
+                options[CONF_AIRCRAFT_DATABASE] = True
             # Left empty means no ceiling at all, so the option is absent
             # rather than nought: nought would be a ceiling on the ground.
             ceiling = user_input.get(CONF_PROXIMITY_MAX_ALTITUDE)
@@ -567,7 +570,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
                 return self.async_show_form(
                     step_id="init",
                     data_schema=self.add_suggested_values_to_schema(
-                        OPTIONS_SCHEMA, user_input
+                        self._schema(), user_input
                     ),
                     errors={CONF_WATCHLIST: "unreadable_watchlist"},
                     description_placeholders={"lines": ", ".join(unreadable)},
@@ -580,6 +583,20 @@ class AdsbStationOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                OPTIONS_SCHEMA, self.config_entry.options
+                self._schema(), self.config_entry.options
             ),
         )
+
+    def _schema(self) -> vol.Schema:
+        """Offer the download only to a decoder that names no aircraft itself."""
+        entry = self.config_entry
+        coordinator = getattr(entry, "runtime_data", None)
+        if entry.options.get(CONF_AIRCRAFT_DATABASE) or (
+            entry.data.get(CONF_AIRCRAFT_URL)
+            and coordinator is not None
+            and not coordinator.decoder_has_database
+        ):
+            return OPTIONS_SCHEMA.extend(
+                {vol.Optional(CONF_AIRCRAFT_DATABASE, default=False): bool}
+            )
+        return OPTIONS_SCHEMA
