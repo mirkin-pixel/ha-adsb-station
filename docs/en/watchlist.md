@@ -41,6 +41,8 @@ automation:
 
 The event carries the line that matched, `matched_on` to say which part of the aircraft it hit, and everything else the aircraft attributes carry. One aircraft is one message, however many lines name it, and it is not repeated while the aircraft stays in the air — the same ten minute gap a passage uses. Ten minutes after it drops out, coming back is worth being told about again.
 
+Each match also leaves a line in **Activity**, on the station's device page as well, so you can look back at what turned up without an automation.
+
 ## Keeping it from a dashboard
 
 The list does not have to be edited under **Configure**. The entry that carries your decoder has two boxes for it on its device page: **Watchlist: add** and **Watchlist: remove**. Type a line and press enter. It goes through the same check as the form, so a line that would not save there is refused here too, with the line named, and adding a line already on the list, written however it was written, changes nothing. Removing a line that is not on the list says so rather than doing nothing, because that is usually a typo.

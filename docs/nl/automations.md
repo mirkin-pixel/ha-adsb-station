@@ -22,6 +22,8 @@ automation:
 
 `adsb_station_aircraft_emergency` gaat één keer per vlucht af, net als de [watchlist](watchlist.md): een toestel dat een uur in nood blijft is één bericht, en hetzelfde toestel wordt pas opnieuw gemeld na tien minuten buiten bereik. Het event heeft dezelfde velden als de andere events, met de afstand in kilometers, plus `reason` en `squawk`. Anders dan de binary sensor `Noodsquawk`, die maar één keer aangaat zolang er een toestel in nood is, meldt het ook een tweede.
 
+Elk noodgeval laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station. Passages niet: tientallen per dag zouden de rest wegdrukken, en het [passagebord](dashboards.md) heeft ze al. Elk event draagt `device_id`, het apparaat van het station, naast `entry_id` en `station`.
+
 `reason` is één woord, hetzelfde bij elke decoder:
 
 | `reason` | Squawk | ADS-B-status | Betekent |

@@ -11,7 +11,7 @@ from typing import Any, Protocol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -1141,8 +1141,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self.hass.bus.async_fire(
                 EVENT_AIRCRAFT_APPROACHING,
                 {
-                    "entry_id": self.config_entry.entry_id,
-                    "station": self.config_entry.title,
+                    **self._event_base(),
                     **aircraft_attributes(summary, include_distance=True),
                 },
             )
@@ -1156,6 +1155,22 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - warned > PASSAGE_GAP
         ]:
             del self._warned[hex_code]
+
+    def _event_base(self) -> dict[str, Any]:
+        """Name the station an event came from, its device for the activity log.
+
+        The first poll runs before the entities register the device.
+        """
+        entry = self.config_entry
+        device = dr.async_get(self.hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
+        )
+        return {
+            "entry_id": entry.entry_id,
+            "station": entry.title,
+            "device_id": device.id,
+        }
 
     def _announce_watched(self, stats: AircraftStats) -> None:
         """Fire an event for each watched aircraft in range, at any distance."""
@@ -1172,8 +1187,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self.hass.bus.async_fire(
                 EVENT_WATCHLIST_MATCH,
                 {
-                    "entry_id": self.config_entry.entry_id,
-                    "station": self.config_entry.title,
+                    **self._event_base(),
                     "watching": match.entry.line,
                     "matched_on": match.matched_on,
                     "squawk": match.squawk,
@@ -1204,8 +1218,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self.hass.bus.async_fire(
                 EVENT_AIRCRAFT_EMERGENCY,
                 {
-                    "entry_id": self.config_entry.entry_id,
-                    "station": self.config_entry.title,
+                    **self._event_base(),
                     "reason": emergency.reason,
                     "squawk": emergency.squawk,
                     **aircraft_attributes(emergency.summary, include_distance=True),
@@ -1227,8 +1240,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.hass.bus.async_fire(
             EVENT_AIRCRAFT_PASSAGE,
             {
-                "entry_id": self.config_entry.entry_id,
-                "station": self.config_entry.title,
+                **self._event_base(),
                 **aircraft_attributes(passage.closest, include_distance=True),
                 # Through the air; "distance" is across the ground.
                 "slant_distance": round(metres / 1000, 1),
