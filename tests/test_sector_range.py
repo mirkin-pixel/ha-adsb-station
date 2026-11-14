@@ -79,6 +79,9 @@ async def test_records_are_kept_per_sector(
     assert float(_state(hass, "max_range_s")) == pytest.approx(55.6, rel=0.01)
     assert _attributes(hass, "max_range_n")["flight"] == "NORTH1"
     assert _attributes(hass, "max_range_n")["recorded_at"] is not None
+    # Kept in the long-term statistics, as the overall maximum range is.
+    for sector in SECTORS:
+        assert _attributes(hass, f"max_range_{sector}")["state_class"] == "measurement"
 
     # Nothing was heard in the other five, and they are still readable
     for sector in ("ne", "se", "sw", "w", "nw"):

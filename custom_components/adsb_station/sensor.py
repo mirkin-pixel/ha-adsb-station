@@ -1336,6 +1336,8 @@ class AdsbStationSectorRangeSensor(
     _attr_native_unit_of_measurement = UnitOfLength.METERS
     _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_suggested_display_precision = 1
+    # Long-term statistics keep how the reach grew after the history is purged.
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self, coordinator: AdsbStationDataUpdateCoordinator, sector: str
