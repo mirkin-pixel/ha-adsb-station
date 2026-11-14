@@ -41,6 +41,8 @@ automation:
 
 Het event draagt de regel die matchte, `matched_on` om te zeggen welk deel van het toestel hij raakte, en verder alles wat de vliegtuigattributen dragen. Eén toestel is één bericht, hoeveel regels het ook noemen, en het wordt niet herhaald zolang het toestel in de lucht blijft — dezelfde tien minuten die een passage gebruikt. Tien minuten nadat het wegvalt is terugkomen weer iets om te horen.
 
+Elke treffer laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station, zodat je zonder automatisering kunt terugkijken wat er langskwam.
+
 ## Bijhouden vanaf een dashboard
 
 De lijst hoeft niet onder **Configureren** bewerkt te worden. De entry die je decoder draagt heeft er twee vakjes voor op de apparaatpagina: **Watchlist: toevoegen** en **Watchlist: verwijderen**. Typ een regel en druk op Enter. Hij gaat door dezelfde controle als het formulier, dus een regel die daar niet opgeslagen wordt, wordt hier ook geweigerd, met de regel erbij genoemd. Een regel toevoegen die er al op staat, hoe hij er ook geschreven staat, verandert niets. Een regel verwijderen die er niet op staat geeft een melding in plaats van niets te doen, want meestal is dat een tikfout.
