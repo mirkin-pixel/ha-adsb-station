@@ -134,6 +134,9 @@ const MAP_STYLES = ["radar", "map", "none"];
 
 // A trail goes with its aircraft at once, or it would end in nothing.
 const TRAIL_SECONDS = 300;
+// Between polls each aircraft flies on along its track, redrawn every second,
+// but no further than this past the last sky, in case no more come.
+const FLY_ON_SECONDS = 30;
 // After "no route", a later tap asks again; the integration caches the miss.
 const ROUTE_RETRY_SECONDS = 60;
 // The integration answers within forty seconds; after this the answer is lost.
@@ -237,6 +240,20 @@ function aircraftIcon(aircraft) {
   if (typeof rate === "number" && rate >= CLIMB_RATE_SHOWN) return "mdi:airplane-takeoff";
   if (typeof rate === "number" && rate <= -CLIMB_RATE_SHOWN) return "mdi:airplane-landing";
   return "mdi:airplane";
+}
+
+// Where an aircraft is after flying on for this many seconds.
+function flownOn(plane, seconds) {
+  const { speed, track, latitude, longitude } = plane;
+  if (plane.on_ground || typeof speed !== "number" || typeof track !== "number") return plane;
+  const km = (speed * 1.852 * Math.min(Math.floor(seconds), FLY_ON_SECONDS)) / 3600;
+  if (!km) return plane;
+  const way = (track * Math.PI) / 180;
+  return {
+    ...plane,
+    latitude: latitude + (km * Math.cos(way)) / 111.32,
+    longitude: longitude + (km * Math.sin(way)) / (111.32 * Math.cos((latitude * Math.PI) / 180)),
+  };
 }
 
 // Distress first, then the watchlist: what makes an aircraft stand out.
@@ -808,6 +825,8 @@ class AdsbStationCard extends HTMLElement {
   }
 
   _unsubscribe() {
+    clearInterval(this._flying);
+    this._flying = null;
     const subscription = this._subscription;
     this._subscription = null;
     this._following = null;
@@ -816,6 +835,8 @@ class AdsbStationCard extends HTMLElement {
 
   _receive(sky) {
     this._sky = sky;
+    this._receivedAt = Date.now();
+    this._flying ||= setInterval(() => this._skyBox && !this._skyBox.hidden && this._drawSky(), 1000);
     const now = Date.now() / 1000;
     const here = new Set((sky.aircraft || []).map((plane) => plane.hex));
     // The first sky brings where every aircraft has been lately, kept by the
@@ -856,6 +877,8 @@ class AdsbStationCard extends HTMLElement {
   _drawSky() {
     const text = strings(this._hass);
     const streets = this._config.map === "map";
+    // Redrawn every second, so keyboard focus moves to the new marker.
+    const focused = this.shadowRoot.activeElement && this.shadowRoot.activeElement.dataset.hex;
     this._skyBox.replaceChildren(
       ...[
         this._radar(text, streets),
@@ -864,6 +887,10 @@ class AdsbStationCard extends HTMLElement {
         this._picked(text),
       ].filter(Boolean),
     );
+    if (focused) {
+      const marker = this._skyBox.querySelector(`.plane[data-hex="${focused}"]`);
+      if (marker) marker.focus();
+    }
   }
 
   // Which scale the radar keeps. A range set without a scale is taken as a
@@ -893,7 +920,10 @@ class AdsbStationCard extends HTMLElement {
 
   // One drawing for both: on the radar's scope, or on map tiles.
   _radar(text, streets) {
-    const sky = this._sky;
+    const sky = this._sky && {
+      ...this._sky,
+      aircraft: (this._sky.aircraft || []).map((plane) => flownOn(plane, (Date.now() - this._receivedAt) / 1000)),
+    };
     const size = 400;
     const centre = size / 2;
     const reach = 184;
@@ -982,11 +1012,17 @@ class AdsbStationCard extends HTMLElement {
 
     if (origin) {
       const trails = svg("g", { class: "trails", "clip-path": "url(#scope)" });
-      for (const trail of this._trails.values()) {
-        for (let i = 1; i < trail.length; i++) {
-          const [x1, y1] = project(trail[i - 1].lat, trail[i - 1].lon);
-          const [x2, y2] = project(trail[i].lat, trail[i].lon);
-          trails.append(svg("line", { x1, y1, x2, y2, stroke: trail[i].color }));
+      const flown = new Map(((sky && sky.aircraft) || []).map((plane) => [plane.hex, plane]));
+      for (const [hex, trail] of this._trails) {
+        // On to where the aircraft has flown since, so it trails no gap.
+        const plane = flown.get(hex);
+        const last = trail.at(-1);
+        const moved = plane && last && (plane.latitude !== last.lat || plane.longitude !== last.lon);
+        const points = moved ? [...trail, { lat: plane.latitude, lon: plane.longitude, color: last.color }] : trail;
+        for (let i = 1; i < points.length; i++) {
+          const [x1, y1] = project(points[i - 1].lat, points[i - 1].lon);
+          const [x2, y2] = project(points[i].lat, points[i].lon);
+          trails.append(svg("line", { x1, y1, x2, y2, stroke: points[i].color }));
         }
       }
       scope.append(trails);

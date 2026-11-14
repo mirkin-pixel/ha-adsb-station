@@ -777,6 +777,45 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".picked"), null);
   },
 
+  "flies the aircraft on between polls, but not far"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    // LOW flies east at 160 kt; HIGH reports no speed, so it stays put.
+    link.send(SKY([LOW, HIGH]));
+    const x = (hex) =>
+      Number(
+        card.shadowRoot
+          .querySelector(`.plane[data-hex="${hex}"]`)
+          .getAttribute("transform")
+          .match(/translate\(([\d.]+)/)[1],
+      );
+    const realNow = w.Date.now;
+    const later = (seconds) => {
+      w.Date.now = () => realNow() + seconds * 1000;
+      card._drawSky();
+    };
+    try {
+      const [low, high] = [x(LOW.hex), x(HIGH.hex)];
+      later(10);
+      const ten = x(LOW.hex) - low;
+      assert.ok(ten > 0, "flown east");
+      assert.equal(x(HIGH.hex), high);
+      // The trail runs on to where it has flown.
+      assert.ok(card.shadowRoot.querySelectorAll(".trails line").length >= 1);
+      later(30);
+      assert.ok(Math.abs(x(LOW.hex) - low - 3 * ten) < 0.2, "three times as far in three times as long");
+      later(600);
+      assert.ok(Math.abs(x(LOW.hex) - low - 3 * ten) < 0.2, "no further than thirty seconds");
+      // A new sky puts it back where it really is.
+      link.send(SKY([LOW, HIGH]));
+      assert.ok(Math.abs(x(LOW.hex) - low) < 0.2);
+    } finally {
+      w.Date.now = realNow;
+    }
+  },
+
   "makes distress and the watchlist stand out"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
