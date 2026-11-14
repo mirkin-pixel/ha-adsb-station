@@ -225,6 +225,14 @@
         "default": "mdi:backup-restore"
       }
     },
+    "event": {
+      "watchlist": {
+        "default": "mdi:binoculars"
+      },
+      "distress": {
+        "default": "mdi:alert-octagon"
+      }
+    },
     "text": {
       "watch": {
         "default": "mdi:eye-plus"

@@ -451,6 +451,32 @@
         "name": "Reset range records"
       }
     },
+    "event": {
+      "watchlist": {
+        "name": "Watchlist",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "in_range": "In range",
+              "left": "Left"
+            }
+          }
+        }
+      },
+      "distress": {
+        "name": "Aircraft in distress",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "emergency": "Emergency",
+              "hijack": "Hijack",
+              "radio_failure": "Radio failure",
+              "downed": "Downed"
+            }
+          }
+        }
+      }
+    },
     "text": {
       "watch": {
         "name": "Watchlist: add"

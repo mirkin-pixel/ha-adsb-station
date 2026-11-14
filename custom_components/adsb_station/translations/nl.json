@@ -451,6 +451,32 @@
         "name": "Bereikrecords wissen"
       }
     },
+    "event": {
+      "watchlist": {
+        "name": "Watchlist",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "in_range": "In bereik",
+              "left": "Vertrokken"
+            }
+          }
+        }
+      },
+      "distress": {
+        "name": "Toestel in nood",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "emergency": "Noodgeval",
+              "hijack": "Kaping",
+              "radio_failure": "Radiostoring",
+              "downed": "Neergestort"
+            }
+          }
+        }
+      }
+    },
     "text": {
       "watch": {
         "name": "Watchlist: toevoegen"
