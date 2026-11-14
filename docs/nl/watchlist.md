@@ -41,7 +41,9 @@ automation:
 
 Het event draagt de regel die matchte, `matched_on` om te zeggen welk deel van het toestel hij raakte, en verder alles wat de vliegtuigattributen dragen. Eén toestel is één bericht, hoeveel regels het ook noemen, en het wordt niet herhaald zolang het toestel in de lucht blijft — dezelfde tien minuten die een passage gebruikt. Tien minuten nadat het wegvalt is terugkomen weer iets om te horen.
 
-Elke treffer laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station, zodat je zonder automatisering kunt terugkijken wat er langskwam.
+Op datzelfde moment, tien minuten nadat het voor het laatst gehoord is, vuurt `adsb_station_watchlist_lost`: dezelfde velden als bij de treffer, zoals het toestel het laatst gezien is, plus `duration`, hoeveel seconden het in bereik was. Het wacht die tien minuten, zodat een toestel dat even wegvalt niet als vertrokken wordt gemeld.
+
+Elke treffer, en elk vertrek, laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station, zodat je zonder automatisering kunt terugkijken wat er langskwam en hoe lang het bleef.
 
 ## Bijhouden vanaf een dashboard
 

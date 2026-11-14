@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_STATION_NAME,
     DOMAIN,
     EVENT_AIRCRAFT_EMERGENCY,
+    EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
 )
 from .speech import language_of, rounded
@@ -24,6 +25,8 @@ from .speech import language_of, rounded
 TEXT = {
     "en": {
         EVENT_WATCHLIST_MATCH: "heard {aircraft} from the watchlist",
+        EVENT_WATCHLIST_LOST: "lost {aircraft} from the watchlist",
+        "after": " after {minutes} min",
         EVENT_AIRCRAFT_EMERGENCY: "heard {aircraft} report {reason}",
         "away": ", {distance} km away",
         "emergency": "an emergency",
@@ -33,6 +36,8 @@ TEXT = {
     },
     "nl": {
         EVENT_WATCHLIST_MATCH: "hoorde {aircraft} van de watchlist",
+        EVENT_WATCHLIST_LOST: "hoort {aircraft} van de watchlist niet meer",
+        "after": " na {minutes} min",
         EVENT_AIRCRAFT_EMERGENCY: "hoorde {aircraft} een {reason} melden",
         "away": ", op {distance} km",
         "emergency": "noodgeval",
@@ -64,10 +69,17 @@ def async_describe_events(
         if event.event_type == EVENT_AIRCRAFT_EMERGENCY and data.get("squawk"):
             message += f", squawk {data['squawk']}"
         # A test event fired by hand may leave anything out.
-        if isinstance(distance := data.get("distance"), int | float):
+        if event.event_type == EVENT_WATCHLIST_LOST:
+            if isinstance(seconds := data.get("duration"), int | float):
+                message += text["after"].format(minutes=round(seconds / 60))
+        elif isinstance(distance := data.get("distance"), int | float):
             message += text["away"].format(distance=rounded(distance, language))
         name = data.get("station") or DEFAULT_STATION_NAME
         return {LOGBOOK_ENTRY_NAME: name, LOGBOOK_ENTRY_MESSAGE: message}
 
-    for event_type in (EVENT_WATCHLIST_MATCH, EVENT_AIRCRAFT_EMERGENCY):
+    for event_type in (
+        EVENT_WATCHLIST_MATCH,
+        EVENT_WATCHLIST_LOST,
+        EVENT_AIRCRAFT_EMERGENCY,
+    ):
         async_describe_event(DOMAIN, event_type, describe)

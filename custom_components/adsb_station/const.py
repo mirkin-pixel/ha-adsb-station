@@ -187,6 +187,8 @@ MISSED_READS_TOLERATED = 2
 # Aircraft to watch for anywhere in range, one per line.
 CONF_WATCHLIST = "watchlist"
 EVENT_WATCHLIST_MATCH = f"{DOMAIN}_watchlist_match"
+# Once it has been out of range for the gap, with how long it was in it.
+EVENT_WATCHLIST_LOST = f"{DOMAIN}_watchlist_lost"
 
 # What a watchlist line can be. A name is compared against both registration
 # and callsign, since N123AB could be either. Anything else is refused.

@@ -47,6 +47,7 @@ from .const import (
     EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
     GROUND_ALTITUDE,
@@ -752,8 +753,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.started_with = dict(config_entry.options)
         # And a reconfigured station, which always does.
         self.started_with_data = dict(config_entry.data)
-        # When each watched aircraft was last seen, so one flight is one message.
-        self._announced: dict[str, datetime] = {}
+        # When each watched aircraft was first and last seen, and as what.
+        self._announced: dict[str, tuple[datetime, datetime, WatchlistMatch]] = {}
         # The same for aircraft in distress.
         self._distressed: dict[str, datetime] = {}
         # Polls in a row each aircraft has been approaching, and its last warning.
@@ -1173,35 +1174,41 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         }
 
     def _announce_watched(self, stats: AircraftStats) -> None:
-        """Fire an event for each watched aircraft in range, at any distance."""
+        """Fire an event as each watched aircraft comes into range and leaves it.
+
+        Last seen rather than last announced, so one that stays in range for
+        an hour is one flight. The gap plus a poll, or at the slowest interval
+        every poll would look like a return.
+        """
         now = dt_util.utcnow()
-        for match in stats.watched:
-            # Last seen rather than last announced, so one that stays in
-            # range for an hour is still one message.
-            # The gap plus a poll, or at the slowest interval every poll would
-            # look like a return.
-            seen = self._announced.get(match.summary.hex)
-            self._announced[match.summary.hex] = now
-            if seen is not None and now - seen <= self._remembered():
+        for hex_code, (first, last, match) in list(self._announced.items()):
+            if now - last <= self._remembered():
                 continue
+            del self._announced[hex_code]
             self.hass.bus.async_fire(
-                EVENT_WATCHLIST_MATCH,
+                EVENT_WATCHLIST_LOST,
                 {
-                    **self._event_base(),
-                    "watching": match.entry.line,
-                    "matched_on": match.matched_on,
-                    "squawk": match.squawk,
-                    **aircraft_attributes(match.summary, include_distance=True),
+                    **self._watch_data(match),
+                    "duration": round((last - first).total_seconds()),
                 },
             )
 
-        # Gone longer than the gap: announce it again when it returns.
-        for hex_code in [
-            hex_code
-            for hex_code, seen in self._announced.items()
-            if now - seen > self._remembered()
-        ]:
-            del self._announced[hex_code]
+        for match in stats.watched:
+            known = self._announced.get(match.summary.hex)
+            first = now if known is None else known[0]
+            self._announced[match.summary.hex] = (first, now, match)
+            if known is None:
+                self.hass.bus.async_fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
+
+    def _watch_data(self, match: WatchlistMatch) -> dict[str, Any]:
+        """Describe a watched aircraft, as last seen, for an event."""
+        return {
+            **self._event_base(),
+            "watching": match.entry.line,
+            "matched_on": match.matched_on,
+            "squawk": match.squawk,
+            **aircraft_attributes(match.summary, include_distance=True),
+        }
 
     def _announce_emergencies(self, stats: AircraftStats) -> None:
         """Fire an event for each aircraft in distress, at any distance or height.
