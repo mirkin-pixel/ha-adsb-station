@@ -13,7 +13,12 @@ from homeassistant.components.logbook import (
 )
 from homeassistant.core import Event, HomeAssistant, callback
 
-from .const import DOMAIN, EVENT_AIRCRAFT_EMERGENCY, EVENT_WATCHLIST_MATCH
+from .const import (
+    DEFAULT_STATION_NAME,
+    DOMAIN,
+    EVENT_AIRCRAFT_EMERGENCY,
+    EVENT_WATCHLIST_MATCH,
+)
 from .speech import language_of, rounded
 
 TEXT = {
@@ -51,14 +56,18 @@ def async_describe_events(
         language = language_of(hass.config.language)
         text = TEXT[language]
         message = text[str(event.event_type)].format(
-            aircraft=data["flight"] or data.get("registration") or data["hex"].upper(),
+            aircraft=data.get("flight")
+            or data.get("registration")
+            or str(data.get("hex") or "?").upper(),
             reason=text.get(data.get("reason") or "", text["emergency"]),
         )
         if event.event_type == EVENT_AIRCRAFT_EMERGENCY and data.get("squawk"):
             message += f", squawk {data['squawk']}"
-        if data["distance"] is not None:
-            message += text["away"].format(distance=rounded(data["distance"], language))
-        return {LOGBOOK_ENTRY_NAME: data["station"], LOGBOOK_ENTRY_MESSAGE: message}
+        # A test event fired by hand may leave anything out.
+        if isinstance(distance := data.get("distance"), int | float):
+            message += text["away"].format(distance=rounded(distance, language))
+        name = data.get("station") or DEFAULT_STATION_NAME
+        return {LOGBOOK_ENTRY_NAME: name, LOGBOOK_ENTRY_MESSAGE: message}
 
     for event_type in (EVENT_WATCHLIST_MATCH, EVENT_AIRCRAFT_EMERGENCY):
         async_describe_event(DOMAIN, event_type, describe)

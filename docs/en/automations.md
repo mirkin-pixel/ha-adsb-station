@@ -185,3 +185,17 @@ automation:
             The ADS-B dongle has delivered nothing for three minutes.
             Unplug the dongle and plug it back in.
 ```
+
+## Trying an automation out
+
+No need to wait for an aircraft: under **Developer tools → Events**, fire `adsb_station_aircraft_emergency`, or any other event here, with data of your own:
+
+```yaml
+flight: TEST1
+reason: emergency
+squawk: "7700"
+distance: 12.3
+altitude: 3000
+```
+
+Every automation on that event runs, so the notification goes out for real, and the watchlist and emergency events leave a line in **Activity** as well.
