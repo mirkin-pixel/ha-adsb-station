@@ -648,6 +648,7 @@ const tests = {
         "map",
         "map_scale",
         "map_range",
+        "max_altitude",
         "show_nearby",
         "max_nearby",
         "show_status",
@@ -775,6 +776,53 @@ const tests = {
     assert.ok(card.shadowRoot.querySelector(".picked"));
     tap();
     assert.equal(card.shadowRoot.querySelector(".picked"), null);
+  },
+
+  "takes a kind off the radar with a tap, and high traffic with a ceiling"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(
+      SKY([
+        { ...LOW, kind: "airline" },
+        { ...HIGH, kind: "other" },
+      ]),
+    );
+    const shown = () => [...card.shadowRoot.querySelectorAll(".plane")].map((plane) => plane.dataset.hex);
+    const button = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((b) => b.textContent.startsWith(name));
+    assert.equal(button("Lijnvlucht").textContent, "Lijnvlucht 1");
+    assert.equal(button("Militair").textContent, "Militair 0");
+
+    button("Overig").click();
+    assert.deepEqual(shown(), [LOW.hex]);
+    assert.equal(button("Overig").getAttribute("aria-pressed"), "false");
+    // Still off after the next poll, and on again with a second tap.
+    link.send(
+      SKY([
+        { ...LOW, kind: "airline" },
+        { ...HIGH, kind: "other" },
+      ]),
+    );
+    assert.deepEqual(shown(), [LOW.hex]);
+    button("Overig").click();
+    assert.equal(shown().length, 2);
+
+    // A ceiling leaves the airliner at 37,000 ft out, and out of the count.
+    const other = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const otherLink = connect(other);
+    const high = render(w, other, { max_altitude: 10000 });
+    otherLink.send(
+      SKY([
+        { ...LOW, kind: "airline" },
+        { ...HIGH, kind: "other" },
+      ]),
+    );
+    assert.deepEqual(
+      [...high.shadowRoot.querySelectorAll(".plane")].map((plane) => plane.dataset.hex),
+      [LOW.hex],
+    );
+    assert.ok([...high.shadowRoot.querySelectorAll(".kind")].some((b) => b.textContent === "Overig 0"));
   },
 
   "flies the aircraft on between polls, but not far"() {

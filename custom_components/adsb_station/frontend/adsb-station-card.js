@@ -65,6 +65,11 @@ const STRINGS = {
     scale_coverage: "Automatic, to fit the range records",
     scale_fixed: "Fixed",
     map_range: "Fixed range in km",
+    max_altitude: "Highest altitude shown (ft)",
+    kind_airline: "Airline",
+    kind_other: "Other",
+    kind_helicopter: "Helicopter",
+    kind_military: "Military",
     route_pending: "Looking up the route…",
     route_unknown: "No route known",
     route_failed: "Could not look up the route",
@@ -120,6 +125,11 @@ const STRINGS = {
     scale_coverage: "Automatisch, passend bij de bereikrecords",
     scale_fixed: "Vast",
     map_range: "Vast bereik in km",
+    max_altitude: "Hoogste getoonde hoogte (ft)",
+    kind_airline: "Lijnvlucht",
+    kind_other: "Overig",
+    kind_helicopter: "Helikopter",
+    kind_military: "Militair",
     route_pending: "Route opzoeken…",
     route_unknown: "Geen route bekend",
     route_failed: "Route opzoeken mislukt",
@@ -147,6 +157,8 @@ const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
 const SCALES = ["aircraft", "coverage", "fixed"];
 // What the table card lists: the sky now, or the passage board.
 const LISTS = ["now", "passages"];
+// The traffic counters' kinds, to show or hide on the radar.
+const KINDS = ["airline", "other", "helicopter", "military"];
 const DEFAULT_FIXED_RANGE = 100;
 // The compass sectors the station keeps a range record for, clockwise from
 // north, each centred on its direction.
@@ -613,6 +625,10 @@ class AdsbStationCard extends HTMLElement {
           name: "map_range",
           selector: { number: { min: 5, max: 500, mode: "box", unit_of_measurement: "km" } },
         },
+        {
+          name: "max_altitude",
+          selector: { number: { min: 1000, max: 60000, step: 1000, mode: "box", unit_of_measurement: "ft" } },
+        },
         { name: "show_nearby", selector: { boolean: {} } },
         {
           name: "max_nearby",
@@ -633,6 +649,8 @@ class AdsbStationCard extends HTMLElement {
     this._trails = new Map();
     this._sky = null;
     this._selected = null;
+    // Kinds tapped off under the radar; not kept past a reload.
+    this._hidden = new Set();
     // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
     this._onlyTable = false;
@@ -882,6 +900,7 @@ class AdsbStationCard extends HTMLElement {
     this._skyBox.replaceChildren(
       ...[
         this._radar(text, streets),
+        this._kinds(text),
         streets ? this._attribution() : null,
         this._legend(text),
         this._picked(text),
@@ -922,7 +941,9 @@ class AdsbStationCard extends HTMLElement {
   _radar(text, streets) {
     const sky = this._sky && {
       ...this._sky,
-      aircraft: (this._sky.aircraft || []).map((plane) => flownOn(plane, (Date.now() - this._receivedAt) / 1000)),
+      aircraft: this._belowCeiling()
+        .filter((plane) => !this._hidden.has(plane.kind))
+        .map((plane) => flownOn(plane, (Date.now() - this._receivedAt) / 1000)),
     };
     const size = 400;
     const centre = size / 2;
@@ -1016,6 +1037,7 @@ class AdsbStationCard extends HTMLElement {
       for (const [hex, trail] of this._trails) {
         // On to where the aircraft has flown since, so it trails no gap.
         const plane = flown.get(hex);
+        if (!plane) continue;
         const last = trail.at(-1);
         const moved = plane && last && (plane.latitude !== last.lat || plane.longitude !== last.lon);
         const points = moved ? [...trail, { lat: plane.latitude, lon: plane.longitude, color: last.color }] : trail;
@@ -1343,6 +1365,36 @@ class AdsbStationCard extends HTMLElement {
       .finally(() => {
         if (this._selected === hex) this._drawSky();
       });
+  }
+
+  // Every aircraft at or under the altitude set, if one is.
+  _belowCeiling() {
+    const ceiling = Number(this._config.max_altitude) || 0;
+    return ((this._sky && this._sky.aircraft) || []).filter((plane) => !ceiling || !(plane.altitude > ceiling));
+  }
+
+  // One button per kind, with how many there are, to take it off the radar.
+  _kinds(text) {
+    if (!this._sky) return null;
+    const planes = this._belowCeiling();
+    return el(
+      "div",
+      { class: "kinds" },
+      KINDS.map((kind) =>
+        el(
+          "button",
+          {
+            class: "kind",
+            "aria-pressed": String(!this._hidden.has(kind)),
+            onclick: () => {
+              if (!this._hidden.delete(kind)) this._hidden.add(kind);
+              this._drawSky();
+            },
+          },
+          `${text[`kind_${kind}`]} ${planes.filter((plane) => plane.kind === kind).length}`,
+        ),
+      ),
+    );
   }
 
   _legend(text) {
@@ -1899,6 +1951,28 @@ const STYLE = css`
     stroke: var(--primary-color);
     stroke-opacity: 0.45;
     stroke-linejoin: round;
+  }
+  .kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin: 4px 0 8px;
+  }
+  .kind {
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--divider-color);
+    background: none;
+    color: var(--secondary-text-color);
+    cursor: pointer;
+  }
+  .kind[aria-pressed="true"] {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--text-primary-color, #fff);
   }
   .legend {
     display: flex;
