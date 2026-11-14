@@ -38,6 +38,7 @@ async def test_diagnostics(
     assert diagnostics["entry_data"][CONF_HOST] == REDACTED
     assert diagnostics["entry_data"][CONF_AIRCRAFT_URL] == REDACTED
     assert diagnostics["feeder"]["feed_alias"] == REDACTED
+    assert diagnostics["feeder"]["feed_legacy_id"] == REDACTED
     assert diagnostics["feeder"]["feed_num_ac_tracked"] == 25
     assert diagnostics["aircraft"]["total"] == 3
     assert diagnostics["aircraft"]["with_position"] == 2
@@ -125,10 +126,12 @@ async def test_diagnostics_do_not_give_the_house_away(
 
     assert diagnostics["range_measured_from_source"] == "receiver"
     assert diagnostics["range_measured_from"] == [52.0, 5.1]
-    assert diagnostics["aircraft"]["closest"]["position"] == [52.0, 5.1]
-    assert diagnostics["aircraft"]["nearby"][0]["position"] == [52.0, 5.1]
+    # Not even rounded: beside the exact distance and bearing, a few
+    # aircraft would narrow the region down to the house.
+    assert diagnostics["aircraft"]["closest"]["position"] is True
+    assert diagnostics["aircraft"]["nearby"][0]["position"] is True
     [emergency] = diagnostics["aircraft"]["emergencies"]
-    assert emergency["summary"]["position"] == [52.0, 5.1]
+    assert emergency["summary"]["position"] is True
     written = json.dumps(diagnostics, default=str)
     for exact in ("51.98", "5.12"):
         assert exact not in written

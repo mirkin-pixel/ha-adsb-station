@@ -26,6 +26,7 @@ TO_REDACT = {
     "fr24key",
     "site_url",
     "local_ips",
+    "feed_legacy_id",
 }
 
 
@@ -35,14 +36,14 @@ _DECIMALS = 1
 
 
 def _coarse(value: Any) -> Any:
-    """Round every position in a payload, wherever it sits.
+    """Say of every aircraft only whether it has a position, wherever it sits.
 
-    An aircraft passing overhead gives the antenna away as well as the
-    antenna's own coordinates do.
+    Rounded positions next to exact distances and bearings still give the
+    antenna away, once there are a few aircraft to compare.
     """
     if isinstance(value, dict):
         return {
-            key: (_rounded(item) if key == "position" else _coarse(item))
+            key: (item is not None if key == "position" else _coarse(item))
             for key, item in value.items()
         }
     if isinstance(value, (list, tuple)):

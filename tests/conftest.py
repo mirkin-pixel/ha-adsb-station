@@ -60,6 +60,7 @@ MOCK_MONITOR: dict[str, Any] = {
     "feed_current_mode": "MLAT",
     "feed_last_ac_sent_num": 21,
     "feed_last_connected_time": 1636387404,
+    "feed_legacy_id": "12345",
     "feed_num_ac_adsb_tracked": 20,
     "feed_num_ac_tracked": 25,
     "feed_status": "connected",
