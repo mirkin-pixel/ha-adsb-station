@@ -142,12 +142,12 @@
           "map_aircraft": "Zet elk toestel binnen de nabijheidsradius als eigen entiteit op de kaart, zolang het er is. Er wordt niets geregistreerd en niets bewaard, dus ze laten geen spoor achter als ze zijn doorgevlogen; daardoor kun je ze ook niet los hernoemen of verbergen, en staan ze niet onder het apparaat van dit station.",
           "look_up_routes": "Geen enkel vliegtuig zendt uit waar het vandaan komt of heen gaat, dus dit moet aan een dienst op internet gevraagd worden. Het gebruikt routeset, dezelfde bron als tar1090. Alleen de vliegtuigen binnen de straal 'dichtbij' worden opgezocht, en antwoorden worden een dag bewaard.",
           "look_up_photos": "Voegt een foto toe van elk vliegtuig binnen de straal 'dichtbij', en van elk vliegtuig op de watchlist, van Planespotters.net. Alleen het adres dat het vliegtuig uitzendt wordt verstuurd, en antwoorden worden een dag bewaard. De foto's worden uitgeleend op voorwaarde dat de fotograaf erbij genoemd wordt en dat de foto naar zijn pagina linkt, dus ze komen als attributen voor een dashboardkaart en niet als entiteitsafbeelding.",
-          "watchlist": "Toestellen die je wilt weten zodra ze opduiken, één per regel. Er is geen straal: de vraag is of het toestel überhaupt in de lucht is, hoe ver weg ook. Een regel kan een hexcode zijn (484123), een registratie of callsign (PH-BXA, KLM123), een vliegtuigtype (EC35) of een squawk (7700)."
+          "watchlist": "Toestellen die je wilt weten zodra ze opduiken, één per regel. Er is geen straal: de vraag is of het toestel überhaupt in de lucht is, hoe ver weg ook. Een regel kan een hexcode zijn (484123), een registratie of callsign (PH-BXA, KLM123), een vliegtuigtype (EC35), een squawk (7700), het begin van een registratie of callsign (PH-B*, KLM*), military, helicopter of een land (country:US)."
         }
       }
     },
     "error": {
-      "unreadable_watchlist": "Deze regels zijn geen hexcode, registratie of callsign, vliegtuigtype of squawk: {lines}"
+      "unreadable_watchlist": "Deze regels zijn geen hexcode, registratie of callsign, vliegtuigtype, squawk of groep zoals KLM*, military of country:US: {lines}"
     }
   },
   "entity": {
@@ -612,7 +612,7 @@
       "message": "Geen van je ADS-B-stations leest een ontvanger uit, dus er is geen watchlist om te wijzigen."
     },
     "unreadable_watchlist_line": {
-      "message": "{line} is geen hexcode, registratie of callsign, vliegtuigtype of squawk."
+      "message": "{line} is geen hexcode, registratie of callsign, vliegtuigtype, squawk of groep zoals KLM*, military of country:US."
     },
     "not_on_watchlist": {
       "message": "{line} staat niet op de watchlist van {station}."

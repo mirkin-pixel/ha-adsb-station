@@ -19,8 +19,12 @@ from typing import Any, Final
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    WATCHLIST_COUNTRY,
+    WATCHLIST_HELICOPTER,
     WATCHLIST_HEX,
+    WATCHLIST_MILITARY,
     WATCHLIST_NAME,
+    WATCHLIST_PREFIX,
     WATCHLIST_SQUAWK,
     WATCHLIST_TYPE,
 )
@@ -122,11 +126,42 @@ def normalise(text: str | None) -> str:
     return "".join(character for character in text.upper() if character.isalnum())
 
 
+_GROUPS: Final = {"MILITARY": WATCHLIST_MILITARY, "HELICOPTER": WATCHLIST_HELICOPTER}
+_COUNTRY: Final = "COUNTRY:"
+
+
+def line_key(entry: str) -> str:
+    """Return a line as two spellings of it compare: like `normalise`, keeping * and :.
+
+    So PH-BXA and PHBXA are one line, and KLM* and KLM are two.
+    """
+    return "".join(c for c in entry.upper() if c.isalnum() or c in "*:")
+
+
+def watch_value(entry: str, kind: str) -> str:
+    """Return what a line of this kind is compared against."""
+    if kind == WATCHLIST_COUNTRY:
+        return normalise(entry.split(":", 1)[1])
+    return normalise(entry)
+
+
 def kind_of(entry: str, models: dict[str, str]) -> str | None:
     """Return what a line on a watchlist is, by its shape, or None.
 
     A line that fits nothing is refused rather than guessed at.
     """
+    key = line_key(entry)
+    if key in _GROUPS:
+        return _GROUPS[key]
+    if key.startswith(_COUNTRY):
+        code = key[len(_COUNTRY) :]
+        return WATCHLIST_COUNTRY if len(code) == 2 and code.isalpha() else None
+    if "*" in key or ":" in key:
+        # One * at the end, after at least two characters.
+        prefix = key[:-1]
+        if key.endswith("*") and len(prefix) >= 2 and prefix.isalnum():
+            return WATCHLIST_PREFIX
+        return None
     text = normalise(entry)
     if not text:
         return None

@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
 from .const import CONF_WATCHLIST, DOMAIN
-from .reference import kind_of, normalise
+from .reference import kind_of, line_key
 
 
 def watched_lines(entry: ConfigEntry) -> list[str]:
@@ -42,7 +42,7 @@ def add_line(
             translation_placeholders={"line": line},
         )
     lines = watched_lines(entry)
-    if any(normalise(existing) == normalise(line) for existing in lines):
+    if any(line_key(existing) == line_key(line) for existing in lines):
         return False
     _save(hass, entry, [*lines, line])
     return True
@@ -54,7 +54,7 @@ def remove_line(hass: HomeAssistant, entry: ConfigEntry, line: str) -> None:
     A line not on the list is an error, as it is most likely a typo.
     """
     lines = watched_lines(entry)
-    kept = [existing for existing in lines if normalise(existing) != normalise(line)]
+    kept = [existing for existing in lines if line_key(existing) != line_key(line)]
     if len(kept) == len(lines):
         raise ServiceValidationError(
             translation_domain=DOMAIN,

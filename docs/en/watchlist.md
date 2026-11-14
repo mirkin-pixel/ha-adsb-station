@@ -21,7 +21,18 @@ A line can be four things, and its shape says which:
 | `EC35` | An aircraft type from the [shipped table](decoders.md#names-for-the-codes) |
 | `7700` | A squawk code |
 
-Capitals, dashes and spaces make no difference. A line that fits none of the four is refused when you save, and the error names it — a watchlist that quietly never matches would be worse than one that will not save.
+A line can also stand for a group of aircraft:
+
+| Written like | Matches |
+|---|---|
+| `KLM*`, `PH-B*` | Every callsign or registration that starts so: all KLM flights, every registration starting PH-B |
+| `military` | Every military aircraft, by readsb's database or else the address blocks set aside for the military |
+| `helicopter` | Every helicopter, by the category it broadcasts |
+| `country:US` | Every aircraft registered in that country, by the two-letter code of its address block |
+
+A group is matched aircraft by aircraft, so each one in it is its own message: `KLM*` near Schiphol is a busy list.
+
+Capitals, dashes and spaces make no difference. A line that fits none of these is refused when you save, and the error names it — a watchlist that quietly never matches would be worse than one that will not save.
 
 When something matches, **Watchlist in range** goes on and an event fires:
 

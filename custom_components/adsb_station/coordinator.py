@@ -66,7 +66,11 @@ from .const import (
     TRAFFIC_MILITARY,
     TRAFFIC_OTHER,
     UNSET_RECEIVER_VERSION,
+    WATCHLIST_COUNTRY,
+    WATCHLIST_HELICOPTER,
     WATCHLIST_HEX,
+    WATCHLIST_MILITARY,
+    WATCHLIST_PREFIX,
     WATCHLIST_SQUAWK,
     WATCHLIST_TYPE,
 )
@@ -77,6 +81,7 @@ from .reference import (
     designator_of,
     kind_of,
     normalise,
+    watch_value,
 )
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 from .trails import SkyTrails
@@ -621,7 +626,9 @@ def watchlist_of(entry: ConfigEntry, models: dict[str, str]) -> list[WatchlistEn
     for line in str(text).splitlines():
         if (kind := kind_of(line, models)) is not None:
             watched.append(
-                WatchlistEntry(line=line.strip(), kind=kind, value=normalise(line))
+                WatchlistEntry(
+                    line=line.strip(), kind=kind, value=watch_value(line, kind)
+                )
             )
     return watched
 
@@ -640,6 +647,16 @@ def _matches(
             if normalise(summary.aircraft_type) == watched.value
             else None
         )
+    if watched.kind == WATCHLIST_MILITARY:
+        return "military" if summary.military else None
+    if watched.kind == WATCHLIST_HELICOPTER:
+        return "category" if summary.category == CATEGORY_ROTORCRAFT else None
+    if watched.kind == WATCHLIST_COUNTRY:
+        return "country" if summary.country == watched.value else None
+    if watched.kind == WATCHLIST_PREFIX:
+        if normalise(summary.registration).startswith(watched.value):
+            return "registration"
+        return "flight" if normalise(summary.flight).startswith(watched.value) else None
     # A name can be either, so it is compared against both.
     if normalise(summary.registration) == watched.value:
         return "registration"

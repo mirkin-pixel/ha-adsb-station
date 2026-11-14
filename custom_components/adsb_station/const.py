@@ -196,6 +196,12 @@ WATCHLIST_HEX = "hex"
 WATCHLIST_SQUAWK = "squawk"
 WATCHLIST_TYPE = "aircraft_type"
 WATCHLIST_NAME = "name"
+# Groups: a registration or callsign that starts so (KLM*), every military
+# aircraft or helicopter, or every one registered in a country (country:US).
+WATCHLIST_PREFIX = "prefix"
+WATCHLIST_MILITARY = "military"
+WATCHLIST_HELICOPTER = "helicopter"
+WATCHLIST_COUNTRY = "country"
 
 # Passages kept on the board, written whole to the recorder on each arrival.
 PASSAGE_BOARD_LENGTH = 20
