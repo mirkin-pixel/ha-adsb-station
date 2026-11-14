@@ -76,6 +76,17 @@ async def test_lines(
     assert line == {LOGBOOK_ENTRY_NAME: "Garage", LOGBOOK_ENTRY_MESSAGE: message}
 
 
+async def test_a_test_event_fired_by_hand(hass: HomeAssistant) -> None:
+    """Test an event from the developer tools, with little or odd data."""
+    line = _described(hass)[EVENT_WATCHLIST_MATCH](
+        Event(EVENT_WATCHLIST_MATCH, {"flight": "TEST1", "distance": "near"})
+    )
+    assert line == {
+        LOGBOOK_ENTRY_NAME: "ADS-B station",
+        LOGBOOK_ENTRY_MESSAGE: "heard TEST1 from the watchlist",
+    }
+
+
 async def test_passages_stay_out(hass: HomeAssistant) -> None:
     """Test that the events of dozens a day are not described."""
     described = _described(hass)

@@ -185,3 +185,17 @@ automation:
             De ADS-B-dongle levert al drie minuten niets.
             Trek de dongle eruit en steek hem er weer in.
 ```
+
+## Een automatisering uitproberen
+
+Je hoeft niet op een vliegtuig te wachten: vuur onder **Ontwikkelhulpmiddelen → Gebeurtenissen** `adsb_station_aircraft_emergency` af, of een ander event van hier, met eigen gegevens:
+
+```yaml
+flight: TEST1
+reason: emergency
+squawk: "7700"
+distance: 12.3
+altitude: 3000
+```
+
+Elke automatisering op dat event draait, dus de melding gaat echt uit, en de watchlist- en noodevents laten ook een regel achter in **Activiteit**.
