@@ -129,6 +129,11 @@ async def test_diagnostics_do_not_give_the_house_away(
     # Not even rounded: beside the exact distance and bearing, a few
     # aircraft would narrow the region down to the house.
     assert diagnostics["aircraft"]["closest"]["position"] is True
+    # Nor how far or which way: with the hex, a public tracker knows where
+    # the aircraft was, and so where the antenna is.
+    closest = diagnostics["aircraft"]["closest"]
+    assert not {"distance", "bearing", "elevation"} & closest.keys()
+    assert closest["hex"] == "484123"
     assert diagnostics["aircraft"]["nearby"][0]["position"] is True
     [emergency] = diagnostics["aircraft"]["emergencies"]
     assert emergency["summary"]["position"] is True
