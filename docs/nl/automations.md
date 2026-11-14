@@ -24,6 +24,8 @@ automation:
 
 Elk noodgeval laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station. Passages niet: tientallen per dag zouden de rest wegdrukken, en het [passagebord](dashboards.md) heeft ze al. Elk event draagt `device_id`, het apparaat van het station, naast `entry_id` en `station`.
 
+Liever kiezen dan typen? **Toestel in nood** is een event-entiteit op het apparaat van het station die tegelijk afgaat, zodat een automatisering er in de editor mee kan beginnen. **Watchlist** doet hetzelfde voor de watchlist. Een toestel dat al in bereik is terwijl Home Assistant opstart, staat alleen op de bus: de eerste uitlezing komt voordat de entiteiten bestaan.
+
 `reason` is één woord, hetzelfde bij elke decoder:
 
 | `reason` | Squawk | ADS-B-status | Betekent |

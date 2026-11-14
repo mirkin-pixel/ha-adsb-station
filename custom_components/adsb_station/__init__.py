@@ -34,6 +34,7 @@ RECEIVER_UPDATED = "receiver_updated"
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.EVENT,
     Platform.GEO_LOCATION,
     Platform.SENSOR,
     Platform.TEXT,

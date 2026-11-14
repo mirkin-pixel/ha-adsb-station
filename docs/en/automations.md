@@ -24,6 +24,8 @@ automation:
 
 Each one also leaves a line in **Activity**, on the station's device page as well. Passages do not: dozens a day would bury the rest, and the [passage board](dashboards.md) has them. Every event carries `device_id`, the station's device, beside `entry_id` and `station`.
 
+Rather pick than type? **Aircraft in distress** is an event entity on the station's device that fires along with it, so an automation can start from it in the editor. **Watchlist** does the same for the watchlist. One that is already in range while Home Assistant starts is only on the bus: the first read comes before the entities exist.
+
 `reason` is one word, the same whichever decoder you run:
 
 | `reason` | Squawk | ADS-B status | Means |
