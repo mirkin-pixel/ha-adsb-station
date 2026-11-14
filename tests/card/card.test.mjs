@@ -777,6 +777,44 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".picked"), null);
   },
 
+  "makes distress and the watchlist stand out"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(
+      SKY([
+        { ...LOW, emergency: "radio_failure", watched: true },
+        { ...HIGH, watched: true },
+      ]),
+    );
+    const ring = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"] circle:not(.halo)`);
+    // Distress wins over the watchlist; a plain aircraft gets no ring.
+    assert.equal(ring(LOW.hex).getAttribute("class"), "distress");
+    assert.equal(ring(HIGH.hex).getAttribute("class"), "watch");
+    link.send(SKY([LOW, HIGH]));
+    assert.equal(ring(LOW.hex), null);
+
+    link.send(SKY([{ ...LOW, emergency: "radio_failure" }]));
+    card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
+    assert.equal(card.shadowRoot.querySelector(".picked .distress").textContent, "Noodgeval: radiostoring");
+  },
+
+  "marks distress in the table"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = renderTable(w, hass);
+    link.send(
+      SKY([
+        { ...LOW, emergency: "emergency" },
+        { ...HIGH, watched: true },
+      ]),
+    );
+    const marks = [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) => row.className);
+    assert.deepEqual(marks, ["distress", "watch"]);
+  },
+
   "draws the route of a tapped aircraft it was sent"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
