@@ -50,6 +50,11 @@ const STRINGS = {
     list_now: "What is in the air now",
     list_passages: "What came over today",
     no_passages: "Nothing has come over yet today",
+    watched: "On your watchlist",
+    emergency: "Emergency",
+    hijack: "Hijack",
+    radio_failure: "Emergency: radio failure",
+    downed: "Emergency: downed",
     title: "Title",
     map: "Map",
     map_radar: "Radar",
@@ -100,6 +105,11 @@ const STRINGS = {
     list_now: "Wat er nu in de lucht is",
     list_passages: "Wat er vandaag overkwam",
     no_passages: "Er is vandaag nog niets overgekomen",
+    watched: "Op je watchlist",
+    emergency: "Noodgeval",
+    hijack: "Kaping",
+    radio_failure: "Noodgeval: radiostoring",
+    downed: "Noodgeval: neergestort",
     title: "Titel",
     map: "Kaart",
     map_radar: "Radar",
@@ -228,6 +238,9 @@ function aircraftIcon(aircraft) {
   if (typeof rate === "number" && rate <= -CLIMB_RATE_SHOWN) return "mdi:airplane-landing";
   return "mdi:airplane";
 }
+
+// Distress first, then the watchlist: what makes an aircraft stand out.
+const mark = (plane) => (plane.emergency ? "distress" : plane.watched ? "watch" : null);
 
 function altitudeColor(altitude, onGround) {
   if (onGround || typeof altitude !== "number") return GROUND_COLOR;
@@ -1071,6 +1084,7 @@ class AdsbStationCard extends HTMLElement {
         },
         svg("title", {}, this._describe(plane, text)),
         selected ? svg("circle", { class: "halo", r: 15 }) : null,
+        mark(plane) ? svg("circle", { class: mark(plane), r: 11 }) : null,
         svg("path", {
           d: path,
           fill: altitudeColor(plane.altitude, plane.on_ground),
@@ -1343,6 +1357,7 @@ class AdsbStationCard extends HTMLElement {
         [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
       ),
       this._routeLine(plane, text),
+      mark(plane) ? el("div", { class: `secondary ${mark(plane)}` }, text[plane.emergency || "watched"]) : null,
       el(
         "div",
         { class: "secondary" },
@@ -1588,7 +1603,10 @@ class AdsbStationCard extends HTMLElement {
       ...planes.map((p) =>
         el(
           "tr",
-          { class: p.hex === this._selected ? "selected" : undefined, onclick: () => this._select(p.hex) },
+          {
+            class: [p.hex === this._selected && "selected", mark(p)].filter(Boolean).join(" ") || undefined,
+            onclick: () => this._select(p.hex),
+          },
           columns.map((column) => el("td", { class: cell(column) }, column.show(p))),
         ),
       ),
@@ -2033,6 +2051,27 @@ const STYLE = css`
   }
   .table tbody tr {
     cursor: pointer;
+  }
+  .radar .distress,
+  .radar .watch {
+    fill: none;
+    stroke-width: 2.5;
+  }
+  .radar .distress,
+  .picked .distress {
+    stroke: var(--error-color, #db4437);
+    color: var(--error-color, #db4437);
+  }
+  .radar .watch,
+  .picked .watch {
+    stroke: var(--primary-color);
+    color: var(--primary-color);
+  }
+  .table tr.distress td:first-child {
+    box-shadow: inset 3px 0 var(--error-color, #db4437);
+  }
+  .table tr.watch td:first-child {
+    box-shadow: inset 3px 0 var(--primary-color);
   }
   .table tr.selected td {
     background: var(--secondary-background-color);

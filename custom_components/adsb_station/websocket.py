@@ -56,6 +56,10 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
         if aircraft is None
         else {summary.hex: summary.route for summary in aircraft.nearby}
     )
+    distress = (
+        {} if aircraft is None else {e.hex: e.reason for e in aircraft.emergencies}
+    )
+    watched = set() if aircraft is None else {m.summary.hex for m in aircraft.watched}
     planes = []
     for summary in heard:
         if summary.position is None:
@@ -65,6 +69,11 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
             "latitude": summary.position[0],
             "longitude": summary.position[1],
         }
+        # Only when so, to stand out on the radar.
+        if (reason := distress.get(summary.hex)) is not None:
+            plane["emergency"] = reason
+        if summary.hex in watched:
+            plane["watched"] = True
         if (points := route_points(routes.get(summary.hex))) is not None:
             plane["route_points"] = points
         planes.append(plane)

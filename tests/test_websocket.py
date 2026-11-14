@@ -30,7 +30,10 @@ from .conftest import (
     set_responses,
     setup_integration,
 )
+from .test_emergency_event import DISTRESS
+from .test_passages import poll
 from .test_route import ROUTESET_ANSWER
+from .test_watchlist import watching
 
 
 @pytest.fixture
@@ -278,3 +281,38 @@ async def test_no_route_when_routes_are_off(
     assert not [
         call for call in aioclient_mock.mock_calls if "routeset" in str(call[1])
     ]
+
+
+async def test_distress_and_the_watchlist_stand_out(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the marks the card draws, only on the aircraft they belong to."""
+    await watching(
+        hass,
+        mock_config_entry,
+        aioclient_mock,
+        "4ca123",
+        poll(
+            DISTRESS,
+            {**DISTRESS, "hex": "4ca124", "flight": "PLAIN1", "squawk": "1000"},
+        ),
+    )
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {
+            "type": SUBSCRIBE_AIRCRAFT,
+            "device_id": _station_device(hass, mock_config_entry),
+        }
+    )
+    assert (await client.receive_json())["success"]
+    planes = {
+        p["flight"]: p for p in (await client.receive_json())["event"]["aircraft"]
+    }
+
+    assert planes["RYR1YY"]["emergency"] == "emergency"
+    assert planes["RYR1YY"]["watched"] is True
+    assert "emergency" not in planes["PLAIN1"]
+    assert "watched" not in planes["PLAIN1"]
