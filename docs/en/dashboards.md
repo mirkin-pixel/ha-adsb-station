@@ -56,6 +56,8 @@ type: custom:adsb-station-table-card
 
 Flight, height, distance and direction, with type and signal once the card is wide enough. Tap a heading to sort by it and again to turn it round; whatever is unknown stays at the bottom. The box above searches flight, registration, hex and type, and keeps what you typed while the aircraft move. Tap a row to mark it. It takes `device_id` and `title`, as the station card does, and reads the same subscription, so nothing of it is written to the database.
 
+With `list: passages` it shows the [passage board](passages.md) instead, what came over today, newest first: time, flight, height and how close it came, with type and how long it was in view on a wider card. Sorting and search work the same. Put the card down twice for both.
+
 ## Aircraft on the map
 
 Switch **Aircraft on the map** on under **Configure** and every aircraft inside the nearby radius gets an entity of its own, drawn where it is, for as long as it is there. Nothing extra is read to do it: the positions are in every poll already, next to the distances the proximity sensors are built on.
@@ -106,7 +108,7 @@ recorder:
 
 ## A board of what came over
 
-The passage board is a list in an attribute, so a markdown card turns it into something to read:
+The [table card](#the-table-card) with `list: passages` shows the passage board as it is. To lay it out your own way, it is a list in an attribute, so a markdown card turns it into something to read:
 
 ```yaml
 type: markdown

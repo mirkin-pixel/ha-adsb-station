@@ -56,6 +56,8 @@ type: custom:adsb-station-table-card
 
 Vlucht, hoogte, afstand en richting, en type en signaal zodra de kaart breed genoeg is. Tik op een kop om erop te sorteren en nog eens om de volgorde om te draaien; wat onbekend is blijft onderaan. Het vak erboven zoekt op vlucht, registratie, hex en type, en houdt vast wat je typte terwijl de toestellen bewegen. Tik op een rij om hem te markeren. Hij kent `device_id` en `title`, net als de stationskaart, en leest hetzelfde abonnement, dus er komt niets van in de database.
 
+Met `list: passages` toont hij in plaats daarvan het [passagebord](passages.md), wat er vandaag overkwam, nieuwste eerst: tijd, vlucht, hoogte en hoe dichtbij het kwam, en op een bredere kaart ook type en hoe lang het in beeld was. Sorteren en zoeken werken hetzelfde. Zet de kaart twee keer neer voor allebei.
+
 ## Vliegtuigen op de kaart
 
 Zet **Vliegtuigen op de kaart** aan onder **Configureren** en elk toestel binnen de nabijheidsstraal krijgt een eigen entiteit, getekend waar het is, zolang het er is. Er wordt niets extra's voor gelezen: de posities zitten al in elke poll, naast de afstanden waar de nabijheidssensoren op gebouwd zijn.
@@ -106,7 +108,7 @@ recorder:
 
 ## Een bord van wat er overkwam
 
-Het passagebord is een lijst in een attribuut, dus een markdown-kaart maakt er iets leesbaars van:
+De [tabelkaart](#de-tabelkaart) met `list: passages` toont het passagebord zoals het is. Wil je het op je eigen manier opmaken: het is een lijst in een attribuut, dus een markdown-kaart maakt er iets leesbaars van:
 
 ```yaml
 type: markdown
