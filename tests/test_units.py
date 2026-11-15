@@ -26,7 +26,10 @@ from custom_components.adsb_station.const import (
     EVENT_WATCHLIST_MATCH,
 )
 from custom_components.adsb_station.logbook import async_describe_events
-from custom_components.adsb_station.repairs import units_issue_id
+from custom_components.adsb_station.repairs import (
+    set_by_hand_issue_id,
+    units_issue_id,
+)
 from custom_components.adsb_station.units import SYSTEMS, converted, units_of
 
 from .conftest import (
@@ -173,9 +176,13 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
         hass.states.get(entity_id).attributes.get("unit_of_measurement")
         for entity_id in (highest, fastest, sector)
     ]
-    # The one set by hand cleared once, so it follows as well
-    assert units == ["m", "km/h", "km"]
-    assert "unit_of_measurement" not in registry.async_get(sector).options["sensor"]
+    # The one set by hand stays, and is offered to follow under Repairs
+    assert units == ["m", "km/h", "mi"]
+    by_hand = ir.async_get(hass).async_get_issue(
+        DOMAIN, set_by_hand_issue_id(entry.entry_id)
+    )
+    assert by_hand is not None
+    assert by_hand.translation_placeholders["sensors"].endswith(": mi")
 
     # And it is told so, in the units it now has
     issue = ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
@@ -187,14 +194,15 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
     }
 
 
-async def test_a_station_on_the_first_units_beta_is_cleared_too(
+async def test_a_unit_set_by_hand_is_offered_to_follow_again(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
 ) -> None:
-    """Test 1.4.0b3's entries: km set by hand on the height goes, nothing asked again.
+    """Test a station on 1.4.0b3 with km on the height: asked, and cleared on yes.
 
-    The precision set beside it stays.
+    The precision set beside it stays, and so does a unit on a sensor that
+    is not in the station's units.
     """
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -212,7 +220,6 @@ async def test_a_station_on_the_first_units_beta_is_cleared_too(
     registry.async_update_entity_options(
         highest, "sensor", {"unit_of_measurement": "km", "display_precision": 1}
     )
-    # Not a figure in the station's units, so left as it was
     status = registry.async_get_or_create(
         "sensor", DOMAIN, f"{MOCK_ALIAS}_message_rate", config_entry=entry
     ).entity_id
@@ -222,7 +229,22 @@ async def test_a_station_on_the_first_units_beta_is_cleared_too(
 
     assert await setup_integration(hass, entry)
 
+    # Nothing changed by itself, and only this question asked
     assert (entry.version, entry.minor_version) == (5, 3)
+    assert hass.states.get(highest).attributes["unit_of_measurement"] == "km"
+    issue_id = set_by_hand_issue_id(entry.entry_id)
+    assert [key[1] for key in ir.async_get(hass).issues] == [issue_id]
+
+    assert await async_setup_component(hass, "repairs", {})
+    flows = hass.data["repairs"]["flow_manager"]
+    result = await flows.async_init(DOMAIN, data={"issue_id": issue_id})
+    assert result["type"] is FlowResultType.FORM
+    assert result["description_placeholders"]["station"] == entry.title
+    assert result["description_placeholders"]["sensors"].endswith(": km")
+    result = await flows.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
     assert hass.states.get(highest).attributes["unit_of_measurement"] == "ft"
     kept = registry.async_get(highest).options["sensor"]
     assert "unit_of_measurement" not in kept
@@ -230,7 +252,20 @@ async def test_a_station_on_the_first_units_beta_is_cleared_too(
     assert (
         registry.async_get(status).options["sensor"]["unit_of_measurement"] == "msg/min"
     )
-    assert not ir.async_get(hass).issues
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_no_question_without_a_unit_set_by_hand(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test an upgrade with nothing set by hand asks about the units alone."""
+    entry = await _upgraded(hass, mock_config_entry)
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, set_by_hand_issue_id(entry.entry_id))
+        is None
+    )
 
 
 async def _upgraded(

@@ -6,7 +6,6 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import (
     CONF_HOST,
     CONF_PORT,
-    CONF_UNIT_OF_MEASUREMENT,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -28,7 +27,6 @@ from .const import (
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
-    UNIT_SENSOR_KEYS,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -36,7 +34,15 @@ from .coordinator import (
     sky_signal,
 )
 from .reference import async_load_reference
-from .repairs import ISSUE_UNITS, units_issue_id, units_placeholders
+from .repairs import (
+    ISSUE_SET_BY_HAND,
+    ISSUE_UNITS,
+    set_by_hand,
+    set_by_hand_issue_id,
+    set_by_hand_placeholders,
+    units_issue_id,
+    units_placeholders,
+)
 from .services import async_setup_services
 from .websocket import async_setup_websocket
 
@@ -151,11 +157,11 @@ async def async_migrate_entry(
         if data.get(CONF_AIRCRAFT_URL):
             _ask_for_units(hass, entry)
 
-    # A unit set by hand back then was a way round the mixed units, and Home
-    # Assistant has no way to undo one; cleared once, so the setting applies.
+    # A unit set by hand back then was likely a way round the mixed units, and
+    # Home Assistant has no way back from one; offered once, under Repairs.
     # 1.4.0b3 went out without this, hence its own step.
     if entry.version < 5 or entry.minor_version < 3:
-        _forget_units_set_by_hand(hass, entry)
+        _ask_about_units_set_by_hand(hass, entry)
 
     hass.config_entries.async_update_entry(
         entry, data=data, options=options, version=5, minor_version=3
@@ -201,8 +207,28 @@ async def async_options_updated(
 async def async_remove_entry(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> None:
-    """Take the question about units away with the station."""
+    """Take the questions about units away with the station."""
     ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
+    ir.async_delete_issue(hass, DOMAIN, set_by_hand_issue_id(entry.entry_id))
+
+
+def _ask_about_units_set_by_hand(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> None:
+    """Offer to let the sensors with a unit of their own follow the setting."""
+    if not (sensors := set_by_hand(hass, entry.entry_id)):
+        return
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        set_by_hand_issue_id(entry.entry_id),
+        is_fixable=True,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_SET_BY_HAND,
+        translation_placeholders=set_by_hand_placeholders(entry, sensors),
+        data={"entry_id": entry.entry_id},
+    )
 
 
 def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
@@ -222,23 +248,6 @@ def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
         translation_placeholders=units_placeholders(hass, entry),
         data={"entry_id": entry.entry_id},
     )
-
-
-def _forget_units_set_by_hand(
-    hass: HomeAssistant, entry: AdsbStationConfigEntry
-) -> None:
-    """Clear a unit set on a height, speed or distance sensor of this station."""
-    registry = er.async_get(hass)
-    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if entity.domain != SENSOR_DOMAIN or not any(
-            entity.unique_id.endswith(f"_{key}") for key in UNIT_SENSOR_KEYS
-        ):
-            continue
-        options = dict(entity.options.get(SENSOR_DOMAIN, {}))
-        if options.pop(CONF_UNIT_OF_MEASUREMENT, None) is not None:
-            registry.async_update_entity_options(
-                entity.entity_id, SENSOR_DOMAIN, options or None
-            )
 
 
 def _refresh_sensor_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:

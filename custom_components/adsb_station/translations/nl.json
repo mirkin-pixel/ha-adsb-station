@@ -521,10 +521,24 @@
         "step": {
           "confirm": {
             "title": "Eenheden van {station}",
-            "description": "Sinds 1.4 geeft {station} hoogtes, snelheden en afstanden in de eenheden die je hier kiest, overal: de sensoren, hun attributen, de events, de acties, Activiteit, Assist en de kaart. Nu zijn dat {units}; eerst stonden hoogtes in voet, snelheden in knopen en afstanden in kilometers. Een eenheid die je zelf op een van deze sensoren had gezet is gewist, zodat ze allemaal meegaan.\n\nGetallen die je zelf ergens opschreef worden ook in deze eenheden gelezen: een automatisering die een hoogte, snelheid of afstand vergelijkt, en map_range en max_altitude op de kaart. Die kan niets voor je omrekenen, dus kijk ze na, of kies Luchtvaart om hoogtes in voet en snelheden in knopen te houden, met afstanden in zeemijl.",
+            "description": "Sinds 1.4 geeft {station} hoogtes, snelheden en afstanden in de eenheden die je hier kiest, overal: de sensoren, hun attributen, de events, de acties, Activiteit, Assist en de kaart. Nu zijn dat {units}; eerst stonden hoogtes in voet, snelheden in knopen en afstanden in kilometers.\n\nGetallen die je zelf ergens opschreef worden ook in deze eenheden gelezen: een automatisering die een hoogte, snelheid of afstand vergelijkt, en map_range en max_altitude op de kaart. Die kan niets voor je omrekenen, dus kijk ze na, of kies Luchtvaart om hoogtes in voet en snelheden in knopen te houden, met afstanden in zeemijl.",
             "data": {
               "units": "Eenheden"
             }
+          }
+        },
+        "abort": {
+          "station_removed": "Het station is verwijderd."
+        }
+      }
+    },
+    "units_set_by_hand": {
+      "title": "Eigen eenheden bij {station}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Eigen eenheden bij {station}",
+            "description": "Op deze sensoren is zelf een eenheid gekozen, waardoor ze de instelling Eenheden niet volgen zoals de rest:\n\n{sensors}\n\nDat is waarschijnlijk gedaan toen hoogtes, snelheden en afstanden nog door elkaar stonden. Home Assistant heeft geen manier om het terug te draaien, dus verzend dit om ze de instelling weer te laten volgen. Wil je ze zo houden, sluit dit dan en kies Negeren."
           }
         },
         "abort": {
