@@ -14,7 +14,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](routes.md) kunnen dragen |
 | Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
-| Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde door de lucht gemeten. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](passages.md) |
+| Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde op de kaart. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](passages.md) |
 | Passages vandaag | Sensor | Hoeveel vliegtuigen er vandaag overkwamen, met de laatste twintig als attributen, meest recente eerst |
 | Vandaag gehoord | Sensor | Hoeveel verschillende toestellen het station vandaag hoorde, op elke afstand |
 | Watchlist in bereik | Binary sensor | Aan zolang er een toestel van je [watchlist](watchlist.md) in de lucht is. Staat er alleen als je er een hebt ingesteld |

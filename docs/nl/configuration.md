@@ -32,7 +32,7 @@ Draait je decoder als Home Assistant-add-on in plaats van op een eigen machine â
 
 ## Wat overhead precies betekent
 
-Een straal is een cirkel op de grond. Een lijnvliegtuig op 36.000 voet dat over je straat gaat zit binnen een cirkel van tien kilometer, en niemand kijkt daarnaar op â€” de hoogte telt al mee voor de afstand, maar een ruime straal laat hem er toch in.
+Een straal is een cirkel op de grond, en alles wat erin komt telt als dichtbij en komt over, hoe hoog het ook vliegt. Een lijnvliegtuig op 36.000 voet dat over je straat gaat zit binnen een cirkel van tien kilometer, en die wil je misschien niet op je bord of in je meldingen.
 
 **Hoogtegrens overhead** onder **Configureren** is het antwoord, in voet, en hij is leeg tot je hem invult. Tienduizend voet is een verstandig beginpunt: daaronder zit verkeer in de nadering, helikopters, en alles met een reden om laag te zitten.
 

@@ -54,6 +54,7 @@ from .coordinator import (
     ReceiverStats,
     aircraft_attributes,
     count_of,
+    slant_distance,
 )
 from .entity import (
     AdsbStationAircraftEntity,
@@ -1095,7 +1096,11 @@ class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
             seen_at=dt_util.utcnow().isoformat(),
             details={
                 **aircraft_attributes(passage.current, include_distance=True),
-                "slant_distance": round(passage.current_distance / 1000, 1),
+                "slant_distance": (
+                    None
+                    if (metres := slant_distance(passage.current)) is None
+                    else round(metres / 1000, 1)
+                ),
                 "since": passage.started_at.isoformat(),
             },
         )
@@ -1207,8 +1212,13 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the board itself, most recent first."""
-        return {"passages": self._board.passages}
+        """Return the board itself, most recent first.
+
+        A copy: Home Assistant tells the browser what changed by comparing
+        with the state it last wrote, and a list changed in place compares
+        equal to itself, so the board would not reach the browser.
+        """
+        return {"passages": list(self._board.passages)}
 
 
 @dataclass

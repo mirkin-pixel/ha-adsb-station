@@ -358,14 +358,19 @@ def _vertical_rate(entry: dict[str, Any]) -> float | None:
 def slant_distance(summary: AircraftSummary) -> float | None:
     """Return the distance through the air in metres, height included.
 
-    Ground distance alone would count an airliner at cruise as overhead.
-    Without an altitude it falls back to the ground distance.
+    Reported beside the passage, not used to decide it. Without an altitude
+    it falls back to the ground distance.
     """
     if summary.distance is None:
         return None
     if summary.altitude is None:
         return summary.distance
     return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
+
+
+def _kilometres(metres: float | None) -> float | None:
+    """Return metres as kilometres to one decimal, None as None."""
+    return None if metres is None else round(metres / 1000, 1)
 
 
 def approach_of(
@@ -1053,8 +1058,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
     def _track_passages(self, stats: AircraftStats) -> None:
         """Follow the aircraft crossing the radius, and announce new ones.
 
-        From the nearby list, dropping aircraft that are too high or on the
-        ground, so taxiing traffic at a nearby field is no passage.
+        From the nearby list, the circle on the map under the ceiling, the
+        same one Aircraft overhead turns on for. Measured across the ground:
+        through the air an airliner at cruise is never within the radius,
+        not even straight overhead. On the ground is no passage, so taxiing
+        traffic at a nearby field is left out.
         """
         now = dt_util.utcnow()
         radius = self.proximity_radius
@@ -1063,7 +1071,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         for summary in stats.nearby:
             if summary.on_ground:
                 continue
-            metres = slant_distance(summary)
+            metres = summary.distance
             if metres is None or metres > radius:
                 continue
 
@@ -1084,14 +1092,19 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 )
                 self.passages[summary.hex] = passage
                 in_view.append(passage)
-                self._announce(passage, metres)
+                self._announce(passage)
                 continue
 
             in_view.append(passage)
             passage.last_seen = now
             passage.current = summary
             passage.current_distance = metres
-            if metres < passage.closest_distance:
+            # Level across the ground, as when circling or descending over one
+            # spot, the lower is the closer.
+            if (metres, slant_distance(summary) or 0) < (
+                passage.closest_distance,
+                slant_distance(passage.closest) or 0,
+            ):
                 passage.closest = summary
                 passage.closest_distance = metres
                 passage.closest_at = now
@@ -1301,7 +1314,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         ]:
             del self._distressed[hex_code]
 
-    def _announce(self, passage: Passage, metres: float) -> None:
+    def _announce(self, passage: Passage) -> None:
         """Fire the event for a passage that has just begun.
 
         Per aircraft, so a second arrival while one is overhead is not missed.
@@ -1312,7 +1325,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 **self._event_base(),
                 **aircraft_attributes(passage.closest, include_distance=True),
                 # Through the air; "distance" is across the ground.
-                "slant_distance": round(metres / 1000, 1),
+                "slant_distance": _kilometres(slant_distance(passage.closest)),
             },
         )
 
