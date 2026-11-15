@@ -169,3 +169,17 @@ async def test_offered_only_where_it_helps_and_deleted_when_off(
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
     assert not database.path.exists()
+
+
+async def test_not_offered_before_any_aircraft_is_heard(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test a start in an empty sky: whether the decoder names aircraft is unknown."""
+    set_responses(aioclient_mock, aircraft=poll())
+    assert await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.runtime_data.decoder_has_database is None
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert CONF_AIRCRAFT_DATABASE not in result["data_schema"].schema

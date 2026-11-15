@@ -594,7 +594,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
         if entry.options.get(CONF_AIRCRAFT_DATABASE) or (
             entry.data.get(CONF_AIRCRAFT_URL)
             and coordinator is not None
-            and not coordinator.decoder_has_database
+            and coordinator.decoder_has_database is False
         ):
             return OPTIONS_SCHEMA.extend(
                 {vol.Optional(CONF_AIRCRAFT_DATABASE, default=False): bool}

@@ -747,8 +747,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if config_entry.options.get(CONF_AIRCRAFT_DATABASE)
             else None
         )
-        # Whether aircraft.json itself names aircraft, so one is not needed.
-        self.decoder_has_database = False
+        # Whether aircraft.json itself names aircraft; None until any are heard.
+        self.decoder_has_database: bool | None = None
         # Registered by the sector sensors, for the reset button.
         self.sector_sensors: list[SectorRangeRecord] = []
         # Aircraft crossing the radius now, by hex, kept across polls.
@@ -1021,6 +1021,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         aircraft = [entry for entry in data["aircraft"] if isinstance(entry, dict)]
         if any("r" in entry or "t" in entry for entry in aircraft):
             self.decoder_has_database = True
+        elif aircraft and self.decoder_has_database is None:
+            self.decoder_has_database = False
         if self.database is None:
             return data
         self.database.async_refresh_if_due()
