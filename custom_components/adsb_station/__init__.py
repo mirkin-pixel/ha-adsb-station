@@ -8,9 +8,11 @@ from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
+from .aircraft_db import database_of
 from .api import AdsbStationClient
 from .card import async_register_card
 from .const import (
+    CONF_AIRCRAFT_DATABASE,
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
@@ -70,6 +72,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    # The downloaded table goes once no station uses it any more.
+    if not any(
+        other.options.get(CONF_AIRCRAFT_DATABASE)
+        for other in hass.config_entries.async_entries(DOMAIN)
+    ):
+        await hass.async_add_executor_job(database_of(hass).remove)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_options_updated))

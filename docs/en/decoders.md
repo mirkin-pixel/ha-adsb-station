@@ -35,6 +35,8 @@ Then add the option to `/etc/default/readsb`, in the arguments readsb is started
 
 Restart readsb, and the extra fields appear in `aircraft.json` straight away. The integration picks them up on its own: the attributes are added as soon as the decoder sends them, so there is nothing to reconfigure. The database is a snapshot, so refresh it now and then by running the same command again.
 
+dump1090-fa, PiAware's decoder and fr24feed's own dump1090 cannot load a database at all. For those, and for a readsb you would rather leave alone, **Configure** offers **Download an aircraft database** once the integration has seen that your decoder names no aircraft. It fetches the same file, tar1090-db, made from [Mictronics](https://github.com/wiedehopf/tar1090-db)' data, straight from GitHub to your Home Assistant, at most once a week and only while the option is on. It is kept on disk, about 26 MB in `.storage`, rather than in memory, and the aircraft you hear are looked up there each poll: what they are never leaves your network, and the only traffic is that weekly download. Registration, type, description and the military and other flags are taken from it; the owner column, which names private people, is not. What the decoder says itself always wins, and switching the option off deletes the file.
+
 ## Ultrafeeder
 
 [Ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) is readsb and tar1090 in one Docker container, and to this integration it is readsb: the last column of the table above applies. Two settings of the container decide how much of it you get:
