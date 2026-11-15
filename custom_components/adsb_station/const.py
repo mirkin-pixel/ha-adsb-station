@@ -79,6 +79,14 @@ CONF_RECEIVER_FEATURES = "receiver_features"
 # Compass sectors for the range records, each 45 degrees centred on its
 # direction.
 SECTORS: tuple[str, ...] = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
+# The sensors given in the units the station is set to.
+UNIT_SENSOR_KEYS: tuple[str, ...] = (
+    "closest_aircraft",
+    "highest_aircraft",
+    "fastest_aircraft",
+    "max_range",
+    *(f"max_range_{sector}" for sector in SECTORS),
+)
 
 # Optional receiver data, detected in the config flow so no entity is created
 # for data the decoder never sends. Reconfigure picks up new ones.

@@ -161,19 +161,21 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
     highest = registered("highest_aircraft", "ft")
     fastest = registered("fastest_aircraft", "kn")
     sector = registered("max_range_n", "km")
-    # And one the user set to miles themselves
+    # And one set to miles by hand, round the mixed units
     registry.async_update_entity_options(
         sector, "sensor", {"unit_of_measurement": "mi"}
     )
 
     assert await setup_integration(hass, entry)
 
-    assert (entry.version, entry.minor_version) == (5, 2)
+    assert (entry.version, entry.minor_version) == (5, 3)
     units = [
         hass.states.get(entity_id).attributes.get("unit_of_measurement")
         for entity_id in (highest, fastest, sector)
     ]
-    assert units == ["m", "km/h", "mi"]
+    # The one set by hand cleared once, so it follows as well
+    assert units == ["m", "km/h", "km"]
+    assert "unit_of_measurement" not in registry.async_get(sector).options["sensor"]
 
     # And it is told so, in the units it now has
     issue = ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
@@ -183,6 +185,52 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
         "station": entry.title,
         "units": "m, km/h, km",
     }
+
+
+async def test_a_station_on_the_first_units_beta_is_cleared_too(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test 1.4.0b3's entries: km set by hand on the height goes, nothing asked again.
+
+    The precision set beside it stays.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=5,
+        minor_version=2,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+        options={CONF_UNITS: "nautical"},
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    highest = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_highest_aircraft", config_entry=entry
+    ).entity_id
+    registry.async_update_entity_options(
+        highest, "sensor", {"unit_of_measurement": "km", "display_precision": 1}
+    )
+    # Not a figure in the station's units, so left as it was
+    status = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_message_rate", config_entry=entry
+    ).entity_id
+    registry.async_update_entity_options(
+        status, "sensor", {"unit_of_measurement": "msg/min"}
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert (entry.version, entry.minor_version) == (5, 3)
+    assert hass.states.get(highest).attributes["unit_of_measurement"] == "ft"
+    kept = registry.async_get(highest).options["sensor"]
+    assert "unit_of_measurement" not in kept
+    assert kept["display_precision"] == 1
+    assert (
+        registry.async_get(status).options["sensor"]["unit_of_measurement"] == "msg/min"
+    )
+    assert not ir.async_get(hass).issues
 
 
 async def _upgraded(

@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.const import CONF_HOST, CONF_PORT, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
+    CONF_UNIT_OF_MEASUREMENT,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -23,6 +28,7 @@ from .const import (
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
+    UNIT_SENSOR_KEYS,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -139,14 +145,20 @@ async def async_migrate_entry(
                 )
 
     # Sensors took the units fixed before 1.4; they look again once, as they
-    # do when the setting changes. A unit chosen on a sensor stays.
+    # do when the setting changes.
     if entry.version < 5 or entry.minor_version < 2:
         _refresh_sensor_units(hass, entry)
         if data.get(CONF_AIRCRAFT_URL):
             _ask_for_units(hass, entry)
 
+    # A unit set by hand back then was a way round the mixed units, and Home
+    # Assistant has no way to undo one; cleared once, so the setting applies.
+    # 1.4.0b3 went out without this, hence its own step.
+    if entry.version < 5 or entry.minor_version < 3:
+        _forget_units_set_by_hand(hass, entry)
+
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=5, minor_version=2
+        entry, data=data, options=options, version=5, minor_version=3
     )
     return True
 
@@ -210,6 +222,23 @@ def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
         translation_placeholders=units_placeholders(hass, entry),
         data={"entry_id": entry.entry_id},
     )
+
+
+def _forget_units_set_by_hand(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> None:
+    """Clear a unit set on a height, speed or distance sensor of this station."""
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain != SENSOR_DOMAIN or not any(
+            entity.unique_id.endswith(f"_{key}") for key in UNIT_SENSOR_KEYS
+        ):
+            continue
+        options = dict(entity.options.get(SENSOR_DOMAIN, {}))
+        if options.pop(CONF_UNIT_OF_MEASUREMENT, None) is not None:
+            registry.async_update_entity_options(
+                entity.entity_id, SENSOR_DOMAIN, options or None
+            )
 
 
 def _refresh_sensor_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:

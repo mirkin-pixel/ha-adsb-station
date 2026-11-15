@@ -521,7 +521,7 @@
         "step": {
           "confirm": {
             "title": "Units of {station}",
-            "description": "Since 1.4, {station} gives heights, speeds and distances in the units chosen here, everywhere: the sensors, their attributes, the events, the actions, Activity, Assist and the card. They are now {units}; before, heights were in feet, speeds in knots and distances in kilometres.\n\nNumbers you wrote yourself are read in these units too: an automation comparing a height, speed or distance, and the card's map_range and max_altitude. Nothing can convert those for you, so look them over, or pick Aviation to keep heights in feet and speeds in knots, with distances in nautical miles.",
+            "description": "Since 1.4, {station} gives heights, speeds and distances in the units chosen here, everywhere: the sensors, their attributes, the events, the actions, Activity, Assist and the card. They are now {units}; before, heights were in feet, speeds in knots and distances in kilometres. A unit you had set on one of these sensors yourself has been cleared, so they all follow.\n\nNumbers you wrote yourself are read in these units too: an automation comparing a height, speed or distance, and the card's map_range and max_altitude. Nothing can convert those for you, so look them over, or pick Aviation to keep heights in feet and speeds in knots, with distances in nautical miles.",
             "data": {
               "units": "Units"
             }
