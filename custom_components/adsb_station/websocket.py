@@ -88,6 +88,8 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
         "latitude": latitude,
         "longitude": longitude,
         "radius": coordinator.proximity_radius / 1000,
+        # The figures below stay in feet, knots and km; the card shows them in these.
+        "units": coordinator.units.system,
         "aircraft": planes,
         # The shape the card draws, when the decoder keeps one.
         "outline": coordinator.outline,

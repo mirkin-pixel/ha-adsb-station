@@ -80,6 +80,7 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     assert sky["latitude"] == HOME_LATITUDE
     assert sky["longitude"] == HOME_LONGITUDE
     assert sky["radius"] == 10
+    assert sky["units"] == "metric"
     # Not only the nearby one: TRA45 is a hundred kilometres out. EZY22 has no
     # position, so there is nowhere to draw it.
     planes = {plane["flight"]: plane for plane in sky["aircraft"]}

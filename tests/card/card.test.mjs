@@ -1085,6 +1085,16 @@ const tests = {
     assert.match(panel(nautical), /0\.6 NM/);
   },
 
+  "takes the units from the sky, before any sensor names them"() {
+    const w = browser();
+    const hass = hassWith();
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send({ ...SKY([LOW]), units: "nautical" });
+    const rings = [...card.shadowRoot.querySelectorAll(".radar text")].map((label) => label.textContent);
+    assert.ok(rings.some((ring) => / NM$/.test(ring)));
+  },
+
   "reads the list in its own sensor's units before anything was overhead"() {
     const w = browser();
     const list = () => {

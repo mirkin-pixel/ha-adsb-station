@@ -1661,10 +1661,10 @@ class AdsbStationCard extends HTMLElement {
     return `${this._number(knots * per, 0)} ${unit}`;
   }
 
-  // The integration's units, else, before 1.4, Home Assistant's own:
-  // imperial for its US units, metric otherwise.
+  // The integration's units, as the sky or a sensor names them. Before
+  // either has arrived, Home Assistant's own: imperial for US units.
   _units() {
-    return this._stationUnits() || this._hassUnits();
+    return (this._sky && UNIT_SYSTEMS[this._sky.units]) || this._stationUnits() || this._hassUnits();
   }
 
   _hassUnits() {
@@ -1672,7 +1672,7 @@ class AdsbStationCard extends HTMLElement {
     return system && system.length === "mi" ? UNIT_SYSTEMS.imperial : UNIT_SYSTEMS.metric;
   }
 
-  // What the integration sends its sensors' figures in, or null before 1.4.
+  // What the integration sends its sensors' figures in, if any says so.
   _stationUnits() {
     const found = this._found || {};
     for (const key of ["overhead", "nearby", "passages"]) {
@@ -2403,10 +2403,7 @@ class AdsbStationTableCard extends AdsbStationCard {
         select: { mode: "dropdown", options: LISTS.map((value) => ({ value, label: text[`list_${value}`] })) },
       },
     };
-    return {
-      ...form,
-      schema: [...form.schema.filter((field) => ["device_id", "title"].includes(field.name)), list],
-    };
+    return { ...form, schema: [...form.schema.filter((field) => ["device_id", "title"].includes(field.name)), list] };
   }
 
   setConfig(config) {

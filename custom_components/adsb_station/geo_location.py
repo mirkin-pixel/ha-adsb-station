@@ -104,8 +104,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         position: tuple[float, float],
     ) -> None:
         """Initialize the aircraft at the position it arrived on."""
-        self._units = coordinator.units
-        self._attr_unit_of_measurement = self._units.distance
+        self._coordinator = coordinator
         # Fixed at arrival, so a late callsign does not change the entity ID.
         self._attr_name = summary.flight or summary.hex
         self._apply(summary, position)
@@ -114,13 +113,6 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         """Take over the position and distance of one poll."""
         self._summary = summary
         self._attr_latitude, self._attr_longitude = position
-        self._attr_distance = (
-            None
-            if summary.distance is None
-            else DistanceConverter.convert(
-                summary.distance, UnitOfLength.METERS, self._units.distance
-            )
-        )
 
     @callback
     def follow(self, summary: AircraftSummary, position: tuple[float, float]) -> None:
@@ -138,6 +130,20 @@ class AdsbStationAircraftLocation(GeolocationEvent):
             self.hass.async_create_task(self.async_remove(force_remove=True))
 
     @property
+    def unit_of_measurement(self) -> str:
+        """Return the distance unit the station is set to."""
+        return self._coordinator.units.distance
+
+    @property
+    def distance(self) -> float | None:
+        """Return how far away it is across the ground, in that unit."""
+        if (metres := self._summary.distance) is None:
+            return None
+        return DistanceConverter.convert(
+            metres, UnitOfLength.METERS, self._coordinator.units.distance
+        )
+
+    @property
     def icon(self) -> str:
         """Return what the aircraft is, or what it is doing."""
         return aircraft_icon(self._summary)
@@ -145,7 +151,8 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     @property
     def extra_state_attributes(self) -> dict[str, str | float | None]:
         """Return everything else known; the distance is the state."""
+        units = self._coordinator.units
         return {
-            **converted(aircraft_attributes(self._summary), self._units),
-            **unit_attributes(self._units),
+            **converted(aircraft_attributes(self._summary), units),
+            **unit_attributes(units),
         }
