@@ -21,6 +21,7 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 |---|---|---|
 | `device_id` | het eerste station met een ontvanger | Welk station, als je meer dan één antenne uitleest |
 | `title` | geen | Een kop boven de kaart |
+| `units` | zoals Home Assistant | De eenheden voor hoogte, snelheid en afstand, dezelfde drie als in tar1090: `nautical` (voet, knopen, zeemijl), `metric` (meter, km/h, km) of `imperial` (voet, mph, mijl). Laat je hem weg, dan volgt de kaart Home Assistant: imperiaal bij de Amerikaanse eenheden, anders metrisch. `map_range` blijft in kilometers en `max_altitude` in voet |
 | `map` | `radar` | De lucht rond het station: `radar`, `map` voor dezelfde lucht op een kaart met straten, of `none` |
 | `map_scale` | `aircraft` | Hoe ver de radar, of de kaart, reikt: `aircraft` passend bij de toestellen in de lucht, `coverage` ook passend bij de bereikrecords, of `fixed` |
 | `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in kilometers, van 5 tot 700 |
