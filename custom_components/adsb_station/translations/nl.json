@@ -89,20 +89,24 @@
         "title": "ADS-B-ontvanger",
         "description": "Home Assistant kan ook de aircraft.json van je decoder uitlezen voor het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik. Laat het veld leeg om dit over te slaan. Laat het leeg als een andere entry op dit station de decoder al uitleest, anders tellen die vliegtuigen dubbel.",
         "data": {
-          "aircraft_url": "aircraft.json-URL"
+          "aircraft_url": "aircraft.json-URL",
+          "units": "Eenheden"
         },
         "data_description": {
-          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7:8080/dump1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt."
+          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7:8080/dump1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt.",
+          "units": "Waarin hoogtes, snelheden en afstanden staan: bij de sensoren, in hun attributen en events, in gesproken antwoorden en op de kaart. Zoals Home Assistant volgt het eenhedenstelsel van Home Assistant: metrisch, of imperiaal bij Amerikaanse eenheden. Luchtvaart is voet, knopen en zeemijl."
         }
       },
       "receiver_url": {
         "title": "aircraft.json",
         "description": "Hier komt alle data vandaan, dus dit veld is verplicht. Elke decoder die een aircraft.json aanbiedt werkt, ongeacht aan welk netwerk je voedt.",
         "data": {
-          "aircraft_url": "aircraft.json-URL"
+          "aircraft_url": "aircraft.json-URL",
+          "units": "Eenheden"
         },
         "data_description": {
-          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7/tar1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt."
+          "aircraft_url": "De volledige URL naar aircraft.json, bijvoorbeeld http://192.168.5.7/tar1090/data/aircraft.json. Wordt automatisch gedetecteerd als dat lukt.",
+          "units": "Waarin hoogtes, snelheden en afstanden staan: bij de sensoren, in hun attributen en events, in gesproken antwoorden en op de kaart. Zoals Home Assistant volgt het eenhedenstelsel van Home Assistant: metrisch, of imperiaal bij Amerikaanse eenheden. Luchtvaart is voet, knopen en zeemijl."
         }
       }
     },
@@ -133,7 +137,8 @@
           "look_up_routes": "Vluchtroutes opzoeken",
           "look_up_photos": "Foto's van vliegtuigen opzoeken",
           "watchlist": "Watchlist",
-          "aircraft_database": "Vliegtuigdatabase downloaden"
+          "aircraft_database": "Vliegtuigdatabase downloaden",
+          "units": "Eenheden"
         },
         "data_description": {
           "scan_interval": "Hoe vaak de vliegtuigen uitgelezen worden, in seconden. Alles draait op je eigen netwerk, dus een korte tijd kan prima.",
@@ -144,7 +149,8 @@
           "look_up_routes": "Geen enkel vliegtuig zendt uit waar het vandaan komt of heen gaat, dus dit moet aan een dienst op internet gevraagd worden. Het gebruikt routeset, dezelfde bron als tar1090. Alleen de vliegtuigen binnen de straal 'dichtbij' worden opgezocht, en antwoorden worden een dag bewaard.",
           "look_up_photos": "Voegt een foto toe van elk vliegtuig binnen de straal 'dichtbij', en van elk vliegtuig op de watchlist, van Planespotters.net. Alleen het adres dat het vliegtuig uitzendt wordt verstuurd, en antwoorden worden een dag bewaard. De foto's worden uitgeleend op voorwaarde dat de fotograaf erbij genoemd wordt en dat de foto naar zijn pagina linkt, dus ze komen als attributen voor een dashboardkaart en niet als entiteitsafbeelding.",
           "watchlist": "Toestellen die je wilt weten zodra ze opduiken, één per regel. Er is geen straal: de vraag is of het toestel überhaupt in de lucht is, hoe ver weg ook. Een regel kan een hexcode zijn (484123), een registratie of callsign (PH-BXA, KLM123), een vliegtuigtype (EC35), een squawk (7700), het begin van een registratie of callsign (PH-B*, KLM*), military, helicopter of een land (country:US).",
-          "aircraft_database": "Je decoder noemt zelf geen vliegtuigen, dus registraties en types ontbreken. Dit downloadt de tabel van tar1090-db (gegevens van Mictronics, zo'n 9 MB) rechtstreeks van GitHub naar je Home Assistant, hooguit één keer per week, bewaart hem op schijf, zo'n 26 MB, en zoekt de toestellen die je hoort daarin op. Niets over die toestellen verlaat je netwerk. Uitzetten verwijdert het bestand."
+          "aircraft_database": "Je decoder noemt zelf geen vliegtuigen, dus registraties en types ontbreken. Dit downloadt de tabel van tar1090-db (gegevens van Mictronics, zo'n 9 MB) rechtstreeks van GitHub naar je Home Assistant, hooguit één keer per week, bewaart hem op schijf, zo'n 26 MB, en zoekt de toestellen die je hoort daarin op. Niets over die toestellen verlaat je netwerk. Uitzetten verwijdert het bestand.",
+          "units": "Waarin hoogtes, snelheden en afstanden staan: bij de sensoren, in hun attributen en events, in gesproken antwoorden en op de kaart. Zoals Home Assistant volgt het eenhedenstelsel van Home Assistant: metrisch, of imperiaal bij Amerikaanse eenheden. Luchtvaart is voet, knopen en zeemijl."
         }
       }
     },
@@ -634,6 +640,16 @@
     },
     "not_on_watchlist": {
       "message": "{line} staat niet op de watchlist van {station}."
+    }
+  },
+  "selector": {
+    "units": {
+      "options": {
+        "auto": "Zoals Home Assistant",
+        "nautical": "Luchtvaart (ft, kt, NM)",
+        "metric": "Metrisch (m, km/h, km)",
+        "imperial": "Imperiaal (ft, mph, mi)"
+      }
     }
   }
 }

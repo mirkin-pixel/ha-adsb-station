@@ -45,6 +45,7 @@ from .const import (
     CONF_RECEIVER_FEATURES,
     CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
@@ -66,6 +67,7 @@ from .const import (
 )
 from .coordinator import AdsbStationConfigEntry
 from .reference import async_load_reference, kind_of
+from .units import UNIT_CHOICES, UNITS_AUTO
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,9 +111,18 @@ OPTIONAL_AIRCRAFT_SCHEMA = vol.Schema(
 REQUIRED_AIRCRAFT_SCHEMA = vol.Schema(
     {vol.Required(CONF_AIRCRAFT_URL, default=""): _AIRCRAFT_URL_SELECTOR}
 )
+_UNITS_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=UNIT_CHOICES,
+        translation_key=CONF_UNITS,
+        mode=selector.SelectSelectorMode.DROPDOWN,
+    )
+)
+UNITS_FIELD = {vol.Required(CONF_UNITS, default=UNITS_AUTO): _UNITS_SELECTOR}
 
 OPTIONS_SCHEMA = vol.Schema(
     {
+        **UNITS_FIELD,
         vol.Required(
             CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
         ): selector.NumberSelector(
@@ -376,6 +387,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             self._aircraft_url = await self._async_suggest_aircraft_url()
         else:
             self._aircraft_url = str(user_input.get(CONF_AIRCRAFT_URL) or "").strip()
+            self._units = str(user_input.get(CONF_UNITS) or UNITS_AUTO)
             if not self._aircraft_url:
                 if not required:
                     return self._async_finish(None)
@@ -390,11 +402,19 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
-                REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA,
+                self._aircraft_schema(required),
                 {CONF_AIRCRAFT_URL: self._aircraft_url},
             ),
             errors=errors,
         )
+
+    def _aircraft_schema(self, required: bool) -> vol.Schema:
+        """Return the aircraft.json step, asking for units on a new station."""
+        schema = REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA
+        # A reconfigured station keeps its units; they live under Configure.
+        if self.source == SOURCE_RECONFIGURE:
+            return schema
+        return schema.extend(UNITS_FIELD)
 
     def _feeder_defaults(self, port: int) -> dict[str, Any]:
         """Return the values to prefill a feeder step with."""
@@ -525,7 +545,12 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             # changed; reloading here as well would reload it twice.
             self.hass.config_entries.async_update_entry(entry, data=data)
             return self.async_abort(reason="reconfigure_successful")
-        return self.async_create_entry(title=self._title, data=data)
+        units = getattr(self, "_units", UNITS_AUTO)
+        return self.async_create_entry(
+            title=self._title,
+            data=data,
+            options={} if units == UNITS_AUTO else {CONF_UNITS: units},
+        )
 
     @staticmethod
     @callback
@@ -550,6 +575,8 @@ class AdsbStationOptionsFlow(OptionsFlow):
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
                 CONF_LOOK_UP_PHOTOS: user_input[CONF_LOOK_UP_PHOTOS],
             }
+            if (units := user_input.get(CONF_UNITS, UNITS_AUTO)) != UNITS_AUTO:
+                options[CONF_UNITS] = units
             if user_input.get(CONF_AIRCRAFT_DATABASE):
                 options[CONF_AIRCRAFT_DATABASE] = True
             # Left empty means no ceiling at all, so the option is absent

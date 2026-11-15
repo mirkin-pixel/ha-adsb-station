@@ -16,11 +16,11 @@ automation:
           title: "Noodgeval: {{ trigger.event.data.reason }}"
           message: >
             {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km verderop{% endif %}
-            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} verderop{% endif %}
+            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
 ```
 
-`adsb_station_aircraft_emergency` gaat één keer per vlucht af, net als de [watchlist](watchlist.md): een toestel dat een uur in nood blijft is één bericht, en hetzelfde toestel wordt pas opnieuw gemeld na tien minuten buiten bereik. Het event heeft dezelfde velden als de andere events, met de afstand in kilometers, plus `reason` en `squawk`. Anders dan de binary sensor `Noodsquawk`, die maar één keer aangaat zolang er een toestel in nood is, meldt het ook een tweede.
+`adsb_station_aircraft_emergency` gaat één keer per vlucht af, net als de [watchlist](watchlist.md): een toestel dat een uur in nood blijft is één bericht, en hetzelfde toestel wordt pas opnieuw gemeld na tien minuten buiten bereik. Het event heeft dezelfde velden als de andere events, in de [eenheden](configuration.md#eenheden) die je koos, plus `reason` en `squawk`. Anders dan de binary sensor `Noodsquawk`, die maar één keer aangaat zolang er een toestel in nood is, meldt het ook een tweede.
 
 Elk noodgeval laat ook een regel achter in **Activiteit**, ook op de apparaatpagina van het station. Passages niet: tientallen per dag zouden de rest wegdrukken, en het [passagebord](dashboards.md) heeft ze al. Elk event draagt `device_id`, het apparaat van het station, naast `entry_id` en `station`.
 
@@ -52,17 +52,16 @@ automation:
       - service: notify.mobile_app
         data:
           message: >-
-            {% set plane = state_attr(
-                 'binary_sensor.ads_b_station_vliegtuig_overhead',
-                 'aircraft')[0] %}
+            {% set overhead = 'binary_sensor.ads_b_station_vliegtuig_overhead' %}
+            {% set plane = state_attr(overhead, 'aircraft')[0] %}
             {{ plane.airline | default(plane.flight or 'Een onbekend vliegtuig') }}
-            overhead op {{ plane.altitude }} ft
+            overhead op {{ plane.altitude }} {{ state_attr(overhead, 'altitude_unit') }}
             {%- if plane.description is defined %},
             een {{ plane.description }}
             {%- endif %}
             {%- if plane.vertical_rate %},
             {{ 'stijgend' if plane.vertical_rate > 0 else 'dalend' }} met
-            {{ plane.vertical_rate | abs }} ft/min
+            {{ plane.vertical_rate | abs }} {{ state_attr(overhead, 'vertical_rate_unit') }}
             {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} naar {{ plane.destination_location }}
@@ -123,7 +122,7 @@ automation:
           media_player_entity_id: media_player.keuken
           message: >
             {{ trigger.event.data.airline or trigger.event.data.flight or 'Een vliegtuig' }}
-            komt over op {{ trigger.event.data.altitude }} voet
+            komt over op {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
             {%- if trigger.event.data.route %}, {{ trigger.event.data.route }}{% endif %}.
 ```
 
@@ -150,7 +149,7 @@ automation:
           message: >
             {{ trigger.event.data.airline or trigger.event.data.flight or 'Er' }}
             komt over ongeveer {{ (trigger.event.data.seconds_to_closest / 60) | round }} minuten
-            op {{ trigger.event.data.closest_passing_distance }} kilometer langs.
+            op {{ trigger.event.data.closest_passing_distance }} {{ trigger.event.data.distance_unit }} langs.
 ```
 
 Melding als er iets van je [watchlist](watchlist.md) opduikt, waar het ook is:
@@ -167,8 +166,8 @@ automation:
           title: "{{ trigger.event.data.watching }} is in de lucht"
           message: >
             {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km ver{% endif %}
-            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} voet{% endif %}.
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} ver{% endif %}
+            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
 ```
 
 Melding wanneer de ontvanger niets meer hoort, wat na een herstart meestal betekent dat de dongle er even uit en weer in moet:
@@ -197,7 +196,9 @@ flight: TEST1
 reason: emergency
 squawk: "7700"
 distance: 12.3
+distance_unit: km
 altitude: 3000
+altitude_unit: ft
 ```
 
 Elke automatisering op dat event draait, dus de melding gaat echt uit, en de watchlist- en noodevents laten ook een regel achter in **Activiteit**.

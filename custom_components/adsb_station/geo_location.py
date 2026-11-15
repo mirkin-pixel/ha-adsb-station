@@ -24,6 +24,7 @@ from .coordinator import (
     AircraftSummary,
     aircraft_attributes,
 )
+from .units import converted, unit_attributes
 
 # Updates are centralized through the coordinator
 PARALLEL_UPDATES = 0
@@ -103,6 +104,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         position: tuple[float, float],
     ) -> None:
         """Initialize the aircraft at the position it arrived on."""
+        self._units = coordinator.units
         # Fixed at arrival, so a late callsign does not change the entity ID.
         self._attr_name = summary.flight or summary.hex
         self._apply(summary, position)
@@ -138,4 +140,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     @property
     def extra_state_attributes(self) -> dict[str, str | float | None]:
         """Return everything else known; the distance is the state."""
-        return aircraft_attributes(self._summary)
+        return {
+            **converted(aircraft_attributes(self._summary), self._units),
+            **unit_attributes(self._units),
+        }

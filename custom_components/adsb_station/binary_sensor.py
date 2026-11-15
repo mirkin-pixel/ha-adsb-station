@@ -280,25 +280,27 @@ class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
         """Return which aircraft are in distress."""
         if (aircraft := self.aircraft) is None:
             return None
-        return {
-            "aircraft": [
-                {
-                    "hex": entry.hex,
-                    "flight": entry.flight,
-                    "squawk": entry.squawk,
-                    "reason": entry.reason,
-                    # Kilometres across the ground, None without a position.
-                    "distance": (
-                        None
-                        if entry.summary.distance is None
-                        else round(entry.summary.distance / 1000, 1)
-                    ),
-                    "altitude": entry.summary.altitude,
-                    "aircraft_type": entry.summary.aircraft_type,
-                }
-                for entry in aircraft.emergencies
-            ]
-        }
+        return self._in_units(
+            {
+                "aircraft": [
+                    {
+                        "hex": entry.hex,
+                        "flight": entry.flight,
+                        "squawk": entry.squawk,
+                        "reason": entry.reason,
+                        # Across the ground, None without a position.
+                        "distance": (
+                            None
+                            if entry.summary.distance is None
+                            else round(entry.summary.distance / 1000, 1)
+                        ),
+                        "altitude": entry.summary.altitude,
+                        "aircraft_type": entry.summary.aircraft_type,
+                    }
+                    for entry in aircraft.emergencies
+                ]
+            }
+        )
 
 
 class AdsbStationWatchlistBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):
@@ -328,18 +330,20 @@ class AdsbStationWatchlistBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
         """Return what matched, and which line of the list it matched."""
         if (aircraft := self.aircraft) is None:
             return None
-        return {
-            "watching": [entry.line for entry in self.coordinator.watchlist],
-            "aircraft": [
-                {
-                    "watching": match.entry.line,
-                    "matched_on": match.matched_on,
-                    "squawk": match.squawk,
-                    **aircraft_attributes(match.summary, include_distance=True),
-                }
-                for match in aircraft.watched
-            ],
-        }
+        return self._in_units(
+            {
+                "watching": [entry.line for entry in self.coordinator.watchlist],
+                "aircraft": [
+                    {
+                        "watching": match.entry.line,
+                        "matched_on": match.matched_on,
+                        "squawk": match.squawk,
+                        **aircraft_attributes(match.summary, include_distance=True),
+                    }
+                    for match in aircraft.watched
+                ],
+            }
+        )
 
 
 class AdsbStationNearbyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):
@@ -363,10 +367,12 @@ class AdsbStationNearbyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntit
         """Return which aircraft are nearby, nearest first."""
         if (aircraft := self.aircraft) is None:
             return None
-        return {
-            "radius": self.coordinator.proximity_radius / 1000,
-            "aircraft": [
-                aircraft_attributes(summary, include_distance=True)
-                for summary in aircraft.nearby
-            ],
-        }
+        return self._in_units(
+            {
+                "radius": self.coordinator.proximity_radius / 1000,
+                "aircraft": [
+                    aircraft_attributes(summary, include_distance=True)
+                    for summary in aircraft.nearby
+                ],
+            }
+        )

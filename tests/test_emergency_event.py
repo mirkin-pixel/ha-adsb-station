@@ -16,7 +16,7 @@ from custom_components.adsb_station.const import (
     PASSAGE_GAP,
 )
 
-from .conftest import set_responses, setup_integration
+from .conftest import metres, set_responses, setup_integration
 from .test_passages import next_poll, poll
 
 # Home is 52.0, 5.0: a tenth of a degree north is 11.1 km, and at cruising
@@ -70,7 +70,7 @@ async def test_an_emergency_is_announced(
     assert event.data["hex"] == "4ca123"
     assert event.data["flight"] == "RYR1YY"
     assert event.data["distance"] == 11.1
-    assert event.data["altitude"] == 37000
+    assert event.data["altitude"] == metres(37000)
     assert event.data["aircraft_type"] == "B738"
 
 

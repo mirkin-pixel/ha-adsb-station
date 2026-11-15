@@ -32,6 +32,7 @@ from .const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
     CONF_STATISTICS_INTERVAL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DB_FLAG_INTERESTING,
     DB_FLAG_LADD,
@@ -93,6 +94,7 @@ from .reference import (
 )
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 from .trails import SkyTrails
+from .units import Units, converted, unit_attributes, units_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -867,6 +869,18 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         return float(kilometres) * 1000
 
     @property
+    def units(self) -> Units:
+        """Return the units figures leave the integration in."""
+        return units_of(self.hass, self.config_entry.options.get(CONF_UNITS))
+
+    def _fire(self, event_type: str, data: dict[str, Any]) -> None:
+        """Fire an event, its figures in the chosen units and named."""
+        units = self.units
+        self.hass.bus.async_fire(
+            event_type, {**converted(data, units), **unit_attributes(units)}
+        )
+
+    @property
     def proximity_ceiling(self) -> float | None:
         """Return the nearby ceiling in feet, or None when only the radius counts."""
         feet = self.config_entry.options.get(CONF_PROXIMITY_MAX_ALTITUDE)
@@ -1291,7 +1305,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if warned is not None and now - warned <= PASSAGE_GAP:
                 continue
             self._warned[summary.hex] = now
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_AIRCRAFT_APPROACHING,
                 {
                     **self._event_base(),
@@ -1337,7 +1351,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - last <= self._remembered():
                 continue
             del self._announced[hex_code]
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_WATCHLIST_LOST,
                 {
                     **self._watch_data(match),
@@ -1350,7 +1364,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             first = now if known is None else known[0]
             self._announced[match.summary.hex] = (first, now, match)
             if known is None:
-                self.hass.bus.async_fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
+                self._fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
 
     def _watch_data(self, match: WatchlistMatch) -> dict[str, Any]:
         """Describe a watched aircraft, as last seen, for an event."""
@@ -1374,7 +1388,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self._distressed[emergency.hex] = now
             if seen is not None and now - seen <= self._remembered():
                 continue
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_AIRCRAFT_EMERGENCY,
                 {
                     **self._event_base(),
@@ -1396,7 +1410,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         Per aircraft, so a second arrival while one is overhead is not missed.
         """
-        self.hass.bus.async_fire(
+        self._fire(
             EVENT_AIRCRAFT_PASSAGE,
             {
                 **self._event_base(),

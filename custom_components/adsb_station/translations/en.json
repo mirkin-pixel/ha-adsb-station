@@ -89,20 +89,24 @@
         "title": "ADS-B receiver",
         "description": "Home Assistant can also read the aircraft.json of your decoder for the number of aircraft received, the message rate and the maximum range. Leave the field empty to skip this. Leave it empty if another entry on this station already reads the decoder, or its aircraft will be counted twice.",
         "data": {
-          "aircraft_url": "aircraft.json URL"
+          "aircraft_url": "aircraft.json URL",
+          "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       },
       "receiver_url": {
         "title": "aircraft.json",
         "description": "This is where the data comes from, so it is required. Any decoder that serves an aircraft.json works, whichever network you feed.",
         "data": {
-          "aircraft_url": "aircraft.json URL"
+          "aircraft_url": "aircraft.json URL",
+          "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },
@@ -133,7 +137,8 @@
           "look_up_routes": "Look up flight routes",
           "look_up_photos": "Look up aircraft photos",
           "watchlist": "Watchlist",
-          "aircraft_database": "Download an aircraft database"
+          "aircraft_database": "Download an aircraft database",
+          "units": "Units"
         },
         "data_description": {
           "scan_interval": "How often the aircraft are read, in seconds. Everything runs on your own network, so a short interval is fine.",
@@ -144,7 +149,8 @@
           "look_up_routes": "No aircraft broadcasts where it is flying from or to, so this has to be asked of a service on the internet. It uses routeset, the same source tar1090 does. Only the aircraft inside the nearby radius are looked up, and answers are kept for the day.",
           "look_up_photos": "Adds a photo of each aircraft inside the nearby radius, and of each one on the watchlist, from Planespotters.net. Only the address the aircraft broadcasts is sent, and answers are kept for a day. The photos are lent on condition that the photographer is named beside one and that it links to its page, so they come as attributes for a dashboard card rather than as entity pictures.",
           "watchlist": "Aircraft worth knowing about whenever they turn up, one to a line. There is no radius: this asks whether the aircraft is in the air at all, however far away. A line can be a hex code (484123), a registration or a callsign (PH-BXA, KLM123), an aircraft type (EC35), a squawk (7700), the start of a registration or callsign (PH-B*, KLM*), military, helicopter or a country (country:US).",
-          "aircraft_database": "Your decoder names no aircraft itself, so registrations and types are missing. This downloads the tar1090-db table (Mictronics' data, about 9 MB) straight from GitHub to your Home Assistant at most once a week, keeps it on disk, about 26 MB, and looks the aircraft you hear up there. Nothing about them leaves your network. Switching it off deletes the file."
+          "aircraft_database": "Your decoder names no aircraft itself, so registrations and types are missing. This downloads the tar1090-db table (Mictronics' data, about 9 MB) straight from GitHub to your Home Assistant at most once a week, keeps it on disk, about 26 MB, and looks the aircraft you hear up there. Nothing about them leaves your network. Switching it off deletes the file.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },
@@ -634,6 +640,16 @@
     },
     "not_on_watchlist": {
       "message": "{line} is not on the watchlist of {station}."
+    }
+  },
+  "selector": {
+    "units": {
+      "options": {
+        "auto": "As Home Assistant",
+        "nautical": "Aviation (ft, kt, NM)",
+        "metric": "Metric (m, km/h, km)",
+        "imperial": "Imperial (ft, mph, mi)"
+      }
     }
   }
 }

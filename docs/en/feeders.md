@@ -63,7 +63,7 @@ A single maximum range figure hides the shape of your coverage: 250 km to the so
 
 | Entity | Type | Description |
 |---|---|---|
-| Range record north … northwest | Sensor (km) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
+| Range record north … northwest | Sensor (distance) | The record for that sector, with `recorded_at`, `flight` and `hex` as attributes |
 | Reset range records | Button | Clears all eight |
 
 These are the records; **Maximum range** above is the live figure. It is named for what the hobby calls it and for what your feeder sites report, and it follows the sky: a poll with nothing further away than 40 km puts it at 40 km. These eight only ever go up.

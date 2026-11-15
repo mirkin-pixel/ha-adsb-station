@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
@@ -17,6 +18,7 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_STATS_URL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
@@ -157,4 +159,24 @@ async def async_options_updated(
     if changed <= {CONF_WATCHLIST}:
         await coordinator.async_set_watchlist()
         return
+    if CONF_UNITS in changed:
+        _refresh_sensor_units(hass, entry)
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _refresh_sensor_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
+    """Have this station's sensors take their unit from the setting again.
+
+    Home Assistant keeps the unit a sensor first had, and asks again the same
+    way when its own unit system changes. A unit chosen on the sensor itself
+    is kept apart and still wins.
+    """
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain != SENSOR_DOMAIN:
+            continue
+        private = dict(entity.options.get(f"{SENSOR_DOMAIN}.private", {}))
+        private["refresh_initial_entity_options"] = True
+        registry.async_update_entity_options(
+            entity.entity_id, f"{SENSOR_DOMAIN}.private", private
+        )

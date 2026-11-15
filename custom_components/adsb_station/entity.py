@@ -16,6 +16,7 @@ from .const import (
     MODEL_RECEIVER,
 )
 from .coordinator import AdsbStationDataUpdateCoordinator, AircraftStats, ReceiverStats
+from .units import converted, unit_attributes
 
 
 def _text(value: Any) -> str | None:
@@ -92,6 +93,11 @@ class AdsbStationEntity(CoordinatorEntity[AdsbStationDataUpdateCoordinator]):
 
 class AdsbStationAircraftEntity(AdsbStationEntity):
     """Base entity for values that come from aircraft.json."""
+
+    def _in_units(self, attributes: dict[str, Any]) -> dict[str, Any]:
+        """Return attributes in the chosen units, and what those units are."""
+        units = self.coordinator.units
+        return {**converted(attributes, units), **unit_attributes(units)}
 
     @property
     def aircraft(self) -> AircraftStats | None:

@@ -460,3 +460,8 @@ def our_device(
     if device is None or entry.entry_id not in device.config_entries:
         return None
     return device
+
+
+def metres(feet: float) -> int:
+    """Return a height in feet as the whole metres a metric station shows."""
+    return round(feet * 0.3048)

@@ -22,9 +22,25 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan acht instellingen onder **Configureren** op de integratiepagina. De ververstijd is hoe vaak de vliegtuigen uitgelezen worden, standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De ververstijd voor statistieken, standaard 60 seconden, is hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus elke vijftien seconden uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Daarnaast staat de [hoogtegrens](#wat-overhead-precies-betekent), en die is leeg. Dan komen [vliegtuigen op de kaart](dashboards.md#vliegtuigen-op-de-kaart), [waar een vlucht heen gaat](routes.md) en [hoe hij eruitziet](photos.md), en die staan alle drie uit. De laatste is de [watchlist](watchlist.md), en die is leeg. Een decoder die zelf geen vliegtuigen benoemt krijgt er een negende bij, [een vliegtuigdatabase om te downloaden](decoders.md#de-vliegtuigdatabase), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Er staan negen instellingen onder **Configureren** op de integratiepagina. De eerste zijn de [eenheden](#eenheden) waarin de getallen staan, en die worden ook gevraagd als je het station toevoegt. De ververstijd is hoe vaak de vliegtuigen uitgelezen worden, standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De ververstijd voor statistieken, standaard 60 seconden, is hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus elke vijftien seconden uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen. De straal "dichtbij" is standaard 10 km en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Daarnaast staat de [hoogtegrens](#wat-overhead-precies-betekent), en die is leeg. Dan komen [vliegtuigen op de kaart](dashboards.md#vliegtuigen-op-de-kaart), [waar een vlucht heen gaat](routes.md) en [hoe hij eruitziet](photos.md), en die staan alle drie uit. De laatste is de [watchlist](watchlist.md), en die is leeg. Een decoder die zelf geen vliegtuigen benoemt krijgt er een tiende bij, [een vliegtuigdatabase om te downloaden](decoders.md#de-vliegtuigdatabase), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe, precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
+
+## Eenheden
+
+**Eenheden** bepaalt waarin hoogtes, snelheden en afstanden staan, overal: de sensoren, hun attributen, de events, de antwoorden van de acties, **Activiteit** en wat Assist zegt. De keuzes zijn de drie van tar1090:
+
+| Eenheden | Hoogte | Snelheid | Afstand | Stijgen en dalen |
+|---|---|---|---|---|
+| Luchtvaart | ft | kn | nmi | ft/min |
+| Metrisch | m | km/h | km | m/s |
+| Imperiaal | ft | mph | mi | ft/min |
+
+**Zoals Home Assistant**, de standaard, is imperiaal als Home Assistant op Amerikaanse eenheden staat en anders metrisch. Wissel je, dan gaan de bestaande sensoren mee, met hun historie, behalve een sensor waar je zelf een eenheid voor koos onder **Instellingen → Entiteit → Maateenheid**: die houdt de jouwe.
+
+Attributen en events zeggen zelf waarin ze staan, zodat een template nooit hoeft te raden: `altitude_unit`, `speed_unit`, `distance_unit` en `vertical_rate_unit` gaan mee met elk getal. De [stationskaart](dashboards.md) volgt dezelfde keuze, tenzij je hem een eigen `units` geeft.
+
+Drie dingen blijven zoals ze zijn, wat je ook kiest, omdat het instellingen zijn en geen getallen: de straal "dichtbij" in kilometers, de [hoogtegrens](#wat-overhead-precies-betekent) in voet en de filters van de [acties](services.md).
 
 ## De feeder als add-on draaien
 

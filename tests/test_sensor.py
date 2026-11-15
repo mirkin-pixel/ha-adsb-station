@@ -48,6 +48,7 @@ from .conftest import (
     MOCK_STATS,
     MOCK_STATS_READSB,
     MOCK_STATS_WITH_GAIN,
+    metres,
     our_device,
     set_responses,
     setup_integration,
@@ -476,8 +477,9 @@ async def test_closest_aircraft(
     # This aircraft uses the field names of the fr24feed dump1090 fork
     assert state.attributes["hex"] == "484123"
     assert state.attributes["flight"] == "KLM123"
-    assert state.attributes["altitude"] == 2000
-    assert state.attributes["speed"] == 250
+    assert state.attributes["altitude"] == metres(2000)
+    # Knots in, km/h out on a metric station
+    assert state.attributes["speed"] == round(250 * 1.852)
     assert state.attributes["track"] == 90
     assert state.attributes["rssi"] == -21.5
     assert state.attributes["seen"] == 1.2
@@ -512,8 +514,8 @@ async def test_closest_aircraft_reads_dump1090_fa_field_names(
         "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
     )
     state = hass.states.get(entity_id)
-    assert state.attributes["altitude"] == 35000
-    assert state.attributes["speed"] == 450
+    assert state.attributes["altitude"] == metres(35000)
+    assert state.attributes["speed"] == round(450 * 1.852)
     assert state.attributes["flight"] is None
 
 
@@ -686,7 +688,10 @@ async def test_closest_aircraft_vertical_rate(
     entity_id = er.async_get(hass).async_get_entity_id(
         "sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft"
     )
-    assert hass.states.get(entity_id).attributes["vertical_rate"] == expected
+    # Feet a minute in, metres a second out on a metric station
+    assert hass.states.get(entity_id).attributes["vertical_rate"] == (
+        None if expected is None else round(expected * 0.00508, 1)
+    )
 
 
 async def test_closest_aircraft_names_from_the_shipped_tables(
@@ -998,9 +1003,9 @@ async def test_nearby_highest_and_fastest(
     )
 
     # The highest and the fastest are both TRA45, reported in readsb's names
-    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000 * 0.3048)
     assert _attributes(hass, "highest_aircraft")["flight"] == "TRA45"
-    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450)
+    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450 * 1.852)
     assert _attributes(hass, "fastest_aircraft")["flight"] == "TRA45"
 
 
@@ -1057,7 +1062,7 @@ async def test_highest_counts_aircraft_without_a_position(
 
     assert await setup_integration(hass, entry_of(mock_config_entry))
 
-    assert float(_state(hass, "highest_aircraft")) == pytest.approx(41000)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(41000 * 0.3048)
     assert _attributes(hass, "highest_aircraft")["flight"] == "NOPOS1"
     # It has no position, so it cannot be nearby and has no distance
     assert _attributes(hass, "highest_aircraft")["distance"] is None
@@ -1225,13 +1230,13 @@ async def test_highest_and_fastest_outlive_the_aircraft(
     nothing most of the time.
     """
     assert await setup_integration(hass, mock_config_entry)
-    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000 * 0.3048)
 
     set_responses(mock_api, aircraft={"now": 2.0, "messages": 2, "aircraft": []})
     await _refresh(hass)
 
-    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000)
-    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(35000 * 0.3048)
+    assert float(_state(hass, "fastest_aircraft")) == pytest.approx(450 * 1.852)
     assert float(_state(hass, "max_range")) == pytest.approx(
         EXPECTED_MAX_RANGE_KM, abs=0.5
     )
@@ -1264,7 +1269,7 @@ async def test_a_higher_aircraft_replaces_the_reading(
     )
     await _refresh(hass)
 
-    assert float(_state(hass, "highest_aircraft")) == pytest.approx(900)
+    assert float(_state(hass, "highest_aircraft")) == pytest.approx(900 * 0.3048)
     assert _attributes(hass, "highest_aircraft")["flight"] == "LOW1"
 
 

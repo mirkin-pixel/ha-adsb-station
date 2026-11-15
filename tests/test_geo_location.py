@@ -24,7 +24,7 @@ from custom_components.adsb_station.const import (
     DOMAIN,
 )
 
-from .conftest import set_responses, setup_integration
+from .conftest import metres, set_responses, setup_integration
 
 # Just over a kilometre from the home location the fixtures pin.
 NEARBY_LATITUDE = 52.01
@@ -84,7 +84,7 @@ async def test_aircraft_arrive_and_leave(
     assert state.attributes["latitude"] == NEARBY_LATITUDE
     assert state.attributes["longitude"] == NEARBY_LONGITUDE
     # And everything the sensors carry rides along
-    assert state.attributes["altitude"] == 2000
+    assert state.attributes["altitude"] == metres(2000)
     assert state.attributes["country"] == "AW"
 
     # It moves on, out of the radius entirely

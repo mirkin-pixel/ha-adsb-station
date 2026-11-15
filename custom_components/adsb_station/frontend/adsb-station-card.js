@@ -66,8 +66,8 @@ const STRINGS = {
     scale_fixed: "Fixed",
     map_range: "Fixed range in km",
     units: "Units",
-    units_auto: "As Home Assistant",
-    units_nautical: "Nautical (ft, kt, nm)",
+    units_auto: "As the integration",
+    units_nautical: "Aviation (ft, kt, NM)",
     units_metric: "Metric (m, km/h, km)",
     units_imperial: "Imperial (ft, mph, mi)",
     max_altitude: "Highest altitude shown (ft)",
@@ -148,8 +148,8 @@ const STRINGS = {
     scale_fixed: "Vast",
     map_range: "Vast bereik in km",
     units: "Eenheden",
-    units_auto: "Zoals Home Assistant",
-    units_nautical: "Nautisch (ft, kt, NM)",
+    units_auto: "Zoals de integratie",
+    units_nautical: "Luchtvaart (ft, kt, NM)",
     units_metric: "Metrisch (m, km/h, km)",
     units_imperial: "Imperiaal (ft, mph, mi)",
     max_altitude: "Hoogste getoonde hoogte (ft)",
@@ -203,7 +203,7 @@ const FURTHEST_KM = 700;
 // tar1090's three: per unit shown, how many of it in one of what the
 // integration sends (feet, knots, kilometres), and the legend's heights.
 const UNIT_SYSTEMS = {
-  nautical: { height: ["ft", 1], speed: ["kt", 1], distance: ["nm", 1 / 1.852], ticks: [0, 15000, 30000, 45000] },
+  nautical: { height: ["ft", 1], speed: ["kt", 1], distance: ["NM", 1 / 1.852], ticks: [0, 15000, 30000, 45000] },
   metric: { height: ["m", 0.3048], speed: ["km/h", 1.852], distance: ["km", 1], ticks: [0, 4000, 8000, 12000] },
   imperial: {
     height: ["ft", 1],
@@ -213,6 +213,8 @@ const UNIT_SYSTEMS = {
   },
 };
 const UNIT_CHOICES = ["auto", ...Object.keys(UNIT_SYSTEMS)];
+// The integration names its distance unit beside the figures it sends.
+const SYSTEM_BY_DISTANCE = { nmi: "nautical", km: "metric", mi: "imperial" };
 const SCALES = ["aircraft", "coverage", "fixed"];
 // What the table card lists: the sky now, or the passage board.
 const LISTS = ["now", "passages"];
@@ -1590,7 +1592,7 @@ class AdsbStationCard extends HTMLElement {
 
   _overhead(found, text) {
     const state = this._state(found.overhead);
-    const plane = state ? state.attributes : {};
+    const plane = state ? this._fromSensors(state.attributes) : {};
     const known = state && !["unknown", "unavailable"].includes(state.state) && (plane.flight || plane.hex);
     if (!known) {
       return el("div", { class: "empty" }, el("ha-icon", { icon: "mdi:airplane-off" }), text.nothing);
@@ -1679,18 +1681,48 @@ class AdsbStationCard extends HTMLElement {
     return `${this._number(knots * per, 0)} ${unit}`;
   }
 
-  // The card's choice, or else Home Assistant's own: imperial for its US
-  // units, metric otherwise, as Home Assistant itself starts out.
+  // The card's choice, else the integration's, else Home Assistant's own:
+  // imperial for its US units, metric otherwise.
   _units() {
     const chosen = this._config && this._config.units;
     if (UNIT_SYSTEMS[chosen]) return UNIT_SYSTEMS[chosen];
+    return this._stationUnits() || this._hassUnits();
+  }
+
+  _hassUnits() {
     const system = this._hass && this._hass.config && this._hass.config.unit_system;
     return system && system.length === "mi" ? UNIT_SYSTEMS.imperial : UNIT_SYSTEMS.metric;
   }
 
+  // What the integration sends its sensors' figures in, or null before 1.4.
+  _stationUnits() {
+    const state = this._found && this._state(this._found.overhead);
+    const name = state && SYSTEM_BY_DISTANCE[state.attributes.distance_unit];
+    return name ? UNIT_SYSTEMS[name] : null;
+  }
+
+  // An aircraft from a sensor's attributes, back in the feet, knots and
+  // kilometres the radar's feed has, so both are shown the same way.
+  _fromSensors(plane) {
+    const units = this._stationUnits();
+    if (!units || !plane) return plane;
+    const back = (value, per) => (typeof value === "number" ? value / per : value);
+    return {
+      ...plane,
+      altitude: back(plane.altitude, units.height[1]),
+      speed: back(plane.speed, units.speed[1]),
+      distance: back(plane.distance, units.distance[1]),
+      // Metres a second on a metric station, feet a minute otherwise.
+      vertical_rate: units === UNIT_SYSTEMS.metric ? back(plane.vertical_rate, 0.00508) : plane.vertical_rate,
+    };
+  }
+
   _nearby(found, text) {
     const state = this._state(found.nearby);
-    const list = state && Array.isArray(state.attributes.aircraft) ? state.attributes.aircraft : [];
+    const list =
+      state && Array.isArray(state.attributes.aircraft)
+        ? state.attributes.aircraft.map((p) => this._fromSensors(p))
+        : [];
     const overhead = this._state(found.overhead);
     const skip = overhead && overhead.attributes.overhead !== false ? overhead.attributes.hex : null;
     const others = list
@@ -1799,7 +1831,9 @@ class AdsbStationCard extends HTMLElement {
     const query = this._query;
     const board = this._passages() && this._state(this._found && this._found.passages);
     const source = this._passages()
-      ? (board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []
+      ? ((board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []).map((p) =>
+          this._fromSensors(p),
+        )
       : (this._sky && this._sky.aircraft) || [];
     const planes = source
       .filter(

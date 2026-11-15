@@ -15,13 +15,13 @@ automation:
         data:
           message: >-
             {{ trigger.event.data.airline | default('An unknown aircraft') }}
-            at {{ trigger.event.data.slant_distance }} km
+            at {{ trigger.event.data.slant_distance }} {{ trigger.event.data.distance_unit }}
             {%- if trigger.event.data.route is defined %},
             {{ trigger.event.data.route }}
             {%- endif %}.
 ```
 
-The event carries the same keys as the aircraft attributes, so everything in the notification above is there: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, the route if you look them up, and `entry_id` and `station` to tell one station from another. It adds one key of its own, `slant_distance`, which is the subject of the next paragraph.
+The event carries the same keys as the aircraft attributes, so everything in the notification above is there: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, the route if you look them up, and `entry_id` and `station` to tell one station from another. Its figures are in the [units](configuration.md#units) you chose, and `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit` say which, so a template never has to guess. It adds one key of its own, `slant_distance`, which is the subject of the next paragraph.
 
 Three things stop it becoming a nuisance.
 
@@ -49,12 +49,12 @@ automation:
                | default(trigger.event.data.flight) | default('Unknown aircraft') }}
           message: |-
             {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
-            Alt {{ trigger.event.data.altitude or '?' }}ft, Spd {{ trigger.event.data.speed | round | int if trigger.event.data.speed else '?' }}kn
-            Trk {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Vr {{ trigger.event.data.vertical_rate or 0 }}ft/min
+            Alt {{ trigger.event.data.altitude or '?' }} {{ trigger.event.data.altitude_unit }}, Spd {{ trigger.event.data.speed if trigger.event.data.speed is not none else '?' }} {{ trigger.event.data.speed_unit }}
+            Trk {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Vr {{ trigger.event.data.vertical_rate or 0 }} {{ trigger.event.data.vertical_rate_unit }}
           data:
             subtitle: >-
               {{ trigger.event.data.route
-                 | default(trigger.event.data.slant_distance ~ ' km') }}
+                 | default(trigger.event.data.slant_distance ~ ' ' ~ trigger.event.data.distance_unit) }}
             tag: adsb-passage
             group: adsb
             image: >-
@@ -62,33 +62,24 @@ automation:
                  | default('unknown') }}.png
 ```
 
-Which reads as this, and as the right-hand column for something that broadcasts almost nothing:
+Which reads as this in aviation units, and as the right-hand column for something that broadcasts almost nothing:
 
 ```
-Lufthansa                    PHABC
-CDG-AMS                      1.1 km
+Lufthansa                      PHABC
+CDG-AMS                        0.6 nmi
 Airbus A-320neo
-Alt 4100ft, Spd 250kn        Alt 2000ft, Spd ?kn
-Trk 263deg, Vr -1088ft/min   Trk 90deg, Vr 0ft/min
+Alt 4100 ft, Spd 250 kn        Alt 2000 ft, Spd ? kn
+Trk 263deg, Vr -1088 ft/min    Trk 90deg, Vr 0 ft/min
 ```
 
-For metres and kilometres per hour, only the message changes, with the same factors as [the cards](#the-panel-and-the-board):
-
-```yaml
-          message: |-
-            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
-            Alt {{ (trigger.event.data.altitude * 0.3048) | round | int }}m, Spd {{ (trigger.event.data.speed * 1.852) | round | int if trigger.event.data.speed else '?' }}km/h
-            Trk {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Vr {{ (trigger.event.data.vertical_rate | default(0) * 0.00508) | round(1) }}m/s
-```
-
-Which reads as this, with a real flight through it:
+The template names no unit of its own, so in metric units the same template reads like this, with a real flight through it:
 
 ```
 Delta Air Lines
 FRA-JFK
 Airbus A-330-200
-Alt 8702m, Spd 891km/h
-Trk 290deg, Vr 2.9m/s
+Alt 8702 m, Spd 891 km/h
+Trk 290deg, Vr 2.9 m/s
 ```
 
 The logo is yours to supply: the app takes a `/local/` path into your `www` folder, so `www/airline_logos/DLH.png` and one `unknown.png` beside it covers every aircraft. Airline logos are trademarks and are not something this integration can ship for you. Give every notification the same `tag` and each aircraft replaces the one before it rather than filling your screen; leave the `tag` out and keep the `group` to see them all.
@@ -109,26 +100,13 @@ content: |
   {% if plane.attributes.route is defined %}### {{ plane.attributes.route }}{% endif %}
   {{ plane.attributes.description | default(plane.attributes.aircraft_type) | default('') }}
 
-  `Alt {{ plane.attributes.altitude }}ft  Spd {{ plane.attributes.speed }}kn`
-  `Trk {{ plane.attributes.track | round | int }}deg  Vr {{ plane.attributes.vertical_rate or 0 }}ft/min`
+  `Alt {{ plane.attributes.altitude }} {{ plane.attributes.altitude_unit }}  Spd {{ plane.attributes.speed }} {{ plane.attributes.speed_unit }}`
+  `Trk {{ plane.attributes.track | round | int }}deg  Vr {{ plane.attributes.vertical_rate or 0 }} {{ plane.attributes.vertical_rate_unit }}`
 
   {% if not plane.attributes.overhead %}*Last seen {{ relative_time(plane.last_changed) }} ago*{% endif %}
 ```
 
-Altitudes are in feet and speeds in knots there, because that is what the aircraft broadcast and how aviation reads them. The entities themselves can be switched to metres and kilometres per hour one by one under **Settings → Entity → Unit of measurement**, but attributes are never converted by Home Assistant, so a card that wants metric does the sum itself:
-
-```jinja
-  `Alt {{ (plane.attributes.altitude * 0.3048) | round | int }}m  Spd {{ (plane.attributes.speed * 1.852) | round | int }}km/h`
-  `Trk {{ plane.attributes.track | round | int }}deg  Vr {{ (plane.attributes.vertical_rate * 0.00508) | round(1) }}m/s`
-```
-
-| From | To | Multiply by |
-|---|---|---|
-| ft | m | 0.3048 |
-| kn | km/h | 1.852 |
-| ft/min | m/s | 0.00508 |
-
-`distance` and `slant_distance` are in kilometres already.
+The figures are in the [units](configuration.md#units) chosen for the station, and the `*_unit` attributes beside them say which, so the panel reads right whichever you pick.
 
 **Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came, how long they were in view (`duration`, in seconds) and the strongest they were ever heard (`peak_rssi`). Those last two are what a passage knows and a single poll cannot; both keep growing while the aircraft is still there and stand still once it has gone. Everything survives a restart of Home Assistant, so the board is a record rather than a session.
 
@@ -139,9 +117,10 @@ Each entry holds the aircraft at its closest approach rather than at its arrival
 ```yaml
 type: markdown
 content: |
-  {% for plane in state_attr('sensor.ads_b_station_passages_today', 'passages') %}
+  {% set board = 'sensor.ads_b_station_passages_today' %}
+  {% for plane in state_attr(board, 'passages') %}
   `{{ as_timestamp(plane.at) | timestamp_custom('%H:%M') }}` **{{ plane.airline | default(plane.flight) | default('?') }}**
-  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} km
+  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} {{ state_attr(board, 'distance_unit') }}
   {% endfor %}
 ```
 
@@ -174,7 +153,7 @@ automation:
           title: "{{ trigger.event.data.airline | default('Overhead') }}"
           message: >-
             {{ trigger.event.data.description | default('') }}
-            {{ trigger.event.data.altitude }} ft
+            {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
             {%- if trigger.event.data.route is defined %},
             {{ trigger.event.data.route }}{% endif %}
           data:
@@ -205,7 +184,7 @@ Three figures ride along with every aircraft that is coming your way:
 | Attribute | |
 |---|---|
 | `approaching` | Only there when it is |
-| `closest_passing_distance` | How close it will come, in kilometres **across the ground** |
+| `closest_passing_distance` | How close it will come **across the ground**, in `distance_unit` |
 | `seconds_to_closest` | How long until it does |
 
 ```yaml
@@ -218,7 +197,7 @@ automation:
       data:
         message: >
           {{ trigger.event.data.airline or trigger.event.data.flight }} passes
-          {{ trigger.event.data.closest_passing_distance }} km out in
+          {{ trigger.event.data.closest_passing_distance }} {{ trigger.event.data.distance_unit }} out in
           {{ (trigger.event.data.seconds_to_closest / 60) | round }} minutes.
 ```
 

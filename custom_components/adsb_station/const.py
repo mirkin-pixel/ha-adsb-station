@@ -265,6 +265,8 @@ ROUTE_MAX_LOOKUPS_PER_POLL = 25
 # Photos come from an outside service too, so they are off by default.
 CONF_LOOK_UP_PHOTOS = "look_up_photos"
 DEFAULT_LOOK_UP_PHOTOS = False
+# Nautical, metric or imperial, or "auto" for Home Assistant's own.
+CONF_UNITS = "units"
 # Downloaded registrations and types, for a decoder without a database.
 CONF_AIRCRAFT_DATABASE = "aircraft_database"
 

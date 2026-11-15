@@ -16,7 +16,13 @@ from custom_components.adsb_station.services import (
     SERVICE_LOOK_UP_AIRCRAFT,
 )
 
-from .conftest import MOCK_PIAWARE, PIAWARE_URL, set_responses, setup_integration
+from .conftest import (
+    MOCK_PIAWARE,
+    PIAWARE_URL,
+    metres,
+    set_responses,
+    setup_integration,
+)
 
 # Two in range and one far out, so a service can be told from the nearby list.
 MOCK_SKY: dict[str, Any] = {
@@ -86,7 +92,9 @@ async def test_look_up_by_hex_or_callsign(
     aircraft = answer["aircraft"]
     assert aircraft["hex"] == "484123"
     assert aircraft["flight"] == "KLM123"
-    assert aircraft["altitude"] == 2000
+    # In the station's units, metric in the tests, and saying so
+    assert aircraft["altitude"] == metres(2000)
+    assert answer["altitude_unit"] == "m"
     # The distance the attributes leave out, and the direction no attribute
     # set carries at all
     assert aircraft["distance"] == 1.1
@@ -103,7 +111,7 @@ async def test_look_up_an_aircraft_that_is_not_there(
 
     answer = await _call(hass, SERVICE_LOOK_UP_AIRCRAFT, aircraft="BAW1")
 
-    assert answer == {"aircraft": None}
+    assert answer["aircraft"] is None
 
 
 async def test_look_up_reaches_beyond_the_radius(

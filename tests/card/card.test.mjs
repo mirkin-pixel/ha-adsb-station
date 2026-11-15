@@ -437,7 +437,7 @@ const tests = {
         [51.9, 5.0],
       ],
     });
-    assert.match(nautical.shadowRoot.querySelector(".radar").textContent, /400 nm/);
+    assert.match(nautical.shadowRoot.querySelector(".radar").textContent, /400 NM/);
   },
 
   "keeps the table on a card of its own"() {
@@ -1022,7 +1022,7 @@ const tests = {
       const ticks = [...card.shadowRoot.querySelectorAll(".legend .ticks span")].map((tick) => tick.textContent);
       const rings = [...card.shadowRoot.querySelectorAll(".radar text")]
         .map((label) => label.textContent)
-        .filter((s) => /\d (km|nm|mi)$/.test(s));
+        .filter((s) => /\d (km|NM|mi)$/.test(s));
       return { figures: lines[1], weather: lines.at(-1), ticks, rings };
     };
 
@@ -1042,9 +1042,47 @@ const tests = {
     // Nautical chosen on the card, whatever Home Assistant says, and round
     // rings in nautical miles
     shown = tapped({ units: "nautical" }, { length: "km" });
-    assert.equal(shown.figures, "1,500 ft   160 kt   1.2 nm");
+    assert.equal(shown.figures, "1,500 ft   160 kt   1.2 NM");
     assert.match(shown.weather, /wind 270° 85 kt · -56 °C/);
-    assert.deepEqual(shown.rings, ["5 nm", "10 nm"]);
+    assert.deepEqual(shown.rings, ["5 NM", "10 NM"]);
+  },
+
+  "follows the integration's units, and converts its figures only once"() {
+    const w = browser();
+    const panel = (attributes, config = {}) => {
+      const hass = hassWith({ overhead: overheadState(attributes) });
+      connect(hass);
+      const card = render(w, hass, config);
+      return card.shadowRoot.querySelector(".overhead").textContent;
+    };
+    // A metric station sends metres and km/h; shown as they are, not again
+    const metric = {
+      ...KLM,
+      altitude: 975,
+      vertical_rate: 7.6,
+      distance: 1.1,
+      altitude_unit: "m",
+      speed_unit: "km/h",
+      distance_unit: "km",
+    };
+    assert.match(panel(metric), /↑ 975 m/);
+    assert.match(panel(metric), /1\.1 km/);
+
+    // A station set to nautical: the card follows it without being told
+    const nautical = {
+      ...KLM,
+      altitude: 3200,
+      distance: 0.6,
+      altitude_unit: "ft",
+      speed_unit: "kn",
+      distance_unit: "nmi",
+    };
+    assert.match(panel(nautical), /↑ 3,200 ft/);
+    assert.match(panel(nautical), /0\.6 NM/);
+
+    // And a card set to metric converts the nautical figures, once
+    assert.match(panel(nautical, { units: "metric" }), /↑ 975 m/);
+    assert.match(panel(nautical, { units: "metric" }), /1\.1 km/);
   },
 
   "draws the route of a tapped aircraft it was sent"() {

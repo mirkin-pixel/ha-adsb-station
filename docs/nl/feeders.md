@@ -63,7 +63,7 @@ Eén enkel maximumbereik verbergt de vorm van je dekking: 250 km naar het zuiden
 
 | Entiteit | Type | Omschrijving |
 |---|---|---|
-| Bereikrecord noord … noordwest | Sensor (km) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
+| Bereikrecord noord … noordwest | Sensor (afstand) | Het record voor die sector, met `recorded_at`, `flight` en `hex` als attributen |
 | Bereikrecords wissen | Knop | Wist alle acht |
 
 Dit zijn de records; **Maximaal bereik** hierboven is het cijfer van nu. Die heet zo omdat de hobby het zo noemt en je feedersites het zo rapporteren, en hij volgt de lucht: een poll waarin niets verder weg is dan 40 km zet hem op 40 km. Deze acht gaan alleen maar omhoog.
