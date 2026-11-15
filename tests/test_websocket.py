@@ -88,7 +88,8 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     assert planes["KLM123"]["longitude"] == 5.0
     assert planes["KLM123"]["track"] == 90
     assert planes["TRA45"]["altitude"] == 35000
-    assert planes["TRA45"]["distance"] == 111.3
+    # Unrounded, for the card to round once in the units it shows
+    assert planes["TRA45"]["distance"] == pytest.approx(111.28, abs=0.005)
     # By the traffic counters' kinds, for the card's buttons.
     assert planes["KLM123"]["kind"] == "airline"
 

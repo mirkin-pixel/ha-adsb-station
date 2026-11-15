@@ -24,6 +24,7 @@ from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
     gps_level,
+    kilometres,
     watchlist_signal,
 )
 from .entity import AdsbStationAircraftEntity, AdsbStationEntity
@@ -289,11 +290,7 @@ class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEn
                         "squawk": entry.squawk,
                         "reason": entry.reason,
                         # Across the ground, None without a position.
-                        "distance": (
-                            None
-                            if entry.summary.distance is None
-                            else round(entry.summary.distance / 1000, 1)
-                        ),
+                        "distance": kilometres(entry.summary.distance),
                         "altitude": entry.summary.altitude,
                         "aircraft_type": entry.summary.aircraft_type,
                     }

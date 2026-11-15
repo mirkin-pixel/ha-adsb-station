@@ -8,6 +8,7 @@ from homeassistant.components.logbook import LOGBOOK_ENTRY_MESSAGE
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util.location import distance
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -24,7 +25,14 @@ from custom_components.adsb_station.const import (
 from custom_components.adsb_station.logbook import async_describe_events
 from custom_components.adsb_station.units import SYSTEMS, converted, units_of
 
-from .conftest import AIRCRAFT_URL, MOCK_ALIAS, set_responses, setup_integration
+from .conftest import (
+    AIRCRAFT_URL,
+    HOME_LATITUDE,
+    HOME_LONGITUDE,
+    MOCK_ALIAS,
+    set_responses,
+    setup_integration,
+)
 from .test_config_flow import _start_user_step
 from .test_passages import OVERHEAD, poll
 
@@ -137,6 +145,34 @@ async def test_events_say_what_their_figures_are_in(
         "kn",
         "ft/min",
     )
+
+
+async def test_a_distance_is_rounded_once(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test 1.755 km as 0.9 NM, not 1.8 km first and then 1.0 NM."""
+    latitude = HOME_LATITUDE + 1.755 / 111.25
+    km = distance(HOME_LATITUDE, HOME_LONGITUDE, latitude, HOME_LONGITUDE) / 1000
+    assert round(km, 1) == 1.8
+    assert round(round(km, 1) / 1.852, 1) == 1.0
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_UNITS: "nautical"}
+    )
+    set_responses(
+        aioclient_mock,
+        aircraft=poll({**OVERHEAD, "lat": latitude, "lon": HOME_LONGITUDE}),
+    )
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_aircraft_nearby"
+    )
+    [plane] = hass.states.get(entity_id).attributes["aircraft"]
+    assert plane["distance"] == round(km / 1.852, 1) == 0.9
 
 
 async def test_an_aircraft_on_the_map_in_the_same_unit_as_its_attributes(

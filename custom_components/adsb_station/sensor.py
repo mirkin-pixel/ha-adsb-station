@@ -54,6 +54,7 @@ from .coordinator import (
     ReceiverStats,
     aircraft_attributes,
     count_of,
+    kilometres,
     slant_distance,
 )
 from .entity import (
@@ -1056,7 +1057,7 @@ def _passage_entry(passage: Passage) -> dict[str, Any]:
         "hex": passage.hex,
         "flight": passage.closest.flight,
         "altitude": passage.closest.altitude,
-        "distance": round(passage.closest_distance / 1000, 1),
+        "distance": kilometres(passage.closest_distance),
         # Both grow until the aircraft has gone.
         "duration": round((passage.last_seen - passage.started_at).total_seconds()),
     }
@@ -1145,11 +1146,7 @@ class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
             seen_at=dt_util.utcnow().isoformat(),
             details={
                 **aircraft_attributes(passage.current, include_distance=True),
-                "slant_distance": (
-                    None
-                    if (metres := slant_distance(passage.current)) is None
-                    else round(metres / 1000, 1)
-                ),
+                "slant_distance": kilometres(slant_distance(passage.current)),
                 "since": passage.started_at.isoformat(),
             },
         )

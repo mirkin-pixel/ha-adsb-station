@@ -404,9 +404,9 @@ def slant_distance(summary: AircraftSummary) -> float | None:
     return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
 
 
-def _kilometres(metres: float | None) -> float | None:
-    """Return metres as kilometres to one decimal, None as None."""
-    return None if metres is None else round(metres / 1000, 1)
+def kilometres(metres: float | None) -> float | None:
+    """Return metres as kilometres, None as None; rounded on the way out."""
+    return None if metres is None else metres / 1000
 
 
 def approach_of(
@@ -600,9 +600,7 @@ def aircraft_attributes(
         "seen": summary.seen,
     }
     if include_distance:
-        attributes["distance"] = (
-            None if summary.distance is None else round(summary.distance / 1000, 1)
-        )
+        attributes["distance"] = kilometres(summary.distance)
     # Left out rather than empty when unknown.
     if summary.bearing is not None:
         attributes["bearing"] = round(summary.bearing)
@@ -632,10 +630,8 @@ def aircraft_attributes(
         attributes["on_ground"] = True
     if summary.approaching:
         attributes["approaching"] = True
-        attributes["closest_passing_distance"] = (
-            None
-            if summary.closest_passing_distance is None
-            else round(summary.closest_passing_distance / 1000, 1)
+        attributes["closest_passing_distance"] = kilometres(
+            summary.closest_passing_distance
         )
         attributes["seconds_to_closest"] = (
             None
@@ -1416,7 +1412,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 **self._event_base(),
                 **aircraft_attributes(passage.closest, include_distance=True),
                 # Through the air; "distance" is across the ground.
-                "slant_distance": _kilometres(slant_distance(passage.closest)),
+                "slant_distance": kilometres(slant_distance(passage.closest)),
             },
         )
 
