@@ -197,8 +197,8 @@ reason: emergency
 squawk: "7700"
 distance: 12.3
 distance_unit: km
-altitude: 3000
-altitude_unit: ft
+altitude: 900
+altitude_unit: m
 ```
 
 Elke automatisering op dat event draait, dus de melding gaat echt uit, en de watchlist- en noodevents laten ook een regel achter in **Activiteit**.

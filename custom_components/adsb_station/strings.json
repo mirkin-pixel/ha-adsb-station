@@ -94,7 +94,7 @@
         },
         "data_description": {
           "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
-          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling here, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       },
       "receiver_url": {
@@ -106,7 +106,7 @@
         },
         "data_description": {
           "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible.",
-          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling here, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },

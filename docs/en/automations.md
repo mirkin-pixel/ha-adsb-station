@@ -197,8 +197,8 @@ reason: emergency
 squawk: "7700"
 distance: 12.3
 distance_unit: km
-altitude: 3000
-altitude_unit: ft
+altitude: 900
+altitude_unit: m
 ```
 
 Every automation on that event runs, so the notification goes out for real, and the watchlist and emergency events leave a line in **Activity** as well.
