@@ -514,6 +514,23 @@
     "receiver_silent": {
       "title": "{station} hears nothing",
       "description": "The dongle of {station} has delivered nothing to the decoder for {minutes} minutes. A working dongle hands over millions of samples a second, whether or not anything is flying, so this is the dongle and not a quiet sky: it dropped off the USB bus, or it did not come back after a reboot because it never lost power.\n\nUnplug the dongle and plug it back in, or restart the decoder. This message goes away by itself as soon as the dongle delivers again."
+    },
+    "units_changed": {
+      "title": "{station} now gives its figures in {units}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Units of {station}",
+            "description": "Since 1.4, {station} gives heights, speeds and distances in the units chosen here, everywhere: the sensors, their attributes, the events, the actions, Activity, Assist and the card. They are now {units}; before, heights were in feet, speeds in knots and distances in kilometres.\n\nNumbers you wrote yourself are read in these units too: an automation comparing a height, speed or distance, and the card's map_range and max_altitude. Nothing can convert those for you, so look them over, or pick Aviation to keep heights in feet and speeds in knots, with distances in nautical miles.",
+            "data": {
+              "units": "Units"
+            }
+          }
+        },
+        "abort": {
+          "station_removed": "The station has been removed."
+        }
+      }
     }
   },
   "services": {

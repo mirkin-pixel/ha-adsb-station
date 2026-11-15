@@ -514,6 +514,23 @@
     "receiver_silent": {
       "title": "{station} hoort niets",
       "description": "De dongle van {station} heeft al {minutes} minuten niets aan de decoder geleverd. Een werkende dongle levert miljoenen samples per seconde, of er nu iets vliegt of niet, dus dit is de dongle en geen rustige lucht: hij is van de USB-bus gevallen, of kwam na een herstart niet terug omdat hij nooit stroomloos is geweest.\n\nTrek de dongle eruit en steek hem er weer in, of herstart de decoder. Deze melding verdwijnt vanzelf zodra de dongle weer levert."
+    },
+    "units_changed": {
+      "title": "{station} geeft zijn getallen nu in {units}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Eenheden van {station}",
+            "description": "Sinds 1.4 geeft {station} hoogtes, snelheden en afstanden in de eenheden die je hier kiest, overal: de sensoren, hun attributen, de events, de acties, Activiteit, Assist en de kaart. Nu zijn dat {units}; eerst stonden hoogtes in voet, snelheden in knopen en afstanden in kilometers.\n\nGetallen die je zelf ergens opschreef worden ook in deze eenheden gelezen: een automatisering die een hoogte, snelheid of afstand vergelijkt, en map_range en max_altitude op de kaart. Die kan niets voor je omrekenen, dus kijk ze na, of kies Luchtvaart om hoogtes in voet en snelheden in knopen te houden, met afstanden in zeemijl.",
+            "data": {
+              "units": "Eenheden"
+            }
+          }
+        },
+        "abort": {
+          "station_removed": "Het station is verwijderd."
+        }
+      }
     }
   },
   "services": {

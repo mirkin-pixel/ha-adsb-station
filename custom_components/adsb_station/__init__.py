@@ -30,6 +30,7 @@ from .coordinator import (
     sky_signal,
 )
 from .reference import async_load_reference
+from .repairs import ISSUE_UNITS, units_issue_id, units_placeholders
 from .services import async_setup_services
 from .websocket import async_setup_websocket
 
@@ -141,6 +142,8 @@ async def async_migrate_entry(
     # do when the setting changes. A unit chosen on a sensor stays.
     if entry.version < 5 or entry.minor_version < 2:
         _refresh_sensor_units(hass, entry)
+        if data.get(CONF_AIRCRAFT_URL):
+            _ask_for_units(hass, entry)
 
     hass.config_entries.async_update_entry(
         entry, data=data, options=options, version=5, minor_version=2
@@ -178,7 +181,35 @@ async def async_options_updated(
         return
     if CONF_UNITS in changed:
         _refresh_sensor_units(hass, entry)
+        # Chosen, so there is nothing left to ask.
+        ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_entry(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> None:
+    """Take the question about units away with the station."""
+    ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
+
+
+def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
+    """Tell an upgraded station that its figures changed unit, and let it pick.
+
+    Automations and dashboards hold numbers of their own, which nothing here
+    can convert; Aviation keeps heights in feet and speeds in knots.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        units_issue_id(entry.entry_id),
+        is_fixable=True,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_UNITS,
+        translation_placeholders=units_placeholders(hass, entry),
+        data={"entry_id": entry.entry_id},
+    )
 
 
 def _refresh_sensor_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:

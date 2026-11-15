@@ -7,7 +7,8 @@ from typing import Any
 from homeassistant.components.logbook import LOGBOOK_ENTRY_MESSAGE
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.setup import async_setup_component
 from homeassistant.util.location import distance
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 import pytest
@@ -25,6 +26,7 @@ from custom_components.adsb_station.const import (
     EVENT_WATCHLIST_MATCH,
 )
 from custom_components.adsb_station.logbook import async_describe_events
+from custom_components.adsb_station.repairs import units_issue_id
 from custom_components.adsb_station.units import SYSTEMS, converted, units_of
 
 from .conftest import (
@@ -172,6 +174,107 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
         for entity_id in (highest, fastest, sector)
     ]
     assert units == ["m", "km/h", "mi"]
+
+    # And it is told so, in the units it now has
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
+    assert issue is not None
+    assert issue.is_fixable
+    assert issue.translation_placeholders == {
+        "station": entry.title,
+        "units": "m, km/h, km",
+    }
+
+
+async def _upgraded(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, **data: Any
+) -> MockConfigEntry:
+    """Set up a station as 1.3 left it, which asks for its units."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=5,
+        minor_version=1,
+        unique_id=mock_config_entry.unique_id,
+        data={**mock_config_entry.data, **data},
+    )
+    entry.add_to_hass(hass)
+    assert await setup_integration(hass, entry)
+    return entry
+
+
+async def test_the_repair_sets_the_units_and_goes(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test Aviation picked from the repair: saved, sensors moved, issue gone."""
+    entry = await _upgraded(hass, mock_config_entry)
+    assert await async_setup_component(hass, "repairs", {})
+    issue_id = units_issue_id(entry.entry_id)
+    flows = hass.data["repairs"]["flow_manager"]
+
+    result = await flows.async_init(DOMAIN, data={"issue_id": issue_id})
+    assert result["type"] is FlowResultType.FORM
+    assert result["description_placeholders"] == {
+        "station": entry.title,
+        "units": "m, km/h, km",
+    }
+    result = await flows.async_configure(result["flow_id"], {CONF_UNITS: "nautical"})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_UNITS] == "nautical"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    assert _unit(hass, "highest_aircraft") == "ft"
+    assert _unit(hass, "fastest_aircraft") == "kn"
+
+
+async def test_units_chosen_under_configure_answer_the_repair(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test the issue gone once the units are changed another way."""
+    entry = await _upgraded(hass, mock_config_entry)
+    hass.config_entries.async_update_entry(entry, options={CONF_UNITS: "imperial"})
+    await hass.async_block_till_done()
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
+        is None
+    )
+
+
+async def test_no_repair_for_a_new_station_or_one_without_aircraft(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test it asked only where figures changed: an upgraded station with a receiver."""
+    assert await setup_integration(hass, mock_config_entry)
+    assert not ir.async_get(hass).issues
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # A feeder that reads no aircraft has no figures to change
+    entry = await _upgraded(hass, mock_config_entry, **{CONF_AIRCRAFT_URL: None})
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
+        is None
+    )
+
+
+async def test_a_removed_station_takes_its_repair_along(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test no question left behind about a station that is gone."""
+    entry = await _upgraded(hass, mock_config_entry)
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
+        is None
+    )
 
 
 async def test_events_say_what_their_figures_are_in(

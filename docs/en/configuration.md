@@ -38,7 +38,7 @@ Adding a feeder to a station you set up as receiver-only means adding it as a se
 
 These are the names Home Assistant gives the units, and the ones a template compares with. The choice itself writes knots and nautical miles as pilots do, kt and NM, and the form and **Activity** write a distance as NM too.
 
-**As Home Assistant**, the default, is imperial when Home Assistant is set to US customary units and metric otherwise. Changing it moves the existing sensors along, history and all, except one you gave a unit of its own under **Settings → Entity → Unit of measurement**: that one keeps it.
+**As Home Assistant**, the default, is imperial when Home Assistant is set to US customary units and metric otherwise. A station set up before 1.4 gets a message under **Settings → System → Repairs** after the upgrade, saying which units its figures are now in, with the choice right there; pick **Aviation** to keep heights in feet and speeds in knots. Changing it moves the existing sensors along, history and all, except one you gave a unit of its own under **Settings → Entity → Unit of measurement**: that one keeps it.
 
 Attributes and events say what they are in, so a template never has to guess: `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit` ride along with every figure. The [station card](dashboards.md) shows the same units, so there is one place to choose them.
 
