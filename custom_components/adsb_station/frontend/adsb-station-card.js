@@ -538,6 +538,11 @@ const PROXY_TILES = (z, x, y, token) => `/api/map_tiles/raster/${z}/${x}/${y}.pn
 const UPSTREAM_TILES = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const TOKEN_REFRESH = 20 * 60 * 1000;
 
+// Degrees east of a longitude, folded into -180 to 180 across the date line.
+function lonDelta(lon, from) {
+  return ((((lon - from) % 360) + 540) % 360) - 180;
+}
+
 function mercatorView(origin, range, reach, centre, size) {
   const [latitude, longitude] = origin;
   const shrink = Math.cos((latitude * Math.PI) / 180);
@@ -552,7 +557,7 @@ function mercatorView(origin, range, reach, centre, size) {
   };
   const [cx, cy] = toWorld(latitude, longitude);
   const project = (lat, lon) => {
-    const [x, y] = toWorld(lat, lon);
+    const [x, y] = toWorld(lat, longitude + lonDelta(lon, longitude));
     return [centre + x - cx, centre + y - cy];
   };
   const perKm = 1000 / ((EQUATOR_METRES_PER_PIXEL * shrink) / 2 ** zoom);
@@ -954,7 +959,7 @@ class AdsbStationCard extends HTMLElement {
     // Flat around the station on the radar; the tiles' projection on the map.
     let perKm = reach / range;
     let project = (lat, lon) => {
-      const east = (lon - origin[1]) * 111.32 * Math.cos((origin[0] * Math.PI) / 180);
+      const east = lonDelta(lon, origin[1]) * 111.32 * Math.cos((origin[0] * Math.PI) / 180);
       const north = (lat - origin[0]) * 110.574;
       return [centre + east * perKm, centre - north * perKm];
     };
@@ -1309,7 +1314,9 @@ class AdsbStationCard extends HTMLElement {
   _outlineKm(sky) {
     if (!sky || !Array.isArray(sky.outline) || sky.outline.length < 3) return null;
     const across = 111.32 * Math.cos((sky.latitude * Math.PI) / 180);
-    return sky.outline.map(([lat, lon]) => Math.hypot((lon - sky.longitude) * across, (lat - sky.latitude) * 110.574));
+    return sky.outline.map(([lat, lon]) =>
+      Math.hypot(lonDelta(lon, sky.longitude) * across, (lat - sky.latitude) * 110.574),
+    );
   }
 
   // Range record per sector in km, clockwise from north; needs at least three.

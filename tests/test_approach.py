@@ -205,3 +205,16 @@ async def test_the_prediction_is_on_the_aircraft(
     assert aircraft["approaching"] is True
     assert aircraft["closest_passing_distance"] == pytest.approx(0, abs=0.5)
     assert aircraft["seconds_to_closest"] > 0
+
+
+def test_across_the_date_line() -> None:
+    """Test an aircraft just past 180°, flying west at a station just before it."""
+    approach = approach_of(
+        (-36.8, 179.98),
+        moving(position=(-36.8, -179.8), track=270.0),
+    )
+    assert approach is not None
+    metres, seconds = approach
+    # Straight at it, about 20 km out: not 28,000 km away, nor already past.
+    assert metres == pytest.approx(0, abs=50)
+    assert seconds == pytest.approx(127, abs=3)
