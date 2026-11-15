@@ -1212,8 +1212,13 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the board itself, most recent first."""
-        return {"passages": self._board.passages}
+        """Return the board itself, most recent first.
+
+        A copy: Home Assistant tells the browser what changed by comparing
+        with the state it last wrote, and a list changed in place compares
+        equal to itself, so the board would not reach the browser.
+        """
+        return {"passages": list(self._board.passages)}
 
 
 @dataclass

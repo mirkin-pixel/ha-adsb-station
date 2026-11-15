@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.adsb_station.const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
@@ -631,3 +632,70 @@ async def test_an_airliner_at_cruise_comes_over_and_stays_on_top(
     assert (panel.state, panel.attributes["overhead"]) == ("SAS584", True)
     board = hass.states.get("sensor.t_ehxx23_passages_today").attributes["passages"]
     assert [entry["flight"] for entry in board] == ["SAS584"]
+
+
+async def test_the_board_reaches_the_browser(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that each written board is its own, not the last one changed.
+
+    The browser hears only what differs from the state written before. With
+    one list changed in place the old state changed along with it, nothing
+    differed, and the board on a dashboard stood still until a reload.
+    """
+    set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "alt_baro": 9000}))
+    assert await setup_integration(hass, mock_config_entry)
+    before = hass.states.get("sensor.t_ehxx23_passages_today")
+
+    # The same passage, lower, and a second aircraft arriving
+    set_responses(
+        aioclient_mock,
+        aircraft=poll({**OVERHEAD, "alt_baro": 2000}, {**OVERHEAD, "hex": "484124"}),
+    )
+    await next_poll(hass, freezer)
+    after = hass.states.get("sensor.t_ehxx23_passages_today")
+
+    assert [entry["altitude"] for entry in before.attributes["passages"]] == [9000]
+    assert [entry["altitude"] for entry in after.attributes["passages"]] == [
+        2000,
+        2000,
+    ]
+    assert before.attributes["passages"] != after.attributes["passages"]
+
+
+async def test_the_browser_hears_of_a_new_passage(
+    hass: HomeAssistant,
+    freezer: Any,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the change a dashboard is sent, the way the frontend asks for it."""
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    assert await setup_integration(hass, mock_config_entry)
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {
+            "type": "subscribe_entities",
+            "entity_ids": ["sensor.t_ehxx23_passages_today"],
+        }
+    )
+    assert (await client.receive_json())["success"]
+    await client.receive_json()  # everything once, as it stands
+
+    set_responses(
+        aioclient_mock, aircraft=poll(OVERHEAD, {**OVERHEAD, "hex": "484124"})
+    )
+    await next_poll(hass, freezer)
+    change = (await client.receive_json())["event"]["c"][
+        "sensor.t_ehxx23_passages_today"
+    ]
+
+    assert change["+"]["s"] == "2"
+    assert [entry["hex"] for entry in change["+"]["a"]["passages"]] == [
+        "484124",
+        "484123",
+    ]
