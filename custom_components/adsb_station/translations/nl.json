@@ -540,7 +540,11 @@
         "step": {
           "confirm": {
             "title": "Eigen eenheden bij {station}",
-            "description": "Op deze sensoren is zelf een eenheid gekozen, waardoor ze de instelling Eenheden niet volgen zoals de rest:\n\n{sensors}\n\nDat is waarschijnlijk gedaan toen hoogtes, snelheden en afstanden nog door elkaar stonden. Home Assistant heeft geen manier om het terug te draaien, dus verzend dit om ze de instelling weer te laten volgen. Wil je ze zo houden, sluit dit dan en kies Negeren."
+            "description": "Op deze sensoren is zelf een eenheid gekozen, waardoor ze de instelling Eenheden niet volgen zoals de rest:\n\n{sensors}\n\nDat is waarschijnlijk gedaan toen hoogtes, snelheden en afstanden nog door elkaar stonden, en Home Assistant heeft geen manier om het terug te draaien. Laat ze de instelling volgen, of houd ze zo; het vakje onder Eenheden bij Configureren kan ze later alsnog laten meegaan.",
+            "menu_options": {
+              "follow": "Laten meegaan met de instelling",
+              "keep": "Zo houden"
+            }
           }
         },
         "abort": {

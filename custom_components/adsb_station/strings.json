@@ -540,7 +540,11 @@
         "step": {
           "confirm": {
             "title": "Units set by hand on {station}",
-            "description": "These sensors were given a unit of their own, so they do not follow the Units setting like the rest:\n\n{sensors}\n\nThat was most likely done while heights, speeds and distances were still mixed. Home Assistant has no way to undo it, so submit to let them follow the setting again. To keep them as they are, close this and choose Ignore."
+            "description": "These sensors were given a unit of their own, so they do not follow the Units setting like the rest:\n\n{sensors}\n\nThat was most likely done while heights, speeds and distances were still mixed, and Home Assistant has no way to undo it. Let them follow the setting, or keep them as they are; the box under Units in Configure can still let them follow later.",
+            "menu_options": {
+              "follow": "Let them follow the setting",
+              "keep": "Keep them as they are"
+            }
           }
         },
         "abort": {

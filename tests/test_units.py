@@ -239,10 +239,11 @@ async def test_a_unit_set_by_hand_is_offered_to_follow_again(
     assert await async_setup_component(hass, "repairs", {})
     flows = hass.data["repairs"]["flow_manager"]
     result = await flows.async_init(DOMAIN, data={"issue_id": issue_id})
-    assert result["type"] is FlowResultType.FORM
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["follow", "keep"]
     assert result["description_placeholders"]["station"] == entry.title
     assert result["description_placeholders"]["sensors"].endswith(": km")
-    result = await flows.async_configure(result["flow_id"], {})
+    result = await flows.async_configure(result["flow_id"], {"next_step_id": "follow"})
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -253,6 +254,41 @@ async def test_a_unit_set_by_hand_is_offered_to_follow_again(
     assert (
         registry.async_get(status).options["sensor"]["unit_of_measurement"] == "msg/min"
     )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_a_unit_set_by_hand_can_be_kept(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test Keep: nothing changes, and the question goes."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=5,
+        minor_version=2,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    highest = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_highest_aircraft", config_entry=entry
+    ).entity_id
+    registry.async_update_entity_options(
+        highest, "sensor", {"unit_of_measurement": "km"}
+    )
+    assert await setup_integration(hass, entry)
+    assert await async_setup_component(hass, "repairs", {})
+    issue_id = set_by_hand_issue_id(entry.entry_id)
+    flows = hass.data["repairs"]["flow_manager"]
+
+    result = await flows.async_init(DOMAIN, data={"issue_id": issue_id})
+    result = await flows.async_configure(result["flow_id"], {"next_step_id": "keep"})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert hass.states.get(highest).attributes["unit_of_measurement"] == "km"
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
 

@@ -109,18 +109,33 @@ class SetByHandRepairFlow(RepairsFlow):
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> RepairsFlowResult:
-        """Name the sensors, and clear their own unit once confirmed."""
+        """Name the sensors, and ask: follow the setting, or keep them so.
+
+        A menu, as a repair with a form has no Ignore of its own.
+        """
         entry = self.hass.config_entries.async_get_entry(self._entry_id)
         if entry is None:
             return self.async_abort(reason="station_removed")
-        sensors = set_by_hand(self.hass, self._entry_id)
-        if user_input is not None:
-            let_follow(self.hass, sensors)
-            return self.async_create_entry(data={})
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="confirm",
-            description_placeholders=set_by_hand_placeholders(entry, sensors),
+            menu_options=["follow", "keep"],
+            description_placeholders=set_by_hand_placeholders(
+                entry, set_by_hand(self.hass, self._entry_id)
+            ),
         )
+
+    async def async_step_follow(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Clear their own unit, so they follow the setting."""
+        let_follow(self.hass, set_by_hand(self.hass, self._entry_id))
+        return self.async_create_entry(data={})
+
+    async def async_step_keep(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Leave them as they are; Configure can still let them follow."""
+        return self.async_create_entry(data={})
 
 
 async def async_create_fix_flow(
