@@ -204,6 +204,9 @@
       },
       "max_range_nw": {
         "default": "mdi:compass-outline"
+      },
+      "gps_interference": {
+        "default": "mdi:crosshairs-gps"
       }
     },
     "binary_sensor": {
@@ -218,6 +221,12 @@
       },
       "watchlist": {
         "default": "mdi:eye-outline"
+      },
+      "gps_interference": {
+        "default": "mdi:crosshairs-gps",
+        "state": {
+          "on": "mdi:crosshairs-question"
+        }
       }
     },
     "button": {

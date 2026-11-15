@@ -392,6 +392,9 @@
       },
       "pf_receiver_rate": {
         "name": "Datasnelheid ontvanger"
+      },
+      "gps_interference": {
+        "name": "GPS-storing"
       }
     },
     "binary_sensor": {
@@ -446,6 +449,19 @@
       },
       "watchlist": {
         "name": "Watchlist in bereik"
+      },
+      "gps_interference": {
+        "name": "GPS-storing",
+        "state_attributes": {
+          "level": {
+            "name": "Niveau",
+            "state": {
+              "none": "Geen",
+              "possible": "Mogelijk",
+              "likely": "Waarschijnlijk"
+            }
+          }
+        }
       }
     },
     "button": {

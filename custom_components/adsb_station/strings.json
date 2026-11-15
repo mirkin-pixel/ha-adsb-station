@@ -392,6 +392,9 @@
       },
       "pf_receiver_rate": {
         "name": "Receiver data rate"
+      },
+      "gps_interference": {
+        "name": "GPS interference"
       }
     },
     "binary_sensor": {
@@ -446,6 +449,19 @@
       },
       "watchlist": {
         "name": "Watchlist in range"
+      },
+      "gps_interference": {
+        "name": "GPS interference",
+        "state_attributes": {
+          "level": {
+            "name": "Level",
+            "state": {
+              "none": "None",
+              "possible": "Possible",
+              "likely": "Likely"
+            }
+          }
+        }
       }
     },
     "button": {
