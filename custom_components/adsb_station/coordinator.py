@@ -383,9 +383,9 @@ def approach_of(
     latitude, longitude = summary.position
     # Flat earth is close enough over a receiver's range.
     north = (latitude - origin_latitude) * DEGREE_METRES
-    east = (
-        (longitude - origin_longitude) * DEGREE_METRES * cos(radians(origin_latitude))
-    )
+    # Folded into -180..180, for a station near the date line.
+    degrees_east = (longitude - origin_longitude + 180) % 360 - 180
+    east = degrees_east * DEGREE_METRES * cos(radians(origin_latitude))
 
     speed = summary.speed * KNOTS_TO_METRES_PER_SECOND
     east_per_second = speed * sin(radians(summary.track))

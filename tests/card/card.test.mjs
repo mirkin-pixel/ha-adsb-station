@@ -361,6 +361,44 @@ const tests = {
     assert.match(card.shadowRoot.querySelector(".radar").textContent, /100 km/, "100 km out takes the 100 km ring");
   },
 
+  "draws across the date line where it really is"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_scale: "coverage" });
+    // A station just west of 180°, its outline 40 km out reaching past it.
+    const east = { ...LOW, latitude: -36.8, longitude: -179.75 };
+    link.send({
+      latitude: -36.8,
+      longitude: 179.9,
+      radius: 10,
+      aircraft: [east],
+      outline: [
+        [-36.44, 179.9],
+        [-36.8, -179.651],
+        [-37.16, 179.9],
+        [-36.8, 179.451],
+      ],
+    });
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /50 km/, "the scale fits 40 km, not 28,000");
+    const points = card.shadowRoot
+      .querySelector(".radar .coverage")
+      .getAttribute("points")
+      .split(" ")
+      .map((point) => point.split(",").map(Number));
+    assert.ok(
+      points.every(([x, y]) => x >= 0 && x <= 400 && y >= 0 && y <= 400),
+      "inside the scope",
+    );
+    assert.ok(points[1][0] > 200, "the point past 180° lies east");
+    const [x] = card.shadowRoot
+      .querySelector(`.plane[data-hex="${LOW.hex}"]`)
+      .getAttribute("transform")
+      .match(/[\d.]+/)
+      .map(Number);
+    assert.ok(x > 200, "so does the aircraft");
+  },
+
   "keeps the table on a card of its own"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
