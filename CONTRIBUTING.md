@@ -2,7 +2,7 @@
 
 This file is for people working on the integration. If you are looking for how
 to install or configure it, that is the [README](README.md), which is the page
-HACS shows, and [`docs/`](docs), which holds a page per subject in English and
+the Marketplace shows (HACS before Home Assistant 2026.11), and [`docs/`](docs), which holds a page per subject in English and
 Dutch. Both languages are kept side by side: a change to one belongs in the
 other, and the README stays short enough to stand on its own. If you do not
 write Dutch, put your English text in the Dutch page as well and say so in the
@@ -213,7 +213,7 @@ places, and those stay as they are until the next major version:
 What a minor version may do, because none of it breaks what is already there:
 add entities, attributes, fields and events; change a display name or a
 translation, since the entity ID is not taken from it after setup; and ask
-for a newer Home Assistant, which HACS checks before it offers the update.
+for a newer Home Assistant, which the Marketplace checks before it offers the update.
 
 Anything else is a major version, with the change and what to do about it at
 the top of the release notes. A patch version only fixes what did not work as
@@ -221,7 +221,7 @@ documented.
 
 ## Releases
 
-The standard HACS flow: bump `version` in `manifest.json`, merge to the default
+The standard Marketplace flow, the same as HACS before it: bump `version` in `manifest.json`, merge to the default
 branch, then publish a GitHub release with a matching tag, `v1.0.0` for
 version `1.0.0`. The release workflow checks that the tag matches the manifest
 version and attaches a zip of the integration to the release.

@@ -77,9 +77,11 @@ _or_
 
 #### Via Marketplace
 
-1. Open Marketplace in Home Assistant.
+On Home Assistant before 2026.11 the Marketplace is the separate HACS; the steps are the same.
+
+1. Open **Settings → Marketplace** in Home Assistant.
 2. Search for **ADS-B Station** and click **Download**.
-3. Restart Home Assistant.
+3. Add it under **Settings → Devices & services → Add integration**. If Home Assistant asks for a restart first, restart it.
 
 #### Manual
 
@@ -92,7 +94,7 @@ The integration speaks English and Dutch: the entity names and the setup, and th
 
 ### Upgrading
 
-From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised, and what may still change, is in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises).
+From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised, and what may still change, is in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises). An update asks for a restart, because the integration's code is running; reload the browser afterwards so the cards are the new ones too.
 
 ### Development
 
@@ -174,17 +176,19 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 
 Vereist Home Assistant 2025.7 of nieuwer. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
 
-Gebruik onderstaande link om de repository te bekijken in de Marketplacd
+Gebruik onderstaande link om de repository te bekijken in de Marktplaats
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
 
 _of_
 
-#### Via Marketplace
+#### Via de Marktplaats
 
-1. Open Marketplace in Home Assistant.
+Op Home Assistant vóór 2026.11 is de Marktplaats nog het losse HACS; de stappen zijn hetzelfde.
+
+1. Open **Instellingen → Marktplaats** in Home Assistant.
 2. Zoek naar **ADS-B Station** en klik op **Download**.
-3. Herstart Home Assistant.
+3. Voeg hem toe onder **Instellingen → Apparaten & diensten → Integratie toevoegen**. Vraagt Home Assistant eerst om een herstart, herstart dan.
 
 #### Handmatig
 
@@ -197,7 +201,7 @@ De integratie spreekt Engels en Nederlands: de namen van de entiteiten en de con
 
 ### Bijwerken
 
-Vanaf 1.0 breekt een update binnen dezelfde hoofdversie niets van wat je erop gebouwd hebt: entiteits-ID's en hun geschiedenis, attributen, acties en hun antwoorden, en events blijven zoals ze zijn. Wat er precies beloofd wordt, en wat nog wel kan veranderen, staat in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises) (Engels).
+Vanaf 1.0 breekt een update binnen dezelfde hoofdversie niets van wat je erop gebouwd hebt: entiteits-ID's en hun geschiedenis, attributen, acties en hun antwoorden, en events blijven zoals ze zijn. Wat er precies beloofd wordt, en wat nog wel kan veranderen, staat in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises) (Engels). Een update vraagt om een herstart, omdat de code van de integratie draait; ververs daarna de browser, zodat ook de kaarten de nieuwe zijn.
 
 ### Ontwikkeling
 
