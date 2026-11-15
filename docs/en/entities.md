@@ -7,11 +7,11 @@ Everything from `aircraft.json`, the part every setup gets:
 | Aircraft received | Sensor | Aircraft in the last `aircraft.json` |
 | Military aircraft, Helicopters, Airline flights, Other aircraft | Sensor | The same aircraft split four ways, over everything your antenna hears. Each counts under exactly one, tried in that order, so the four add up to **Aircraft received**. Military comes off the aircraft database or the address block, a helicopter off the category it broadcasts (A7), an airline flight off a callsign that opens with a known airline designator. Other is the rest: private flying, business aviation under a registration, and anything without a callsign |
 | Aircraft with position | Sensor | Of those, the number with a known position |
-| Maximum range | Sensor (km) | Distance to the furthest aircraft heard |
+| Maximum range | Sensor (distance) | Distance to the furthest aircraft heard |
 | Message rate | Sensor (msg/s) | Mode S messages per second, averaged over the statistics interval |
-| Closest aircraft | Sensor (km) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes, and where to look: `bearing`, the compass direction in degrees, and `elevation`, the angle above the horizon. A decoder with an aircraft database adds registration, type and a military marker |
-| Highest aircraft | Sensor (ft) | Altitude of the highest aircraft in range, with the same attributes |
-| Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
+| Closest aircraft | Sensor (distance) | Distance to the nearest aircraft, with its callsign, altitude, speed, heading, rate of climb, airline and signal strength as attributes, and where to look: `bearing`, the compass direction in degrees, and `elevation`, the angle above the horizon. A decoder with an aircraft database adds registration, type and a military marker |
+| Highest aircraft | Sensor (height) | Altitude of the highest aircraft in range, with the same attributes |
+| Fastest aircraft | Sensor (speed) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](routes.md) |
 | Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
 | Overhead flight | Sensor | The one aircraft above you, the nearest on the map. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](passages.md) |
@@ -59,6 +59,6 @@ And, when your receiver also serves `stats.json`, the health of your reception:
 | Positions decoded | Sensor (diagnostic) | Positions accepted in the window |
 | Positions rejected | Sensor (diagnostic) | Positions thrown out by the sanity checks. A rising share points at a noisy signal |
 
-Altitudes are in feet, ground speeds in knots and distances in kilometres, which is how aviation reads them. Every one of those carries a device class, so you can switch an individual entity to metres, miles, km/h or mph under **Settings → Entity → Unit of measurement**, and history and statistics follow.
+Heights, speeds and distances are in the [units](configuration.md#units) you chose for the station. Every one of those carries a device class, so you can still switch an individual entity to something else under **Settings → Entity → Unit of measurement**, and history and statistics follow.
 
 The reception figures come from the shortest measurement window that has actually measured a signal, normally `last1min`. The window a value came from is on the entity as a `period` attribute.

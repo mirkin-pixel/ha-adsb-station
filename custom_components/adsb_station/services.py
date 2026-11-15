@@ -6,6 +6,7 @@ decoder. Watch and unwatch edit the watchlist.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -39,6 +40,7 @@ from .coordinator import (
 )
 from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
 from .speech import language_of
+from .units import Units, converted, feet_from, kilometres_from, unit_attributes
 from .watchlist import add_line, remove_line
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
@@ -173,12 +175,15 @@ def _describe(
     coordinator: AdsbStationDataUpdateCoordinator, summary: AircraftSummary
 ) -> dict[str, Any]:
     """Describe one aircraft as an answer rather than as an attribute set."""
-    return {
-        **aircraft_attributes(summary, include_distance=True),
-        # Which way to look, which an attribute set leaves to the sector
-        # sensors and an answer has nowhere else to get.
-        "sector": sector_from(coordinator.origin, summary.position),
-    }
+    return converted(
+        {
+            **aircraft_attributes(summary, include_distance=True),
+            # Which way to look, which an attribute set leaves to the sector
+            # sensors and an answer has nowhere else to get.
+            "sector": sector_from(coordinator.origin, summary.position),
+        },
+        coordinator.units,
+    )
 
 
 async def _async_look_up_aircraft(call: ServiceCall) -> ServiceResponse:
@@ -190,18 +195,31 @@ async def _async_look_up_aircraft(call: ServiceCall) -> ServiceResponse:
         if summary.hex.upper() == wanted or (
             summary.flight is not None and summary.flight.strip().upper() == wanted
         ):
-            return {"aircraft": _describe(coordinator, summary)}
+            return {
+                "aircraft": _describe(coordinator, summary),
+                **unit_attributes(coordinator.units),
+            }
 
     # Not an error: "not heard" is a normal answer.
-    return {"aircraft": None}
+    return {"aircraft": None, **unit_attributes(coordinator.units)}
+
+
+def _given(
+    call: ServiceCall, key: str, to_base: Callable[[float, Units], float], units: Units
+) -> float | None:
+    """Return a filter given in the station's units, in km or feet."""
+    value = call.data.get(key)
+    return None if value is None else to_base(value, units)
 
 
 async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     """Answer with every aircraft that matches, nearest first."""
     coordinator, aircraft = _station(call.hass, call)
-    max_distance = call.data.get(ATTR_MAX_DISTANCE)
-    min_altitude = call.data.get(ATTR_MIN_ALTITUDE)
-    max_altitude = call.data.get(ATTR_MAX_ALTITUDE)
+    # Given in the station's units, as its answers are; compared in km and feet.
+    units = coordinator.units
+    max_distance = _given(call, ATTR_MAX_DISTANCE, kilometres_from, units)
+    min_altitude = _given(call, ATTR_MIN_ALTITUDE, feet_from, units)
+    max_altitude = _given(call, ATTR_MAX_ALTITUDE, feet_from, units)
     military = call.data.get(ATTR_MILITARY)
     category = call.data.get(ATTR_CATEGORY)
     if category is not None:
@@ -230,7 +248,10 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
 
     # Nearest first, and the ones we cannot place last rather than first.
     matching.sort(key=lambda summary: (summary.distance is None, summary.distance or 0))
-    return {"aircraft": [_describe(coordinator, summary) for summary in matching]}
+    return {
+        "aircraft": [_describe(coordinator, summary) for summary in matching],
+        **unit_attributes(coordinator.units),
+    }
 
 
 def _watching_station(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
@@ -340,7 +361,7 @@ async def _async_speak(call: ServiceCall) -> ServiceResponse:
             coordinator,
             aircraft,
             language,
-            call.hass.config.units,
+            coordinator.units,
             call.data.get(ATTR_KIND),
         )
     }

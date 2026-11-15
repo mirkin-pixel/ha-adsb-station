@@ -219,6 +219,15 @@ Anything else is a major version, with the change and what to do about it at
 the top of the release notes. A patch version only fixes what did not work as
 documented.
 
+One exception was made, in 1.4.0. Until then sensors, attributes and events
+mixed feet and knots with kilometres, which no unit system reads as one. 1.4.0
+brought the **Units** setting, and the figures follow it, so on most stations
+they changed unit. They now name their unit beside them, `altitude_unit`,
+`speed_unit`, `distance_unit` and `vertical_rate_unit`, so a template does not
+have to assume one again. What is filled in follows the same setting: the
+filters of `list_aircraft` and the card's `map_range` and `max_altitude`. It was announced at the top of the release notes as a
+breaking change.
+
 ## Releases
 
 The standard Marketplace flow, the same as HACS before it: bump `version` in `manifest.json`, merge to the default

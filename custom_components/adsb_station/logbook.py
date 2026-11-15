@@ -28,7 +28,9 @@ TEXT = {
         EVENT_WATCHLIST_LOST: "lost {aircraft} from the watchlist",
         "after": " after {minutes} min",
         EVENT_AIRCRAFT_EMERGENCY: "heard {aircraft} report {reason}",
-        "away": ", {distance} km away",
+        "away": ", {distance} {unit} away",
+        "nmi": "NM",
+        "mi": "mi",
         "emergency": "an emergency",
         "hijack": "a hijack",
         "radio_failure": "a radio failure",
@@ -39,7 +41,9 @@ TEXT = {
         EVENT_WATCHLIST_LOST: "hoort {aircraft} van de watchlist niet meer",
         "after": " na {minutes} min",
         EVENT_AIRCRAFT_EMERGENCY: "hoorde {aircraft} een {reason} melden",
-        "away": ", op {distance} km",
+        "away": ", op {distance} {unit}",
+        "nmi": "NM",
+        "mi": "mijl",
         "emergency": "noodgeval",
         "hijack": "kaping",
         "radio_failure": "radiostoring",
@@ -73,7 +77,11 @@ def async_describe_events(
             if isinstance(seconds := data.get("duration"), int | float):
                 message += text["after"].format(minutes=round(seconds / 60))
         elif isinstance(distance := data.get("distance"), int | float):
-            message += text["away"].format(distance=rounded(distance, language))
+            # In the units the event was fired in; before 1.4 always km.
+            unit = str(data.get("distance_unit") or "km")
+            message += text["away"].format(
+                distance=rounded(distance, language), unit=text.get(unit, unit)
+            )
         name = data.get("station") or DEFAULT_STATION_NAME
         return {LOGBOOK_ENTRY_NAME: name, LOGBOOK_ENTRY_MESSAGE: message}
 

@@ -23,11 +23,13 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `title` | none | A header above the card |
 | `map` | `radar` | The sky around the station: `radar`, `map` for the same sky on a map with streets, or `none` |
 | `map_scale` | `aircraft` | How far out the radar, or the map, reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
-| `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres, from 5 to 700 |
-| `max_altitude` | | Leave aircraft higher than this, in feet, off the radar. Empty shows them all |
+| `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in the station's [units](configuration.md#units), from 5 to 700 |
+| `max_altitude` | | Leave aircraft higher than this, in the station's units, off the radar. Empty shows them all |
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
 | `show_status` | `true` | Aircraft received, message rate, maximum range and signal to noise, and a dot per network for Flightradar24 and FlightAware |
+
+Heights, speeds and distances are in the station's [units](configuration.md#units), the same as its sensors.
 
 On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 
@@ -114,9 +116,10 @@ The [table card](#the-table-card) with `list: passages` shows the passage board 
 ```yaml
 type: markdown
 content: |
-  {% for passage in state_attr('sensor.your_station_passages_today', 'passages') %}
+  {% set board = 'sensor.your_station_passages_today' %}
+  {% for passage in state_attr(board, 'passages') %}
   **{{ passage.flight or passage.hex }}**{% if passage.airline %} · {{ passage.airline }}{% endif %}
-  {{ as_timestamp(passage.at) | timestamp_custom('%H:%M') }} · {{ passage.distance }} km · {{ passage.altitude }} ft
+  {{ as_timestamp(passage.at) | timestamp_custom('%H:%M') }} · {{ passage.distance }} {{ state_attr(board, 'distance_unit') }} · {{ passage.altitude }} {{ state_attr(board, 'altitude_unit') }}
   {% endfor %}
 ```
 
@@ -184,8 +187,13 @@ template:
         state: "{{ state_attr('sensor.your_station_aircraft_nearby', 'aircraft') | count }}"
         attributes:
           flights: >
+            {% set nearby = 'sensor.your_station_aircraft_nearby' %}
+            {% set ft = 1 if state_attr(nearby, 'altitude_unit') == 'ft' else 3.28084 %}
+            {% set kt = {'kn': 1, 'km/h': 0.539957, 'mph': 0.868976}[state_attr(nearby, 'speed_unit')] %}
+            {% set km = {'km': 1, 'nmi': 1.852, 'mi': 1.609344}[state_attr(nearby, 'distance_unit')] %}
+            {% set fpm = 196.85 if state_attr(nearby, 'vertical_rate_unit') == 'm/s' else 1 %}
             {% set out = namespace(flights=[]) %}
-            {% for plane in state_attr('sensor.your_station_aircraft_nearby', 'aircraft') %}
+            {% for plane in state_attr(nearby, 'aircraft') %}
               {% set out.flights = out.flights + [{
                 'callsign': plane.flight,
                 'flight_number': plane.flight,
@@ -193,19 +201,19 @@ template:
                 'aircraft_model': plane.description,
                 'aircraft_code': plane.aircraft_type,
                 'airline_short': plane.airline,
-                'altitude': plane.altitude,
-                'ground_speed': plane.speed,
-                'vertical_speed': plane.vertical_rate,
+                'altitude': (plane.altitude * ft) | round if plane.altitude is number else none,
+                'ground_speed': (plane.speed * kt) | round if plane.speed is number else none,
+                'vertical_speed': (plane.vertical_rate * fpm) | round if plane.vertical_rate is number else none,
                 'heading': plane.track,
-                'distance_to_tracker': plane.distance,
-                'closest_passing_distance': plane.closest_passing_distance,
+                'distance_to_tracker': (plane.distance * km) | round(1) if plane.distance is number else none,
+                'closest_passing_distance': (plane.closest_passing_distance * km) | round(1) if plane.closest_passing_distance is number else none,
                 'eta_to_closest_distance': plane.seconds_to_closest,
               }] %}
             {% endfor %}
             {{ out.flights }}
 ```
 
-The last two keys are filled in for aircraft that are [coming your way](passages.md#before-it-gets-here) and absent for the rest, which is what the card does with them anyway. The card also wants a position per flight; that means switching the map on, since the aircraft entities are the only place the positions are published.
+That card reads feet, knots and kilometres, as the FR24 integration gives them, and shows them in its own `units`; the four `set` lines turn the station's [units](configuration.md#units) back into those, whichever you chose. The last two keys are filled in for aircraft that are [coming your way](passages.md#before-it-gets-here) and absent for the rest, which is what the card does with them anyway. The card also wants a position per flight; that means switching the map on, since the aircraft entities are the only place the positions are published.
 
 ## Keeping the database out of it
 

@@ -54,6 +54,7 @@ from .coordinator import (
     ReceiverStats,
     aircraft_attributes,
     count_of,
+    kilometres,
     slant_distance,
 )
 from .entity import (
@@ -796,13 +797,51 @@ class AdsbStationReceptionSensor(AdsbStationReceptionEntity, SensorEntity):
         return {"period": reception.period}
 
 
-class AdsbStationClosestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
+class _DistanceInUnits(SensorEntity):
+    """Shown in the distance unit the station is set to, unless changed here.
+
+    Home Assistant keeps the unit a sensor first had; the options flow asks
+    it to look again when the setting changes, as a unit system change does.
+    """
+
+    coordinator: AdsbStationDataUpdateCoordinator
+
+    @property
+    def suggested_unit_of_measurement(self) -> str:
+        """Return the distance unit of the station's setting."""
+        return self.coordinator.units.distance
+
+
+class _AltitudeInUnits(SensorEntity):
+    """Shown in the height unit the station is set to."""
+
+    coordinator: AdsbStationDataUpdateCoordinator
+
+    @property
+    def suggested_unit_of_measurement(self) -> str:
+        """Return the height unit of the station's setting."""
+        return self.coordinator.units.altitude
+
+
+class _SpeedInUnits(SensorEntity):
+    """Shown in the speed unit the station is set to."""
+
+    coordinator: AdsbStationDataUpdateCoordinator
+
+    @property
+    def suggested_unit_of_measurement(self) -> str:
+        """Return the speed unit of the station's setting."""
+        return self.coordinator.units.speed
+
+
+class AdsbStationClosestAircraftSensor(
+    _DistanceInUnits, AdsbStationAircraftEntity, SensorEntity
+):
     """Distance to the nearest aircraft, with its details as attributes."""
 
     _attr_translation_key = "closest_aircraft"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.METERS
-    _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_suggested_display_precision = 1
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -822,7 +861,7 @@ class AdsbStationClosestAircraftSensor(AdsbStationAircraftEntity, SensorEntity):
         """Return who is flying there."""
         if (aircraft := self.aircraft) is None or (closest := aircraft.closest) is None:
             return None
-        return aircraft_attributes(closest)
+        return self._in_units(aircraft_attributes(closest))
 
 
 @dataclass
@@ -916,16 +955,18 @@ class AdsbStationRememberedAircraftSensor(
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return who set it and when."""
-        return {"seen_at": self._remembered.seen_at, **(self._remembered.details or {})}
+        return self._in_units(
+            {"seen_at": self._remembered.seen_at, **(self._remembered.details or {})}
+        )
 
 
-class AdsbStationHighestAircraftSensor(AdsbStationRememberedAircraftSensor):
+class AdsbStationHighestAircraftSensor(
+    _AltitudeInUnits, AdsbStationRememberedAircraftSensor
+):
     """Altitude of the highest aircraft heard."""
 
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.FEET
-    # Feet by default even on a metric system; metres stay selectable.
-    _attr_suggested_unit_of_measurement = UnitOfLength.FEET
     _attr_suggested_display_precision = 0
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -938,12 +979,11 @@ class AdsbStationHighestAircraftSensor(AdsbStationRememberedAircraftSensor):
         )
 
 
-class AdsbStationMaxRangeSensor(AdsbStationRememberedAircraftSensor):
+class AdsbStationMaxRangeSensor(_DistanceInUnits, AdsbStationRememberedAircraftSensor):
     """Distance to the furthest aircraft heard."""
 
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.METERS
-    _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_suggested_display_precision = 1
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -956,13 +996,13 @@ class AdsbStationMaxRangeSensor(AdsbStationRememberedAircraftSensor):
         )
 
 
-class AdsbStationFastestAircraftSensor(AdsbStationRememberedAircraftSensor):
+class AdsbStationFastestAircraftSensor(
+    _SpeedInUnits, AdsbStationRememberedAircraftSensor
+):
     """Ground speed of the fastest aircraft heard."""
 
     _attr_device_class = SensorDeviceClass.SPEED
     _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
-    # Knots by default, for the same reason as the altitude above.
-    _attr_suggested_unit_of_measurement = UnitOfSpeed.KNOTS
     _attr_suggested_display_precision = 0
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
@@ -999,13 +1039,15 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
         """Return which aircraft those are, nearest first."""
         if (aircraft := self.aircraft) is None:
             return None
-        return {
-            "radius": self.coordinator.proximity_radius / 1000,
-            "aircraft": [
-                aircraft_attributes(summary, include_distance=True)
-                for summary in aircraft.nearby
-            ],
-        }
+        return self._in_units(
+            {
+                "radius": self.coordinator.proximity_radius / 1000,
+                "aircraft": [
+                    aircraft_attributes(summary, include_distance=True)
+                    for summary in aircraft.nearby
+                ],
+            }
+        )
 
 
 def _passage_entry(passage: Passage) -> dict[str, Any]:
@@ -1015,7 +1057,7 @@ def _passage_entry(passage: Passage) -> dict[str, Any]:
         "hex": passage.hex,
         "flight": passage.closest.flight,
         "altitude": passage.closest.altitude,
-        "distance": round(passage.closest_distance / 1000, 1),
+        "distance": kilometres(passage.closest_distance),
         # Both grow until the aircraft has gone.
         "duration": round((passage.last_seen - passage.started_at).total_seconds()),
     }
@@ -1104,11 +1146,7 @@ class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
             seen_at=dt_util.utcnow().isoformat(),
             details={
                 **aircraft_attributes(passage.current, include_distance=True),
-                "slant_distance": (
-                    None
-                    if (metres := slant_distance(passage.current)) is None
-                    else round(metres / 1000, 1)
-                ),
+                "slant_distance": kilometres(slant_distance(passage.current)),
                 "since": passage.started_at.isoformat(),
             },
         )
@@ -1125,7 +1163,7 @@ class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
         if details is None:
             return None
         return {
-            **details,
+            **self._in_units(details),
             "seen_at": self._remembered.seen_at,
             # Whether it is up there now or is the one that last was.
             "overhead": self.coordinator.overhead is not None,
@@ -1226,7 +1264,7 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
         with the state it last wrote, and a list changed in place compares
         equal to itself, so the board would not reach the browser.
         """
-        return {"passages": list(self._board.passages)}
+        return self._in_units({"passages": list(self._board.passages)})
 
 
 @dataclass
@@ -1343,7 +1381,7 @@ class SectorRecord(ExtraStoredData):
 
 
 class AdsbStationSectorRangeSensor(
-    AdsbStationAircraftEntity, RestoreEntity, SensorEntity
+    _DistanceInUnits, AdsbStationAircraftEntity, RestoreEntity, SensorEntity
 ):
     """The furthest an aircraft has ever been heard in one compass sector.
 
@@ -1352,7 +1390,6 @@ class AdsbStationSectorRangeSensor(
 
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.METERS
-    _attr_suggested_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_suggested_display_precision = 1
     # Long-term statistics keep how the reach grew after the history is purged.
     _attr_state_class = SensorStateClass.MEASUREMENT

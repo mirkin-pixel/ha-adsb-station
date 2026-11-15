@@ -23,11 +23,13 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 | `title` | geen | Een kop boven de kaart |
 | `map` | `radar` | De lucht rond het station: `radar`, `map` voor dezelfde lucht op een kaart met straten, of `none` |
 | `map_scale` | `aircraft` | Hoe ver de radar, of de kaart, reikt: `aircraft` passend bij de toestellen in de lucht, `coverage` ook passend bij de bereikrecords, of `fixed` |
-| `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in kilometers, van 5 tot 700 |
-| `max_altitude` | | Laat toestellen hoger dan dit, in voet, van de radar weg. Leeg toont ze allemaal |
+| `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in de [eenheden](configuration.md#eenheden) van het station, van 5 tot 700 |
+| `max_altitude` | | Laat toestellen hoger dan dit, in de eenheden van het station, van de radar weg. Leeg toont ze allemaal |
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
 | `max_nearby` | `5` | Hoeveel daarvan maximaal |
 | `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde, maximaal bereik en signaal-ruisverhouding, en een bolletje per netwerk voor Flightradar24 en FlightAware |
+
+Hoogtes, snelheden en afstanden staan in de [eenheden](configuration.md#eenheden) van het station, net als bij de sensoren.
 
 Op een breed dashboard staat de lucht links en de rest ernaast; op een telefoon staan ze onder elkaar.
 
@@ -114,9 +116,10 @@ De [tabelkaart](#de-tabelkaart) met `list: passages` toont het passagebord zoals
 ```yaml
 type: markdown
 content: |
-  {% for passage in state_attr('sensor.jouw_station_passages_vandaag', 'passages') %}
+  {% set board = 'sensor.jouw_station_passages_vandaag' %}
+  {% for passage in state_attr(board, 'passages') %}
   **{{ passage.flight or passage.hex }}**{% if passage.airline %} · {{ passage.airline }}{% endif %}
-  {{ as_timestamp(passage.at) | timestamp_custom('%H:%M') }} · {{ passage.distance }} km · {{ passage.altitude }} ft
+  {{ as_timestamp(passage.at) | timestamp_custom('%H:%M') }} · {{ passage.distance }} {{ state_attr(board, 'distance_unit') }} · {{ passage.altitude }} {{ state_attr(board, 'altitude_unit') }}
   {% endfor %}
 ```
 
@@ -184,8 +187,13 @@ template:
         state: "{{ state_attr('sensor.jouw_station_vliegtuigen_dichtbij', 'aircraft') | count }}"
         attributes:
           flights: >
+            {% set nearby = 'sensor.jouw_station_vliegtuigen_dichtbij' %}
+            {% set ft = 1 if state_attr(nearby, 'altitude_unit') == 'ft' else 3.28084 %}
+            {% set kt = {'kn': 1, 'km/h': 0.539957, 'mph': 0.868976}[state_attr(nearby, 'speed_unit')] %}
+            {% set km = {'km': 1, 'nmi': 1.852, 'mi': 1.609344}[state_attr(nearby, 'distance_unit')] %}
+            {% set fpm = 196.85 if state_attr(nearby, 'vertical_rate_unit') == 'm/s' else 1 %}
             {% set out = namespace(flights=[]) %}
-            {% for plane in state_attr('sensor.jouw_station_vliegtuigen_dichtbij', 'aircraft') %}
+            {% for plane in state_attr(nearby, 'aircraft') %}
               {% set out.flights = out.flights + [{
                 'callsign': plane.flight,
                 'flight_number': plane.flight,
@@ -193,19 +201,19 @@ template:
                 'aircraft_model': plane.description,
                 'aircraft_code': plane.aircraft_type,
                 'airline_short': plane.airline,
-                'altitude': plane.altitude,
-                'ground_speed': plane.speed,
-                'vertical_speed': plane.vertical_rate,
+                'altitude': (plane.altitude * ft) | round if plane.altitude is number else none,
+                'ground_speed': (plane.speed * kt) | round if plane.speed is number else none,
+                'vertical_speed': (plane.vertical_rate * fpm) | round if plane.vertical_rate is number else none,
                 'heading': plane.track,
-                'distance_to_tracker': plane.distance,
-                'closest_passing_distance': plane.closest_passing_distance,
+                'distance_to_tracker': (plane.distance * km) | round(1) if plane.distance is number else none,
+                'closest_passing_distance': (plane.closest_passing_distance * km) | round(1) if plane.closest_passing_distance is number else none,
                 'eta_to_closest_distance': plane.seconds_to_closest,
               }] %}
             {% endfor %}
             {{ out.flights }}
 ```
 
-De laatste twee sleutels staan er bij toestellen die [jouw kant op komen](passages.md#voordat-het-er-is) en bij de rest niet, en dat is ook wat de kaart ermee doet. De kaart wil daarnaast een positie per vlucht; daarvoor moet de kaartoptie aan, want de vliegtuigentiteiten zijn de enige plek waar de posities gepubliceerd worden.
+Die kaart leest voet, knopen en kilometers, zoals de FR24-integratie ze geeft, en toont ze in zijn eigen `units`; de vier `set`-regels zetten de [eenheden](configuration.md#eenheden) van het station daarnaar terug, wat je ook koos. De laatste twee sleutels staan er bij toestellen die [jouw kant op komen](passages.md#voordat-het-er-is) en bij de rest niet, en dat is ook wat de kaart ermee doet. De kaart wil daarnaast een positie per vlucht; daarvoor moet de kaartoptie aan, want de vliegtuigentiteiten zijn de enige plek waar de posities gepubliceerd worden.
 
 ## De database erbuiten houden
 

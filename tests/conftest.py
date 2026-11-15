@@ -316,6 +316,9 @@ def mock_config_entry() -> MockConfigEntry:
         domain=DOMAIN,
         title="FR24 feeder",
         unique_id=MOCK_ALIAS,
+        # As the config flow makes one today, so nothing is migrated.
+        version=5,
+        minor_version=2,
         data={
             CONF_HOST: MOCK_HOST,
             CONF_PORT: DEFAULT_PORT,
@@ -460,3 +463,8 @@ def our_device(
     if device is None or entry.entry_id not in device.config_entries:
         return None
     return device
+
+
+def metres(feet: float) -> int:
+    """Return a height in feet as the whole metres a metric station shows."""
+    return round(feet * 0.3048)

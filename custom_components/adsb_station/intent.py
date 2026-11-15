@@ -11,7 +11,6 @@ from typing import Any, Final
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
 from homeassistant.util import dt as dt_util
-from homeassistant.util.unit_system import UnitSystem
 
 from .const import PASSAGE_GAP
 from .coordinator import (
@@ -31,6 +30,7 @@ from .speech import (
     say,
     sector_word,
 )
+from .units import Units
 
 INTENT_OVERHEAD: Final = "AdsbStationOverhead"
 INTENT_COUNT: Final = "AdsbStationCount"
@@ -73,7 +73,7 @@ class _AdsbStationIntent(intent.IntentHandler):
                 coordinator,
                 aircraft,
                 language,
-                intent_obj.hass.config.units,
+                coordinator.units,
                 intent_obj.slots,
             )
         )
@@ -84,7 +84,7 @@ class _AdsbStationIntent(intent.IntentHandler):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Return the sentence to speak."""
@@ -95,7 +95,7 @@ class _AdsbStationIntent(intent.IntentHandler):
         coordinator: AdsbStationDataUpdateCoordinator,
         summary: AircraftSummary,
         language: str,
-        units: UnitSystem,
+        units: Units,
     ) -> dict[str, str]:
         """Return how far away and which way an aircraft is, in words."""
         sector = sector_word(
@@ -124,7 +124,7 @@ class OverheadIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with the aircraft that is overhead, or with silence."""
@@ -150,7 +150,7 @@ class CountIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with both figures, because either alone reads as the whole sky."""
@@ -176,7 +176,7 @@ class ClosestIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with the nearest aircraft that has a position."""
@@ -202,7 +202,7 @@ class TrafficIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with the nearest one of its kind, and how many others."""
@@ -243,7 +243,7 @@ class RouteIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with the route, or with why there is not one."""
@@ -279,7 +279,7 @@ class LastPassageIntent(_AdsbStationIntent):
         coordinator: AdsbStationDataUpdateCoordinator,
         aircraft: AircraftStats,
         language: str,
-        units: UnitSystem,
+        units: Units,
         slots: dict[str, Any],
     ) -> str:
         """Answer with the last aircraft past its closest approach.
@@ -332,7 +332,7 @@ def answer_question(
     coordinator: AdsbStationDataUpdateCoordinator,
     aircraft: AircraftStats,
     language: str,
-    units: UnitSystem,
+    units: Units,
     kind: str | None = None,
 ) -> str:
     """Return the spoken answer to one question, without an intent around it."""

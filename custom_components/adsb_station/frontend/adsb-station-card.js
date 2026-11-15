@@ -64,8 +64,8 @@ const STRINGS = {
     scale_aircraft: "Automatic, to fit the aircraft",
     scale_coverage: "Automatic, to fit the range records",
     scale_fixed: "Fixed",
-    map_range: "Fixed range in km",
-    max_altitude: "Highest altitude shown (ft)",
+    map_range: "Fixed range, in the station's units",
+    max_altitude: "Highest altitude shown, in the station's units",
     kind_airline: "Airline",
     kind_other: "Other",
     kind_helicopter: "Helicopter",
@@ -141,8 +141,8 @@ const STRINGS = {
     scale_aircraft: "Automatisch, passend bij de toestellen",
     scale_coverage: "Automatisch, passend bij de bereikrecords",
     scale_fixed: "Vast",
-    map_range: "Vast bereik in km",
-    max_altitude: "Hoogste getoonde hoogte (ft)",
+    map_range: "Vast bereik, in de eenheden van het station",
+    max_altitude: "Hoogste getoonde hoogte, in de eenheden van het station",
     kind_airline: "Lijnvlucht",
     kind_other: "Overig",
     kind_helicopter: "Helikopter",
@@ -189,6 +189,21 @@ const ROUTE_WAIT_SECONDS = 60;
 // fixed: to the aircraft in the sky now, or to the range records as well.
 // Up to 700 km, the furthest the integration believes a position at all.
 const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500, 600, 700];
+const FURTHEST_KM = 700;
+// tar1090's three: per unit shown, how many of it in one of what the
+// integration sends (feet, knots, kilometres), and the legend's heights.
+const UNIT_SYSTEMS = {
+  nautical: { height: ["ft", 1], speed: ["kt", 1], distance: ["NM", 1 / 1.852], ticks: [0, 15000, 30000, 45000] },
+  metric: { height: ["m", 0.3048], speed: ["km/h", 1.852], distance: ["km", 1], ticks: [0, 4000, 8000, 12000] },
+  imperial: {
+    height: ["ft", 1],
+    speed: ["mph", 1.150779],
+    distance: ["mi", 1 / 1.609344],
+    ticks: [0, 15000, 30000, 45000],
+  },
+};
+// The integration names its distance unit beside the figures it sends.
+const SYSTEM_BY_DISTANCE = { nmi: "nautical", km: "metric", mi: "imperial" };
 const SCALES = ["aircraft", "coverage", "fixed"];
 // What the table card lists: the sky now, or the passage board.
 const LISTS = ["now", "passages"];
@@ -663,11 +678,11 @@ class AdsbStationCard extends HTMLElement {
         },
         {
           name: "map_range",
-          selector: { number: { min: 5, max: 700, mode: "box", unit_of_measurement: "km" } },
+          selector: { number: { min: 5, max: 700, mode: "box" } },
         },
         {
           name: "max_altitude",
-          selector: { number: { min: 1000, max: 60000, step: 1000, mode: "box", unit_of_measurement: "ft" } },
+          selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
         },
         { name: "show_nearby", selector: { boolean: {} } },
         {
@@ -962,18 +977,26 @@ class AdsbStationCard extends HTMLElement {
 
   _scale(sky) {
     const mode = this._scaleMode();
-    if (mode === "fixed")
-      return Number(this._config.map_range) > 0 ? Number(this._config.map_range) : DEFAULT_FIXED_RANGE;
+    // Set in the station's units, like everything the card shows.
+    if (mode === "fixed") return (Number(this._config.map_range) || DEFAULT_FIXED_RANGE) / this._units().distance[1];
     const furthest = Math.max(
       sky ? sky.radius || 0 : 0,
       ...((sky && sky.aircraft) || []).map((plane) => plane.distance || 0),
       // The records as well, so the whole shape of the coverage fits.
       ...(mode === "coverage" ? this._outlineKm(sky) || this._coverage() || [] : []),
     );
+    // Round steps in the unit shown, up to the first that reaches 700 km;
+    // a step of other units is no step at all.
+    const per = this._units().distance[1];
+    if (this._rangePer !== per) this._range = undefined;
+    this._rangePer = per;
     // Held until the sky clearly fits a smaller ring, so one aircraft at the
     // edge coming and going does not make the whole radar breathe.
     if (this._range && furthest <= this._range && furthest > this._range * 0.6) return this._range;
-    this._range = RANGE_STEPS.find((step) => step >= furthest) || RANGE_STEPS[RANGE_STEPS.length - 1];
+    const steps = RANGE_STEPS.map((step) => step / per);
+    const last = steps.findIndex((km) => km >= FURTHEST_KM);
+    const usable = last < 0 ? steps : steps.slice(0, last + 1);
+    this._range = usable.find((km) => km >= furthest) || usable[usable.length - 1];
     return this._range;
   }
 
@@ -1011,7 +1034,7 @@ class AdsbStationCard extends HTMLElement {
     const distances = [
       { km: range / 2, y: centre - (range / 2) * perKm - 4 },
       { km: range, y: centre - range * perKm + 14 },
-    ].map(({ km, y }) => ({ x: centre + 4, y, text: `${this._number(km, 1)} km` }));
+    ].map(({ km, y }) => ({ x: centre + 4, y, text: this._distance(km) }));
 
     const scope = svg("svg", {
       class: streets ? "radar streets" : "radar",
@@ -1411,7 +1434,8 @@ class AdsbStationCard extends HTMLElement {
 
   // Every aircraft at or under the altitude set, if one is.
   _belowCeiling() {
-    const ceiling = Number(this._config.max_altitude) || 0;
+    // In the station's units; the sky is in feet.
+    const ceiling = (Number(this._config.max_altitude) || 0) / this._units().height[1];
     return ((this._sky && this._sky.aircraft) || []).filter((plane) => !ceiling || !(plane.altitude > ceiling));
   }
 
@@ -1461,8 +1485,14 @@ class AdsbStationCard extends HTMLElement {
         el(
           "div",
           { class: "ticks" },
-          [0, 15000, 30000].map((feet) => el("span", {}, this._number(feet, 0))),
-          el("span", {}, `${this._number(ALTITUDE_TOP, 0)} ft`),
+          this._units().ticks.map((value, i, all) => {
+            const [unit, per] = this._units().height;
+            const share = (value / per / ALTITUDE_TOP) * 100;
+            const label = this._number(value, 0) + (i === all.length - 1 ? ` ${unit}` : "");
+            // Centred on its height, but kept inside the bar at either end.
+            const shift = share < 5 ? "0" : share > 95 ? "-100%" : "-50%";
+            return el("span", { style: `left: ${share.toFixed(1)}%; transform: translateX(${shift})` }, label);
+          }),
         ),
       ),
     );
@@ -1491,11 +1521,7 @@ class AdsbStationCard extends HTMLElement {
       el(
         "div",
         { class: "secondary" },
-        [
-          this._height(plane, text),
-          typeof plane.speed === "number" ? `${this._number(plane.speed, 0)} kt` : null,
-          this._distance(plane.distance),
-        ]
+        [this._height(plane, text), this._speed(plane.speed), this._distance(plane.distance)]
           .filter(Boolean)
           .join("   "),
       ),
@@ -1511,16 +1537,23 @@ class AdsbStationCard extends HTMLElement {
       number(plane.mach)
         ? `Mach ${this._number(plane.mach, 2)}`
         : number(plane.ias)
-          ? `IAS ${this._number(plane.ias, 0)} kt`
+          ? `IAS ${this._speed(plane.ias)}`
           : null,
       number(plane.wind_direction) && number(plane.wind_speed)
-        ? `${text.wind} ${this._number(plane.wind_direction, 0)}° ${this._number(plane.wind_speed, 0)} kt`
+        ? `${text.wind} ${this._number(plane.wind_direction, 0)}° ${this._speed(plane.wind_speed)}`
         : null,
-      number(plane.temperature) ? `${this._number(plane.temperature, 0)} °C` : null,
+      number(plane.temperature)
+        ? this._units() === UNIT_SYSTEMS.imperial
+          ? `${this._number((plane.temperature * 9) / 5 + 32, 0)} °F`
+          : `${this._number(plane.temperature, 0)} °C`
+        : null,
       // Only in a turn worth the name.
       number(plane.roll) && Math.abs(plane.roll) >= 5 ? `${text.roll} ${this._number(Math.abs(plane.roll), 0)}°` : null,
     ].filter(Boolean);
-    return parts.length ? el("div", { class: "secondary" }, parts.join(" · ")) : null;
+    if (!parts.length) return null;
+    // Each part kept whole, so a line breaks between them, not inside one.
+    const kept = parts.flatMap((part, i) => [i ? " · " : null, el("span", { class: "whole" }, part)]);
+    return el("div", { class: "secondary" }, kept.filter(Boolean));
   }
 
   // Where it comes from and goes to, under the aircraft's name. Without a
@@ -1543,7 +1576,7 @@ class AdsbStationCard extends HTMLElement {
 
   _overhead(found, text) {
     const state = this._state(found.overhead);
-    const plane = state ? state.attributes : {};
+    const plane = state ? this._fromSensors(state.attributes, state) : {};
     const known = state && !["unknown", "unavailable"].includes(state.state) && (plane.flight || plane.hex);
     if (!known) {
       return el("div", { class: "empty" }, el("ha-icon", { icon: "mdi:airplane-off" }), text.nothing);
@@ -1616,16 +1649,71 @@ class AdsbStationCard extends HTMLElement {
         : typeof rate === "number" && rate <= -CLIMB_RATE_SHOWN
           ? "↓ "
           : "";
-    return `${arrow}${this._number(plane.altitude, 0)} ft`;
+    const [unit, per] = this._units().height;
+    return `${arrow}${this._number(plane.altitude * per, 0)} ${unit}`;
   }
 
   _distance(km) {
-    return typeof km === "number" ? `${this._number(km, 1)} km` : null;
+    if (typeof km !== "number") return null;
+    const [unit, per] = this._units().distance;
+    return `${this._number(km * per, 1)} ${unit}`;
+  }
+
+  _speed(knots) {
+    if (typeof knots !== "number") return null;
+    const [unit, per] = this._units().speed;
+    return `${this._number(knots * per, 0)} ${unit}`;
+  }
+
+  // The integration's units, as the sky or a sensor names them. Before
+  // either has arrived, Home Assistant's own: imperial for US units.
+  _units() {
+    return (this._sky && UNIT_SYSTEMS[this._sky.units]) || this._stationUnits() || this._hassUnits();
+  }
+
+  _hassUnits() {
+    const system = this._hass && this._hass.config && this._hass.config.unit_system;
+    return system && system.length === "mi" ? UNIT_SYSTEMS.imperial : UNIT_SYSTEMS.metric;
+  }
+
+  // What the integration sends its sensors' figures in, if any says so.
+  _stationUnits() {
+    const found = this._found || {};
+    for (const key of ["overhead", "nearby", "passages"]) {
+      const units = this._unitsOf(this._state(found[key]));
+      if (units) return units;
+    }
+    return null;
+  }
+
+  // The units one sensor gives its figures in, as its attributes name them.
+  _unitsOf(state) {
+    const name = state && SYSTEM_BY_DISTANCE[state.attributes.distance_unit];
+    return name ? UNIT_SYSTEMS[name] : null;
+  }
+
+  // An aircraft from a sensor's attributes, back in the feet, knots and
+  // kilometres the radar's feed has, so both are shown the same way.
+  _fromSensors(plane, state) {
+    const units = this._unitsOf(state);
+    if (!units || !plane) return plane;
+    const back = (value, per) => (typeof value === "number" ? value / per : value);
+    return {
+      ...plane,
+      altitude: back(plane.altitude, units.height[1]),
+      speed: back(plane.speed, units.speed[1]),
+      distance: back(plane.distance, units.distance[1]),
+      // Metres a second on a metric station, feet a minute otherwise.
+      vertical_rate: units === UNIT_SYSTEMS.metric ? back(plane.vertical_rate, 0.00508) : plane.vertical_rate,
+    };
   }
 
   _nearby(found, text) {
     const state = this._state(found.nearby);
-    const list = state && Array.isArray(state.attributes.aircraft) ? state.attributes.aircraft : [];
+    const list =
+      state && Array.isArray(state.attributes.aircraft)
+        ? state.attributes.aircraft.map((p) => this._fromSensors(p, state))
+        : [];
     const overhead = this._state(found.overhead);
     const skip = overhead && overhead.attributes.overhead !== false ? overhead.attributes.hex : null;
     const others = list
@@ -1734,7 +1822,9 @@ class AdsbStationCard extends HTMLElement {
     const query = this._query;
     const board = this._passages() && this._state(this._found && this._found.passages);
     const source = this._passages()
-      ? (board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []
+      ? ((board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []).map((p) =>
+          this._fromSensors(p, board),
+        )
       : (this._sky && this._sky.aircraft) || [];
     const planes = source
       .filter(
@@ -2075,10 +2165,17 @@ const STYLE = css`
     border-radius: 3px;
   }
   .legend .ticks {
-    display: flex;
-    justify-content: space-between;
+    position: relative;
+    height: 1.4em;
     margin-top: 2px;
     font-variant-numeric: tabular-nums;
+  }
+  .legend .ticks span {
+    position: absolute;
+    white-space: nowrap;
+  }
+  .whole {
+    white-space: nowrap;
   }
   .picked {
     margin-top: 10px;

@@ -89,20 +89,24 @@
         "title": "ADS-B receiver",
         "description": "Home Assistant can also read the aircraft.json of your decoder for the number of aircraft received, the message rate and the maximum range. Leave the field empty to skip this. Leave it empty if another entry on this station already reads the decoder, or its aircraft will be counted twice.",
         "data": {
-          "aircraft_url": "aircraft.json URL"
+          "aircraft_url": "aircraft.json URL",
+          "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       },
       "receiver_url": {
         "title": "aircraft.json",
         "description": "This is where the data comes from, so it is required. Any decoder that serves an aircraft.json works, whichever network you feed.",
         "data": {
-          "aircraft_url": "aircraft.json URL"
+          "aircraft_url": "aircraft.json URL",
+          "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },
@@ -133,18 +137,20 @@
           "look_up_routes": "Look up flight routes",
           "look_up_photos": "Look up aircraft photos",
           "watchlist": "Watchlist",
-          "aircraft_database": "Download an aircraft database"
+          "aircraft_database": "Download an aircraft database",
+          "units": "Units"
         },
         "data_description": {
           "scan_interval": "How often the aircraft are read, in seconds. Everything runs on your own network, so a short interval is fine.",
           "statistics_interval": "How often the feeder and the decoder's statistics are read, in seconds. Those are counters and averages over a minute, so reading them more often mostly fills the recorder. A station that only feeds is read at this interval alone.",
-          "proximity_radius": "How close an aircraft has to be to count as nearby, in kilometres. Ten is roughly what you can see and hear.",
-          "proximity_max_altitude": "How high an aircraft may be and still count as nearby, in feet. Leave it empty and the radius alone decides, which is worth knowing about: a radius is a circle on the ground, so without a ceiling an airliner at 36,000 feet is overhead. It applies to what is nearby, what is overhead and what counts as a passage, and to nothing else: the aircraft still counts as received, still sets range records, and an emergency squawk is still reported at any height.",
+          "proximity_radius": "How close an aircraft has to be to count as nearby, in the unit shown beside it. Ten kilometres, about six miles, is roughly what you can see and hear.",
+          "proximity_max_altitude": "How high an aircraft may be and still count as nearby, in the unit shown beside it. Leave it empty and the radius alone decides, which is worth knowing about: a radius is a circle on the ground, so without a ceiling an airliner at 36,000 feet is overhead. It applies to what is nearby, what is overhead and what counts as a passage, and to nothing else: the aircraft still counts as received, still sets range records, and an emergency squawk is still reported at any height.",
           "map_aircraft": "Puts every aircraft inside the nearby radius on the map as its own entity, for as long as it is there. Nothing is registered and nothing is kept, so they leave no trace once they have flown on; that also means they cannot be renamed or hidden individually, and they are not listed under this station's device.",
           "look_up_routes": "No aircraft broadcasts where it is flying from or to, so this has to be asked of a service on the internet. It uses routeset, the same source tar1090 does. Only the aircraft inside the nearby radius are looked up, and answers are kept for the day.",
           "look_up_photos": "Adds a photo of each aircraft inside the nearby radius, and of each one on the watchlist, from Planespotters.net. Only the address the aircraft broadcasts is sent, and answers are kept for a day. The photos are lent on condition that the photographer is named beside one and that it links to its page, so they come as attributes for a dashboard card rather than as entity pictures.",
           "watchlist": "Aircraft worth knowing about whenever they turn up, one to a line. There is no radius: this asks whether the aircraft is in the air at all, however far away. A line can be a hex code (484123), a registration or a callsign (PH-BXA, KLM123), an aircraft type (EC35), a squawk (7700), the start of a registration or callsign (PH-B*, KLM*), military, helicopter or a country (country:US).",
-          "aircraft_database": "Your decoder names no aircraft itself, so registrations and types are missing. This downloads the tar1090-db table (Mictronics' data, about 9 MB) straight from GitHub to your Home Assistant at most once a week, keeps it on disk, about 26 MB, and looks the aircraft you hear up there. Nothing about them leaves your network. Switching it off deletes the file."
+          "aircraft_database": "Your decoder names no aircraft itself, so registrations and types are missing. This downloads the tar1090-db table (Mictronics' data, about 9 MB) straight from GitHub to your Home Assistant at most once a week, keeps it on disk, about 26 MB, and looks the aircraft you hear up there. Nothing about them leaves your network. Switching it off deletes the file.",
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling here, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },
@@ -508,6 +514,23 @@
     "receiver_silent": {
       "title": "{station} hears nothing",
       "description": "The dongle of {station} has delivered nothing to the decoder for {minutes} minutes. A working dongle hands over millions of samples a second, whether or not anything is flying, so this is the dongle and not a quiet sky: it dropped off the USB bus, or it did not come back after a reboot because it never lost power.\n\nUnplug the dongle and plug it back in, or restart the decoder. This message goes away by itself as soon as the dongle delivers again."
+    },
+    "units_changed": {
+      "title": "Units changed for {station}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Units of {station}",
+            "description": "Since 1.4, {station} gives heights, speeds and distances in the units chosen here, everywhere: the sensors, their attributes, the events, the actions, Activity, Assist and the card. They are now {units}; before, heights were in feet, speeds in knots and distances in kilometres.\n\nNumbers you wrote yourself are read in these units too: an automation comparing a height, speed or distance, and the card's map_range and max_altitude. Nothing can convert those for you, so look them over, or pick Aviation to keep heights in feet and speeds in knots, with distances in nautical miles.",
+            "data": {
+              "units": "Units"
+            }
+          }
+        },
+        "abort": {
+          "station_removed": "The station has been removed."
+        }
+      }
     }
   },
   "services": {
@@ -531,15 +554,15 @@
       "fields": {
         "max_distance": {
           "name": "Within",
-          "description": "How far out to look, in kilometres. Aircraft that never sent a position are left out, because there is no telling how far away they are."
+          "description": "How far out to look, in the station's units. Aircraft that never sent a position are left out, because there is no telling how far away they are."
         },
         "min_altitude": {
           "name": "Higher than",
-          "description": "In feet. Aircraft that report no altitude are left out."
+          "description": "In the station's units. Aircraft that report no altitude are left out."
         },
         "max_altitude": {
           "name": "Lower than",
-          "description": "In feet. Aircraft that report no altitude are left out."
+          "description": "In the station's units. Aircraft that report no altitude are left out."
         },
         "military": {
           "name": "Military",
@@ -634,6 +657,16 @@
     },
     "not_on_watchlist": {
       "message": "{line} is not on the watchlist of {station}."
+    }
+  },
+  "selector": {
+    "units": {
+      "options": {
+        "auto": "As Home Assistant",
+        "nautical": "Aviation (ft, kt, NM)",
+        "metric": "Metric (m, km/h, km)",
+        "imperial": "Imperial (ft, mph, mi)"
+      }
     }
   }
 }

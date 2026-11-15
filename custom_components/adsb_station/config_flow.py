@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from math import ceil, floor
 import socket
 from typing import TYPE_CHECKING, Any
 
@@ -45,6 +46,7 @@ from .const import (
     CONF_RECEIVER_FEATURES,
     CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
@@ -66,6 +68,17 @@ from .const import (
 )
 from .coordinator import AdsbStationConfigEntry
 from .reference import async_load_reference, kind_of
+from .units import (
+    UNIT_CHOICES,
+    UNITS_AUTO,
+    Units,
+    feet_from,
+    feet_in,
+    kilometres_from,
+    kilometres_in,
+    label_of,
+    units_of,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,71 +122,94 @@ OPTIONAL_AIRCRAFT_SCHEMA = vol.Schema(
 REQUIRED_AIRCRAFT_SCHEMA = vol.Schema(
     {vol.Required(CONF_AIRCRAFT_URL, default=""): _AIRCRAFT_URL_SELECTOR}
 )
-
-OPTIONS_SCHEMA = vol.Schema(
-    {
-        vol.Required(
-            CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=MIN_SCAN_INTERVAL,
-                max=MAX_SCAN_INTERVAL,
-                step=1,
-                unit_of_measurement="s",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Required(
-            CONF_STATISTICS_INTERVAL, default=DEFAULT_STATISTICS_INTERVAL
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=MIN_SCAN_INTERVAL,
-                max=MAX_SCAN_INTERVAL,
-                step=1,
-                unit_of_measurement="s",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Required(
-            CONF_PROXIMITY_RADIUS, default=DEFAULT_PROXIMITY_RADIUS
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=MIN_PROXIMITY_RADIUS,
-                max=MAX_PROXIMITY_RADIUS,
-                step=1,
-                unit_of_measurement="km",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Optional(CONF_PROXIMITY_MAX_ALTITUDE): selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=0,
-                max=MAX_PROXIMITY_ALTITUDE,
-                step=500,
-                unit_of_measurement="ft",
-                mode=selector.NumberSelectorMode.BOX,
-            )
-        ),
-        vol.Required(
-            CONF_MAP_AIRCRAFT, default=DEFAULT_MAP_AIRCRAFT
-        ): selector.BooleanSelector(),
-        vol.Required(
-            CONF_LOOK_UP_ROUTES, default=DEFAULT_LOOK_UP_ROUTES
-        ): selector.BooleanSelector(),
-        vol.Required(
-            CONF_LOOK_UP_PHOTOS, default=DEFAULT_LOOK_UP_PHOTOS
-        ): selector.BooleanSelector(),
-        vol.Optional(CONF_WATCHLIST): selector.TextSelector(
-            selector.TextSelectorConfig(multiline=True)
-        ),
-    }
+_UNITS_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=UNIT_CHOICES,
+        translation_key=CONF_UNITS,
+        mode=selector.SelectSelectorMode.DROPDOWN,
+    )
 )
+UNITS_FIELD = {vol.Required(CONF_UNITS, default=UNITS_AUTO): _UNITS_SELECTOR}
+
+
+_OPTIONS_BEFORE: dict[Any, Any] = {
+    **UNITS_FIELD,
+    vol.Required(
+        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
+    ): selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=MIN_SCAN_INTERVAL,
+            max=MAX_SCAN_INTERVAL,
+            step=1,
+            unit_of_measurement="s",
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    ),
+    vol.Required(
+        CONF_STATISTICS_INTERVAL, default=DEFAULT_STATISTICS_INTERVAL
+    ): selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=MIN_SCAN_INTERVAL,
+            max=MAX_SCAN_INTERVAL,
+            step=1,
+            unit_of_measurement="s",
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    ),
+}
+_OPTIONS_AFTER: dict[Any, Any] = {
+    vol.Required(
+        CONF_MAP_AIRCRAFT, default=DEFAULT_MAP_AIRCRAFT
+    ): selector.BooleanSelector(),
+    vol.Required(
+        CONF_LOOK_UP_ROUTES, default=DEFAULT_LOOK_UP_ROUTES
+    ): selector.BooleanSelector(),
+    vol.Required(
+        CONF_LOOK_UP_PHOTOS, default=DEFAULT_LOOK_UP_PHOTOS
+    ): selector.BooleanSelector(),
+    vol.Optional(CONF_WATCHLIST): selector.TextSelector(
+        selector.TextSelectorConfig(multiline=True)
+    ),
+}
+
+
+def options_schema(units: Units) -> vol.Schema:
+    """Return the options, the radius and the ceiling to fill in in these units."""
+    return vol.Schema(
+        {
+            **_OPTIONS_BEFORE,
+            vol.Required(
+                CONF_PROXIMITY_RADIUS,
+                default=round(kilometres_in(DEFAULT_PROXIMITY_RADIUS, units), 1),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    # Outward, so a radius at either end is shown inside them.
+                    min=floor(kilometres_in(MIN_PROXIMITY_RADIUS, units) * 10) / 10,
+                    max=ceil(kilometres_in(MAX_PROXIMITY_RADIUS, units)),
+                    step=0.1,
+                    unit_of_measurement=label_of(units.distance),
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(CONF_PROXIMITY_MAX_ALTITUDE): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=round(feet_in(MAX_PROXIMITY_ALTITUDE, units)),
+                    step=1,
+                    unit_of_measurement=label_of(units.altitude),
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            **_OPTIONS_AFTER,
+        }
+    )
 
 
 class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
     VERSION = 5
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -182,6 +218,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self._feeder_type: str | None = None
         self._title = DEFAULT_STATION_NAME
         self._aircraft_url = ""
+        self._units = UNITS_AUTO
         self._stats_url: str | None = None
         self._features: list[str] = []
         # What a search found, by the value of its option: kind and port.
@@ -376,6 +413,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             self._aircraft_url = await self._async_suggest_aircraft_url()
         else:
             self._aircraft_url = str(user_input.get(CONF_AIRCRAFT_URL) or "").strip()
+            self._units = str(user_input.get(CONF_UNITS) or UNITS_AUTO)
             if not self._aircraft_url:
                 if not required:
                     return self._async_finish(None)
@@ -390,11 +428,20 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
-                REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA,
-                {CONF_AIRCRAFT_URL: self._aircraft_url},
+                self._aircraft_schema(required),
+                # The units chosen stay chosen when the address was wrong.
+                {CONF_AIRCRAFT_URL: self._aircraft_url, CONF_UNITS: self._units},
             ),
             errors=errors,
         )
+
+    def _aircraft_schema(self, required: bool) -> vol.Schema:
+        """Return the aircraft.json step, asking for units on a new station."""
+        schema = REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA
+        # A reconfigured station keeps its units; they live under Configure.
+        if self.source == SOURCE_RECONFIGURE:
+            return schema
+        return schema.extend(UNITS_FIELD)
 
     def _feeder_defaults(self, port: int) -> dict[str, Any]:
         """Return the values to prefill a feeder step with."""
@@ -525,7 +572,11 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             # changed; reloading here as well would reload it twice.
             self.hass.config_entries.async_update_entry(entry, data=data)
             return self.async_abort(reason="reconfigure_successful")
-        return self.async_create_entry(title=self._title, data=data)
+        return self.async_create_entry(
+            title=self._title,
+            data=data,
+            options={} if self._units == UNITS_AUTO else {CONF_UNITS: self._units},
+        )
 
     @staticmethod
     @callback
@@ -545,18 +596,34 @@ class AdsbStationOptionsFlow(OptionsFlow):
             options: dict[str, Any] = {
                 CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                 CONF_STATISTICS_INTERVAL: int(user_input[CONF_STATISTICS_INTERVAL]),
-                CONF_PROXIMITY_RADIUS: int(user_input[CONF_PROXIMITY_RADIUS]),
+                # Kept within what the integration takes, whatever the unit.
+                CONF_PROXIMITY_RADIUS: min(
+                    max(
+                        self._kept(
+                            CONF_PROXIMITY_RADIUS,
+                            user_input[CONF_PROXIMITY_RADIUS],
+                            kilometres_from,
+                            DEFAULT_PROXIMITY_RADIUS,
+                        ),
+                        MIN_PROXIMITY_RADIUS,
+                    ),
+                    MAX_PROXIMITY_RADIUS,
+                ),
                 CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],
                 CONF_LOOK_UP_PHOTOS: user_input[CONF_LOOK_UP_PHOTOS],
             }
+            if (units := user_input.get(CONF_UNITS, UNITS_AUTO)) != UNITS_AUTO:
+                options[CONF_UNITS] = units
             if user_input.get(CONF_AIRCRAFT_DATABASE):
                 options[CONF_AIRCRAFT_DATABASE] = True
             # Left empty means no ceiling at all, so the option is absent
             # rather than nought: nought would be a ceiling on the ground.
             ceiling = user_input.get(CONF_PROXIMITY_MAX_ALTITUDE)
             if ceiling not in (None, ""):
-                options[CONF_PROXIMITY_MAX_ALTITUDE] = int(ceiling)
+                options[CONF_PROXIMITY_MAX_ALTITUDE] = self._kept(
+                    CONF_PROXIMITY_MAX_ALTITUDE, ceiling, feet_from, None
+                )
 
             watchlist = str(user_input.get(CONF_WATCHLIST) or "")
             models = (await async_load_reference(self.hass)).models
@@ -583,9 +650,36 @@ class AdsbStationOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                self._schema(), self.config_entry.options
+                self._schema(), self._shown()
             ),
         )
+
+    @property
+    def _units(self) -> Units:
+        """Return the units the form shows the radius and the ceiling in."""
+        return units_of(self.hass, self.config_entry.options.get(CONF_UNITS))
+
+    def _shown(self) -> dict[str, Any]:
+        """Return the options as the form shows them: in the chosen units."""
+        options = dict(self.config_entry.options)
+        radius = options.get(CONF_PROXIMITY_RADIUS, DEFAULT_PROXIMITY_RADIUS)
+        options[CONF_PROXIMITY_RADIUS] = round(kilometres_in(radius, self._units), 1)
+        if (feet := options.get(CONF_PROXIMITY_MAX_ALTITUDE)) not in (None, ""):
+            options[CONF_PROXIMITY_MAX_ALTITUDE] = round(feet_in(feet, self._units))
+        return options
+
+    def _kept(
+        self, key: str, typed: float, to_stored: Any, default: float | None
+    ) -> float:
+        """Return what to store: the old value if it was left as shown.
+
+        Kept in km or feet, the units it was filled in are only how it is
+        shown, so saving again does not move it by the rounding.
+        """
+        stored = self.config_entry.options.get(key, default)
+        if stored is not None and float(typed) == self._shown().get(key):
+            return float(stored)
+        return round(float(to_stored(float(typed), self._units)), 3)
 
     def _schema(self) -> vol.Schema:
         """Offer the download only to a decoder that names no aircraft itself."""
@@ -596,7 +690,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
             and coordinator is not None
             and coordinator.decoder_has_database is False
         ):
-            return OPTIONS_SCHEMA.extend(
+            return options_schema(self._units).extend(
                 {vol.Optional(CONF_AIRCRAFT_DATABASE, default=False): bool}
             )
-        return OPTIONS_SCHEMA
+        return options_schema(self._units)

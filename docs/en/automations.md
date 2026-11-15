@@ -16,11 +16,11 @@ automation:
           title: "Emergency: {{ trigger.event.data.reason }}"
           message: >
             {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km away{% endif %}
-            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} feet{% endif %}.
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} away{% endif %}
+            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
 ```
 
-`adsb_station_aircraft_emergency` fires once per flight, like the [watchlist](watchlist.md): an aircraft that stays in distress for an hour is one message, and the same aircraft is announced again only after ten minutes out of range. It carries the same fields as the other events, with the distance in kilometres, plus `reason` and `squawk`. Unlike the `Emergency squawk` binary sensor, which only turns on once while any aircraft is in distress, it also tells you about a second one.
+`adsb_station_aircraft_emergency` fires once per flight, like the [watchlist](watchlist.md): an aircraft that stays in distress for an hour is one message, and the same aircraft is announced again only after ten minutes out of range. It carries the same fields as the other events, in the [units](configuration.md#units) you chose, plus `reason` and `squawk`. Unlike the `Emergency squawk` binary sensor, which only turns on once while any aircraft is in distress, it also tells you about a second one.
 
 Each one also leaves a line in **Activity**, on the station's device page as well. Passages do not: dozens a day would bury the rest, and the [passage board](dashboards.md) has them. Every event carries `device_id`, the station's device, beside `entry_id` and `station`.
 
@@ -52,17 +52,16 @@ automation:
       - service: notify.mobile_app
         data:
           message: >-
-            {% set plane = state_attr(
-                 'binary_sensor.ads_b_station_aircraft_overhead',
-                 'aircraft')[0] %}
+            {% set overhead = 'binary_sensor.ads_b_station_aircraft_overhead' %}
+            {% set plane = state_attr(overhead, 'aircraft')[0] %}
             {{ plane.airline | default(plane.flight or 'An unknown aircraft') }}
-            overhead at {{ plane.altitude }} ft
+            overhead at {{ plane.altitude }} {{ state_attr(overhead, 'altitude_unit') }}
             {%- if plane.description is defined %},
             {{ plane.description }}
             {%- endif %}
             {%- if plane.vertical_rate %},
             {{ 'climbing' if plane.vertical_rate > 0 else 'descending' }}
-            {{ plane.vertical_rate | abs }} ft/min
+            {{ plane.vertical_rate | abs }} {{ state_attr(overhead, 'vertical_rate_unit') }}
             {%- endif %}
             {%- if plane.origin_location is defined %},
             {{ plane.origin_location }} to {{ plane.destination_location }}
@@ -123,7 +122,7 @@ automation:
           media_player_entity_id: media_player.kitchen
           message: >
             {{ trigger.event.data.airline or trigger.event.data.flight or 'An aircraft' }}
-            overhead at {{ trigger.event.data.altitude }} feet
+            overhead at {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
             {%- if trigger.event.data.route %}, {{ trigger.event.data.route }}{% endif %}.
 ```
 
@@ -149,7 +148,7 @@ automation:
           media_player_entity_id: media_player.kitchen
           message: >
             {{ trigger.event.data.airline or trigger.event.data.flight or 'Something' }}
-            passes {{ trigger.event.data.closest_passing_distance }} kilometres out
+            passes {{ trigger.event.data.closest_passing_distance }} {{ trigger.event.data.distance_unit }} out
             in about {{ (trigger.event.data.seconds_to_closest / 60) | round }} minutes.
 ```
 
@@ -167,8 +166,8 @@ automation:
           title: "{{ trigger.event.data.watching }} is up"
           message: >
             {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} km away{% endif %}
-            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} feet{% endif %}.
+            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} away{% endif %}
+            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
 ```
 
 Notification when the receiver stops hearing anything, which after a reboot usually means the dongle wants plugging back in:
@@ -197,7 +196,9 @@ flight: TEST1
 reason: emergency
 squawk: "7700"
 distance: 12.3
-altitude: 3000
+distance_unit: km
+altitude: 900
+altitude_unit: m
 ```
 
 Every automation on that event runs, so the notification goes out for real, and the watchlist and emergency events leave a line in **Activity** as well.

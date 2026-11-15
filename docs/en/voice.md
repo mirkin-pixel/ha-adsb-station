@@ -11,7 +11,7 @@
 | *Where is it going?* | Where the aircraft overhead came from and is heading |
 | *What just flew over?* | Which aircraft came over last, how long ago and how high |
 
-Answers use the names from the [shipped tables](decoders.md#names-for-the-codes), so it says "KLM 123" and not "kilo lima mike one two three", and they follow the unit system of your Home Assistant rather than the language: metres and kilometres, or feet and miles.
+Answers use the names from the [shipped tables](decoders.md#names-for-the-codes), so it says "KLM 123" and not "kilo lima mike one two three", and they follow the station's [units](configuration.md#units) rather than the language: metres and kilometres, feet and nautical miles, or feet and miles.
 
 English and Dutch are spoken; a question in any other language is answered in English.
 

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import Final
 
-from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM, UnitSystem
+from homeassistant.const import UnitOfLength
 
 from .const import FEET_TO_METRES
 from .coordinator import AircraftSummary
 from .reference import designator_of
+from .units import Units
 
 DEFAULT_LANGUAGE: Final = "en"
 
@@ -76,6 +77,7 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
         "feet": "{value} feet up",
         "kilometres": "{value} kilometres",
         "miles": "{value} miles",
+        "nautical_miles": "{value} nautical miles",
         "no_altitude": "at a height it does not report",
     },
     "nl": {
@@ -110,6 +112,7 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
         "feet": "{value} voet hoog",
         "kilometres": "{value} kilometer",
         "miles": "{value} mijl",
+        "nautical_miles": "{value} zeemijl",
         "no_altitude": "op een hoogte die hij niet meldt",
     },
 }
@@ -171,11 +174,11 @@ def name_of(summary: AircraftSummary, language: str) -> str:
     return say(language, "unknown_aircraft")
 
 
-def altitude_of(summary: AircraftSummary, language: str, units: UnitSystem) -> str:
+def altitude_of(summary: AircraftSummary, language: str, units: Units) -> str:
     """Return how high an aircraft is, in whole units of the right kind."""
     if summary.altitude is None:
         return say(language, "no_altitude")
-    if units is US_CUSTOMARY_SYSTEM:
+    if units.altitude == UnitOfLength.FEET:
         # To the nearest five hundred feet and hundred metres. Nobody asking
         # out loud wants to hear that something is at 30,175 feet.
         return say(
@@ -185,10 +188,12 @@ def altitude_of(summary: AircraftSummary, language: str, units: UnitSystem) -> s
     return say(language, "metres", value=whole(round(metres / 100) * 100, language))
 
 
-def distance_of(metres: float, language: str, units: UnitSystem) -> str:
+def distance_of(metres: float, language: str, units: Units) -> str:
     """Return how far away something is, rounded to something sayable."""
-    if units is US_CUSTOMARY_SYSTEM:
+    if units.distance == UnitOfLength.MILES:
         return say(language, "miles", value=rounded(metres / 1609.344, language))
+    if units.distance == UnitOfLength.NAUTICAL_MILES:
+        return say(language, "nautical_miles", value=rounded(metres / 1852, language))
     return say(language, "kilometres", value=rounded(metres / 1000, language))
 
 

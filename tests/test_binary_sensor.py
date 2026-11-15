@@ -12,7 +12,13 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_station.binary_sensor import _as_bool
 from custom_components.adsb_station.const import DOMAIN
 
-from .conftest import MOCK_ALIAS, MOCK_MONITOR, set_responses, setup_integration
+from .conftest import (
+    MOCK_ALIAS,
+    MOCK_MONITOR,
+    metres,
+    set_responses,
+    setup_integration,
+)
 
 
 def _state(hass: HomeAssistant, key: str) -> str | None:
@@ -221,7 +227,8 @@ async def test_emergency_tells_how_far_and_how_high(
     )
     [aircraft] = hass.states.get(entity_id).attributes["aircraft"]
     assert aircraft["distance"] == 11.1
-    assert aircraft["altitude"] == 12000
+    # Home Assistant runs metric in the tests
+    assert aircraft["altitude"] == metres(12000)
     assert aircraft["aircraft_type"] == "B738"
 
 

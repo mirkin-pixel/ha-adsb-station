@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from .aircraft_db import database_of
@@ -17,12 +19,18 @@ from .const import (
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_ROUTES,
     CONF_STATS_URL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
 )
-from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
+from .coordinator import (
+    AdsbStationConfigEntry,
+    AdsbStationDataUpdateCoordinator,
+    sky_signal,
+)
 from .reference import async_load_reference
+from .repairs import ISSUE_UNITS, units_issue_id, units_placeholders
 from .services import async_setup_services
 from .websocket import async_setup_websocket
 
@@ -81,6 +89,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
+    entry.async_on_unload(
+        coordinator.async_add_listener(
+            lambda: async_dispatcher_send(hass, sky_signal(entry.entry_id))
+        )
+    )
 
     return True
 
@@ -125,7 +138,16 @@ async def async_migrate_entry(
                     disabled_by=er.RegistryEntryDisabler.INTEGRATION,
                 )
 
-    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
+    # Sensors took the units fixed before 1.4; they look again once, as they
+    # do when the setting changes. A unit chosen on a sensor stays.
+    if entry.version < 5 or entry.minor_version < 2:
+        _refresh_sensor_units(hass, entry)
+        if data.get(CONF_AIRCRAFT_URL):
+            _ask_for_units(hass, entry)
+
+    hass.config_entries.async_update_entry(
+        entry, data=data, options=options, version=5, minor_version=2
+    )
     return True
 
 
@@ -157,4 +179,52 @@ async def async_options_updated(
     if changed <= {CONF_WATCHLIST}:
         await coordinator.async_set_watchlist()
         return
+    if CONF_UNITS in changed:
+        _refresh_sensor_units(hass, entry)
+        # Chosen, so there is nothing left to ask.
+        ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_entry(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> None:
+    """Take the question about units away with the station."""
+    ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
+
+
+def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
+    """Tell an upgraded station that its figures changed unit, and let it pick.
+
+    Automations and dashboards hold numbers of their own, which nothing here
+    can convert; Aviation keeps heights in feet and speeds in knots.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        units_issue_id(entry.entry_id),
+        is_fixable=True,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_UNITS,
+        translation_placeholders=units_placeholders(hass, entry),
+        data={"entry_id": entry.entry_id},
+    )
+
+
+def _refresh_sensor_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:
+    """Have this station's sensors take their unit from the setting again.
+
+    Home Assistant keeps the unit a sensor first had, and asks again the same
+    way when its own unit system changes. A unit chosen on the sensor itself
+    is kept apart and still wins.
+    """
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain != SENSOR_DOMAIN:
+            continue
+        private = dict(entity.options.get(f"{SENSOR_DOMAIN}.private", {}))
+        private["refresh_initial_entity_options"] = True
+        registry.async_update_entity_options(
+            entity.entity_id, f"{SENSOR_DOMAIN}.private", private
+        )

@@ -10,6 +10,7 @@ from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.const import MATCH_ALL, UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import (
     CATEGORY_ROTORCRAFT,
@@ -24,6 +25,7 @@ from .coordinator import (
     AircraftSummary,
     aircraft_attributes,
 )
+from .units import converted, unit_attributes
 
 # Updates are centralized through the coordinator
 PARALLEL_UPDATES = 0
@@ -91,7 +93,6 @@ class AdsbStationAircraftLocation(GeolocationEvent):
 
     _attr_should_poll = False
     _attr_source = DOMAIN
-    _attr_unit_of_measurement = UnitOfLength.KILOMETERS
     # The map reads the live state; recording every position is not worth it.
     # Without _attr_: Home Assistant reads this name, as a class attribute.
     _unrecorded_attributes = frozenset({MATCH_ALL})
@@ -103,6 +104,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         position: tuple[float, float],
     ) -> None:
         """Initialize the aircraft at the position it arrived on."""
+        self._coordinator = coordinator
         # Fixed at arrival, so a late callsign does not change the entity ID.
         self._attr_name = summary.flight or summary.hex
         self._apply(summary, position)
@@ -111,9 +113,6 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         """Take over the position and distance of one poll."""
         self._summary = summary
         self._attr_latitude, self._attr_longitude = position
-        self._attr_distance = (
-            None if summary.distance is None else summary.distance / 1000
-        )
 
     @callback
     def follow(self, summary: AircraftSummary, position: tuple[float, float]) -> None:
@@ -131,6 +130,20 @@ class AdsbStationAircraftLocation(GeolocationEvent):
             self.hass.async_create_task(self.async_remove(force_remove=True))
 
     @property
+    def unit_of_measurement(self) -> str:
+        """Return the distance unit the station is set to."""
+        return self._coordinator.units.distance
+
+    @property
+    def distance(self) -> float | None:
+        """Return how far away it is across the ground, in that unit."""
+        if (metres := self._summary.distance) is None:
+            return None
+        return DistanceConverter.convert(
+            metres, UnitOfLength.METERS, self._coordinator.units.distance
+        )
+
+    @property
     def icon(self) -> str:
         """Return what the aircraft is, or what it is doing."""
         return aircraft_icon(self._summary)
@@ -138,4 +151,8 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     @property
     def extra_state_attributes(self) -> dict[str, str | float | None]:
         """Return everything else known; the distance is the state."""
-        return aircraft_attributes(self._summary)
+        units = self._coordinator.units
+        return {
+            **converted(aircraft_attributes(self._summary), units),
+            **unit_attributes(units),
+        }

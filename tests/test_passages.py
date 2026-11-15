@@ -29,7 +29,7 @@ from custom_components.adsb_station.coordinator import (
     slant_distance,
 )
 
-from .conftest import set_responses, setup_integration
+from .conftest import metres, set_responses, setup_integration
 
 # Home is 52.0, 5.0. This one sits a shade over a kilometre north of it.
 OVERHEAD = {
@@ -130,7 +130,7 @@ async def test_a_passing_aircraft_fires_once(
     event = passages[0]
     assert event.data["hex"] == "484123"
     assert event.data["flight"] == "KLM123"
-    assert event.data["altitude"] == 2000
+    assert event.data["altitude"] == metres(2000)
     assert event.data["aircraft_type"] == "B738"
     assert event.data["description"] == "Boeing 737-800"
     assert event.data["airline"] == "KLM"
@@ -409,7 +409,7 @@ async def test_the_board_records_what_came_over(
     entry = state.attributes["passages"][0]
     assert entry["flight"] == "KLM123"
     assert entry["description"] == "Boeing 737-800"
-    assert entry["altitude"] == 2000
+    assert entry["altitude"] == metres(2000)
 
     # A second aircraft goes on top of the board, most recent first
     second = {**OVERHEAD, "hex": "484124", "flight": "EZY22"}
@@ -439,7 +439,7 @@ async def test_a_board_entry_follows_the_aircraft_down(
     set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "alt_baro": 9000}))
     assert await setup_integration(hass, mock_config_entry)
     board = hass.states.get("sensor.t_ehxx23_passages_today").attributes["passages"]
-    assert board[0]["altitude"] == 9000
+    assert board[0]["altitude"] == metres(9000)
 
     set_responses(aioclient_mock, aircraft=poll({**OVERHEAD, "alt_baro": 2000}))
     await next_poll(hass, freezer)
@@ -447,7 +447,7 @@ async def test_a_board_entry_follows_the_aircraft_down(
     state = hass.states.get("sensor.t_ehxx23_passages_today")
     # Still one passage, now holding the lower reading
     assert state.state == "1"
-    assert state.attributes["passages"][0]["altitude"] == 2000
+    assert state.attributes["passages"][0]["altitude"] == metres(2000)
 
 
 async def test_the_board_is_capped(
@@ -658,10 +658,12 @@ async def test_the_board_reaches_the_browser(
     await next_poll(hass, freezer)
     after = hass.states.get("sensor.t_ehxx23_passages_today")
 
-    assert [entry["altitude"] for entry in before.attributes["passages"]] == [9000]
+    assert [entry["altitude"] for entry in before.attributes["passages"]] == [
+        metres(9000)
+    ]
     assert [entry["altitude"] for entry in after.attributes["passages"]] == [
-        2000,
-        2000,
+        metres(2000),
+        metres(2000),
     ]
     assert before.attributes["passages"] != after.attributes["passages"]
 

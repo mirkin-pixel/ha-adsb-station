@@ -11,7 +11,7 @@
 | *Waar gaat hij heen?* | Waar het toestel boven je vandaan komt en heen gaat |
 | *Wat vloog er net over?* | Welk toestel het laatst overkwam, hoe lang geleden en hoe hoog |
 
-De antwoorden gebruiken de namen uit de [meegeleverde tabellen](decoders.md#namen-bij-de-codes), dus hij zegt "KLM 123" en niet "kilo lima mike één twee drie", en ze volgen het eenhedenstelsel van je Home Assistant en niet de taal: meters en kilometers, of voet en mijl.
+De antwoorden gebruiken de namen uit de [meegeleverde tabellen](decoders.md#namen-bij-de-codes), dus hij zegt "KLM 123" en niet "kilo lima mike één twee drie", en ze volgen de [eenheden](configuration.md#eenheden) van het station en niet de taal: meters en kilometers, voet en zeemijl, of voet en mijl.
 
 Engels en Nederlands worden gesproken; een vraag in een andere taal wordt in het Engels beantwoord.
 

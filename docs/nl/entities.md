@@ -7,11 +7,11 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Vliegtuigen ontvangen | Sensor | Vliegtuigen in de laatste `aircraft.json` |
 | Militaire toestellen, Helikopters, Lijnvluchten, Overige toestellen | Sensor | Dezelfde vliegtuigen in vieren gedeeld, over alles wat je antenne hoort. Elk toestel telt bij precies één, in die volgorde geprobeerd, dus samen zijn ze **Vliegtuigen ontvangen**. Militair komt uit de vliegtuigdatabase of het adresblok, een helikopter uit de categorie die hij uitzendt (A7), een lijnvlucht uit een callsign die met een bekende maatschappijcode begint. Overig is de rest: privévliegen, zakenluchtvaart onder een registratie, en alles zonder callsign |
 | Vliegtuigen met positie | Sensor | Daarvan het aantal met een bekende positie |
-| Maximaal bereik | Sensor (km) | Afstand tot het verste gehoorde vliegtuig |
+| Maximaal bereik | Sensor (afstand) | Afstand tot het verste gehoorde vliegtuig |
 | Berichten per seconde | Sensor (msg/s) | Mode S-berichten per seconde, gemiddeld over de ververstijd voor statistieken |
-| Dichtstbijzijnde vliegtuig | Sensor (km) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen, en waar je moet kijken: `bearing`, de kompasrichting in graden, en `elevation`, de hoek boven de horizon. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
-| Hoogste vliegtuig | Sensor (ft) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
-| Snelste vliegtuig | Sensor (kn) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
+| Dichtstbijzijnde vliegtuig | Sensor (afstand) | Afstand tot het dichtstbijzijnde vliegtuig, met callsign, hoogte, snelheid, koers, stijgsnelheid, maatschappij en signaalsterkte als attributen, en waar je moet kijken: `bearing`, de kompasrichting in graden, en `elevation`, de hoek boven de horizon. Een decoder met vliegtuigdatabase voegt registratie, type en een militair-markering toe |
+| Hoogste vliegtuig | Sensor (hoogte) | Hoogte van het hoogste vliegtuig in bereik, met dezelfde attributen |
+| Snelste vliegtuig | Sensor (snelheid) | Grondsnelheid van het snelste vliegtuig in bereik, met dezelfde attributen |
 | Vliegtuigen dichtbij | Sensor | Hoeveel vliegtuigen binnen de straal "dichtbij" zitten, met ze allemaal als attributen, dichtstbijzijnde eerst. Dit zijn de twee die [waar de vlucht heen gaat](routes.md) kunnen dragen |
 | Vliegtuig overhead | Binary sensor | Aan zolang er minstens één vliegtuig binnen die straal zit |
 | Vlucht overhead | Sensor | Het ene vliegtuig boven je, het dichtstbijzijnde op de kaart. Houdt de laatste vast als de lucht leegloopt, zodat een paneel erop nooit leeg staat. Zie [als er iets overkomt](passages.md) |
@@ -59,6 +59,6 @@ En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 | Posities gedecodeerd | Sensor (diagnostisch) | Posities die in het venster geaccepteerd zijn |
 | Posities verworpen | Sensor (diagnostisch) | Posities die de plausibiliteitscontrole niet haalden. Een stijgend aandeel wijst op een ruizig signaal |
 
-Hoogtes staan in voet, grondsnelheden in knopen en afstanden in kilometers, zoals dat in de luchtvaart gelezen wordt. Elk daarvan heeft een device class, dus je kunt een losse entiteit omzetten naar meters, mijlen, km/h of mph via **Instellingen → Entiteit → Maateenheid**, en historie en statistieken gaan mee.
+Hoogtes, snelheden en afstanden staan in de [eenheden](configuration.md#eenheden) die je voor het station koos. Elk daarvan heeft een device class, dus je kunt een losse entiteit nog steeds omzetten naar iets anders via **Instellingen → Entiteit → Maateenheid**, en historie en statistieken gaan mee.
 
 De ontvangstcijfers komen uit het kortste meetvenster dat daadwerkelijk een signaal gemeten heeft, normaal `last1min`. Uit welk venster een waarde komt, staat als attribuut `period` op de entiteit.

@@ -424,6 +424,22 @@ const tests = {
       ],
     });
     assert.match(card.shadowRoot.querySelector(".radar").textContent, /700 km/);
+
+    // On a nautical station the steps stay round, up to the first past 700 km
+    const other = hassWith({
+      overhead: overheadState({ ...KLM, distance: 0.6, altitude_unit: "ft", speed_unit: "kn", distance_unit: "nmi" }),
+    });
+    const otherLink = connect(other);
+    const nautical = render(w, other, { map_scale: "coverage" });
+    otherLink.send({
+      ...SKY([LOW]),
+      outline: [
+        [57.85, 5.0],
+        [52.0, 5.1],
+        [51.9, 5.0],
+      ],
+    });
+    assert.match(nautical.shadowRoot.querySelector(".radar").textContent, /400 NM/);
   },
 
   "keeps the table on a card of its own"() {
@@ -461,7 +477,7 @@ const tests = {
       rows().map((row) => row[0]),
       ["KLM1234", "LIFE01", "RYR5"],
     );
-    assert.deepEqual(rows()[0], ["KLM1234", "1,500 ft", "2.2 km", "0°", "B738", "-12.3"]);
+    assert.deepEqual(rows()[0], ["KLM1234", "457 m", "2.2 km", "0°", "B738", "-12.3"]);
     assert.equal(rows()[1][3], "", "a bearing it does not have is left empty");
 
     // A tap on a heading sorts by it, a second tap turns it round
@@ -564,7 +580,7 @@ const tests = {
     assert.match(text, /KLM1234 · KLM/);
     assert.match(text, /Boeing 737-800 · PH-BXA/);
     assert.match(text, /AMS → LHR/);
-    assert.match(text, /↑ 3,200 ft/);
+    assert.match(text, /↑ 975 m/);
     assert.match(text, /1\.1 km/);
     // The photo, leading to its page, with who took it beside it.
     const link = root.querySelector("a.photo");
@@ -595,7 +611,7 @@ const tests = {
     const text = card.shadowRoot.textContent;
     assert.match(text, /Nu overhead/);
     assert.match(text, /Foto: Jan Seler/);
-    assert.match(text, /3\.200 ft/);
+    assert.match(text, /975 m/);
     assert.match(text, /1,1 km/);
     assert.match(text, /468 ontvangen/);
   },
@@ -834,8 +850,8 @@ const tests = {
     const picked = card.shadowRoot.querySelector(".picked").textContent;
     assert.match(picked, /KLM1234/);
     assert.match(picked, /Boeing 737-800 · PH-BXA/);
-    assert.match(picked, /1,500 ft/);
-    assert.match(picked, /160 kt/);
+    assert.match(picked, /457 m/);
+    assert.match(picked, /296 km\/h/);
     // Still picked after the next poll, and let go of by a second tap.
     link.send(SKY([LOW, HIGH]));
     assert.ok(card.shadowRoot.querySelector(".picked"));
@@ -873,10 +889,11 @@ const tests = {
     button("Overig").click();
     assert.equal(shown().length, 2);
 
-    // A ceiling leaves the airliner at 37,000 ft out, and out of the count.
+    // A ceiling, in the station's metres, leaves the airliner at 37,000 ft
+    // out, and out of the count.
     const other = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const otherLink = connect(other);
-    const high = render(w, other, { max_altitude: 10000 });
+    const high = render(w, other, { max_altitude: 3000 });
     otherLink.send(
       SKY([
         { ...LOW, kind: "airline" },
@@ -986,11 +1003,110 @@ const tests = {
     card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
     const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
     // Mach over IAS, and no roll for a wing that is nearly level.
-    assert.equal(lines.at(-1), "Groot vliegtuig · Mach 0,78 · wind 270° 85 kt · -56 °C");
+    assert.equal(lines.at(-1), "Groot vliegtuig · Mach 0,78 · wind 270° 157 km/h · -56 °C");
 
     // A decoder that passes none of it on adds no line at all.
     link.send(SKY([LOW]));
     assert.equal(card.shadowRoot.querySelectorAll(".picked .secondary").length, lines.length - 1);
+  },
+
+  "shows the station's units, or Home Assistant's own"() {
+    const w = browser();
+    const flying = { ...LOW, wind_direction: 270, wind_speed: 85, temperature: -56 };
+    const tapped = (overhead, unitSystem) => {
+      const hass = hassWith({ overhead: overheadState(overhead) });
+      if (unitSystem) hass.config = { unit_system: unitSystem };
+      const link = connect(hass);
+      const card = render(w, hass);
+      link.send(SKY([flying]));
+      card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
+      const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
+      const ticks = [...card.shadowRoot.querySelectorAll(".legend .ticks span")].map((tick) => tick.textContent);
+      const rings = [...card.shadowRoot.querySelectorAll(".radar text")]
+        .map((label) => label.textContent)
+        .filter((s) => /\d (km|NM|mi)$/.test(s));
+      return { figures: lines[1], weather: lines.at(-1), ticks, rings };
+    };
+
+    // Before 1.4 the sensors name no units: metric, as Home Assistant itself
+    let shown = tapped(KLM, { length: "km" });
+    assert.equal(shown.figures, "457 m   296 km/h   2.2 km");
+    assert.match(shown.weather, /wind 270° 157 km\/h · -56 °C/);
+    assert.deepEqual(shown.ticks, ["0", "4,000", "8,000", "12,000 m"]);
+    assert.deepEqual(shown.rings, ["5 km", "10 km"]);
+
+    // Home Assistant on US units
+    shown = tapped(KLM, { length: "mi" });
+    assert.equal(shown.figures, "1,500 ft   184 mph   1.4 mi");
+    assert.match(shown.weather, /wind 270° 98 mph · -69 °F/);
+    assert.deepEqual(shown.ticks, ["0", "15,000", "30,000", "45,000 ft"]);
+
+    // A station set to nautical, whatever Home Assistant says, and round
+    // rings in nautical miles
+    shown = tapped(
+      { ...KLM, distance: 0.6, altitude_unit: "ft", speed_unit: "kn", distance_unit: "nmi" },
+      { length: "km" },
+    );
+    assert.equal(shown.figures, "1,500 ft   160 kt   1.2 NM");
+    assert.match(shown.weather, /wind 270° 85 kt · -56 °C/);
+    assert.deepEqual(shown.rings, ["5 NM", "10 NM"]);
+  },
+
+  "follows the integration's units, and shows its figures as they are"() {
+    const w = browser();
+    const panel = (attributes) => {
+      const hass = hassWith({ overhead: overheadState(attributes) });
+      connect(hass);
+      const card = render(w, hass);
+      return card.shadowRoot.querySelector(".overhead").textContent;
+    };
+    // A metric station sends metres and km/h; shown as they are, not again
+    const metric = {
+      ...KLM,
+      altitude: 975,
+      vertical_rate: 7.6,
+      distance: 1.1,
+      altitude_unit: "m",
+      speed_unit: "km/h",
+      distance_unit: "km",
+    };
+    assert.match(panel(metric), /↑ 975 m/);
+    assert.match(panel(metric), /1\.1 km/);
+
+    // A station set to nautical: the card follows it without being told
+    const nautical = {
+      ...KLM,
+      altitude: 3200,
+      distance: 0.6,
+      altitude_unit: "ft",
+      speed_unit: "kn",
+      distance_unit: "nmi",
+    };
+    assert.match(panel(nautical), /↑ 3,200 ft/);
+    assert.match(panel(nautical), /0\.6 NM/);
+  },
+
+  "takes the units from the sky, before any sensor names them"() {
+    const w = browser();
+    const hass = hassWith();
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send({ ...SKY([LOW]), units: "nautical" });
+    const rings = [...card.shadowRoot.querySelectorAll(".radar text")].map((label) => label.textContent);
+    assert.ok(rings.some((ring) => / NM$/.test(ring)));
+  },
+
+  "reads the list in its own sensor's units before anything was overhead"() {
+    const w = browser();
+    const list = () => {
+      const hass = hassWith();
+      hass.states["sensor.t_etur47_vliegtuigen_dichtbij"].attributes = {
+        aircraft: [{ hex: "1", flight: "PHABC", distance: 0.6 }],
+        distance_unit: "nmi",
+      };
+      return render(w, hass).shadowRoot.querySelector(".nearby").textContent;
+    };
+    assert.match(list(), /0\.6 NM/);
   },
 
   "draws the route of a tapped aircraft it was sent"() {
@@ -1258,7 +1374,7 @@ const tests = {
     // A tapped aircraft says what it is in its title as well.
     assert.match(
       radar.querySelector('.plane[data-hex="484506"] title').textContent,
-      /KLM1234 · Boeing 737-800 · 1,500 ft/,
+      /KLM1234 · Boeing 737-800 · 457 m/,
     );
     // The compass letters belong to the scope, not to a map.
     assert.equal(radar.querySelector(".compass"), null);
@@ -1515,6 +1631,30 @@ const tests = {
     assert.equal(outer({ map_range: 25 }), "25 km");
     // And a range is ignored while the scale is automatic.
     assert.equal(outer({ map_scale: "aircraft", map_range: 25 }), "50 km");
+  },
+
+  "rounds its rings again when the units change"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const rings = () => [...card.shadowRoot.querySelectorAll(".radar .distance")].map((ring) => ring.textContent);
+    link.send({ ...SKY([{ ...HIGH, distance: 70 }]), units: "metric" });
+    assert.deepEqual(rings(), ["50 km", "100 km"]);
+    // 70 km is 38 NM: the round 50 NM, not 100 km kept as 54 NM
+    link.send({ ...SKY([{ ...HIGH, distance: 70 }]), units: "nautical" });
+    assert.deepEqual(rings(), ["25 NM", "50 NM"]);
+  },
+
+  "takes a fixed range and a ceiling in the station's units"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_scale: "fixed", map_range: 50, max_altitude: 1000 });
+    link.send({ ...SKY([LOW, HIGH]), units: "nautical" });
+    assert.equal([...card.shadowRoot.querySelectorAll(".radar .distance")].pop().textContent, "50 NM");
+    // 1,000 ft, which LOW at 1,500 ft is above
+    assert.equal(card.shadowRoot.querySelectorAll(".plane").length, 0);
   },
 
   "leaves the shape off until there is one to draw"() {

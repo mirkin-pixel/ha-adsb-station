@@ -15,13 +15,13 @@ automation:
         data:
           message: >-
             {{ trigger.event.data.airline | default('Een onbekend vliegtuig') }}
-            op {{ trigger.event.data.slant_distance }} km
+            op {{ trigger.event.data.slant_distance }} {{ trigger.event.data.distance_unit }}
             {%- if trigger.event.data.route is defined %},
             {{ trigger.event.data.route }}
             {%- endif %}.
 ```
 
-Het event draagt dezelfde sleutels als de vliegtuigattributen, dus alles uit de melding hierboven zit erin: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, de route als je die opzoekt, en `entry_id` en `station` om het ene station van het andere te onderscheiden. Er komt één sleutel bij, `slant_distance`, en die is het onderwerp van de volgende alinea.
+Het event draagt dezelfde sleutels als de vliegtuigattributen, dus alles uit de melding hierboven zit erin: `flight`, `airline`, `description`, `altitude`, `vertical_rate`, de route als je die opzoekt, en `entry_id` en `station` om het ene station van het andere te onderscheiden. De getallen staan in de [eenheden](configuration.md#eenheden) die je koos, en `altitude_unit`, `speed_unit`, `distance_unit` en `vertical_rate_unit` zeggen welke, zodat een template nooit hoeft te raden. Er komt één sleutel bij, `slant_distance`, en die is het onderwerp van de volgende alinea.
 
 Drie dingen houden het draaglijk.
 
@@ -49,12 +49,12 @@ automation:
                | default(trigger.event.data.flight) | default('Onbekend toestel') }}
           message: |-
             {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
-            Hgt {{ trigger.event.data.altitude or '?' }}ft, Snh {{ trigger.event.data.speed | round | int if trigger.event.data.speed else '?' }}kn
-            Krs {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Stg {{ trigger.event.data.vertical_rate or 0 }}ft/min
+            Hgt {{ trigger.event.data.altitude or '?' }} {{ trigger.event.data.altitude_unit }}, Snh {{ trigger.event.data.speed if trigger.event.data.speed is not none else '?' }} {{ trigger.event.data.speed_unit }}
+            Krs {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Stg {{ trigger.event.data.vertical_rate or 0 }} {{ trigger.event.data.vertical_rate_unit }}
           data:
             subtitle: >-
               {{ trigger.event.data.route
-                 | default(trigger.event.data.slant_distance ~ ' km') }}
+                 | default(trigger.event.data.slant_distance ~ ' ' ~ trigger.event.data.distance_unit) }}
             tag: adsb-passage
             group: adsb
             image: >-
@@ -62,33 +62,24 @@ automation:
                  | default('unknown') }}.png
 ```
 
-Dat leest zo, en de rechterkolom is wat je krijgt van iets dat bijna niets uitzendt:
+In luchtvaarteenheden leest dat zo, en de rechterkolom is wat je krijgt van iets dat bijna niets uitzendt:
 
 ```
-Lufthansa                    PHABC
-CDG-AMS                      1,1 km
+Lufthansa                      PHABC
+CDG-AMS                        0.6 nmi
 Airbus A-320neo
-Hgt 4100ft, Snh 250kn        Hgt 2000ft, Snh ?kn
-Krs 263deg, Stg -1088ft/min  Krs 90deg, Stg 0ft/min
+Hgt 4100 ft, Snh 250 kn        Hgt 2000 ft, Snh ? kn
+Krs 263deg, Stg -1088 ft/min   Krs 90deg, Stg 0 ft/min
 ```
 
-Voor meters en kilometers per uur verandert alleen het bericht, met dezelfde factoren als bij [de cards](#het-paneel-en-het-bord):
-
-```yaml
-          message: |-
-            {{ trigger.event.data.description | default(trigger.event.data.aircraft_type) | default('') }}
-            Hgt {{ (trigger.event.data.altitude * 0.3048) | round | int }}m, Snh {{ (trigger.event.data.speed * 1.852) | round | int if trigger.event.data.speed else '?' }}km/h
-            Krs {{ trigger.event.data.track | round | int if trigger.event.data.track is not none else '?' }}deg, Stg {{ (trigger.event.data.vertical_rate | default(0) * 0.00508) | round(1) }}m/s
-```
-
-Wat er dan uitkomt, met een echte vlucht erdoorheen:
+De template noemt zelf geen eenheid, dus in metrische eenheden leest dezelfde template zo, met een echte vlucht erdoorheen:
 
 ```
 Delta Air Lines
 FRA-JFK
 Airbus A-330-200
-Hgt 8702m, Snh 891km/h
-Krs 290deg, Stg 2,9m/s
+Hgt 8702 m, Snh 891 km/h
+Krs 290deg, Stg 2.9 m/s
 ```
 
 Het logo lever je zelf: de app accepteert een `/local/`-pad naar je `www`-map, dus `www/airline_logos/DLH.png` met een `unknown.png` ernaast dekt elk vliegtuig. Logo's van maatschappijen zijn merken, en die kan deze integratie niet voor je meeleveren. Geef elke melding dezelfde `tag` en elk toestel vervangt het vorige in plaats van je scherm vol te zetten; laat je de `tag` weg en houd je de `group`, dan zie je ze allemaal staan.
@@ -109,26 +100,13 @@ content: |
   {% if plane.attributes.route is defined %}### {{ plane.attributes.route }}{% endif %}
   {{ plane.attributes.description | default(plane.attributes.aircraft_type) | default('') }}
 
-  `Hgt {{ plane.attributes.altitude }}ft  Snh {{ plane.attributes.speed }}kn`
-  `Krs {{ plane.attributes.track | round | int }}deg  Stg {{ plane.attributes.vertical_rate or 0 }}ft/min`
+  `Hgt {{ plane.attributes.altitude }} {{ plane.attributes.altitude_unit }}  Snh {{ plane.attributes.speed }} {{ plane.attributes.speed_unit }}`
+  `Krs {{ plane.attributes.track | round | int }}deg  Stg {{ plane.attributes.vertical_rate or 0 }} {{ plane.attributes.vertical_rate_unit }}`
 
   {% if not plane.attributes.overhead %}*Laatst gezien {{ relative_time(plane.last_changed) }} geleden*{% endif %}
 ```
 
-Hoogtes staan daar in voet en snelheden in knopen, want zo zendt het vliegtuig ze uit en zo leest de luchtvaart ze. De entiteiten zelf kun je stuk voor stuk omzetten naar meters en kilometers per uur via **Instellingen → Entiteit → Maateenheid**, maar attributen rekent Home Assistant nooit om, dus een kaart die metrisch wil doet de som zelf:
-
-```jinja
-  `Hgt {{ (plane.attributes.altitude * 0.3048) | round | int }}m  Snh {{ (plane.attributes.speed * 1.852) | round | int }}km/h`
-  `Krs {{ plane.attributes.track | round | int }}deg  Stg {{ (plane.attributes.vertical_rate * 0.00508) | round(1) }}m/s`
-```
-
-| Van | Naar | Maal |
-|---|---|---|
-| ft | m | 0,3048 |
-| kn | km/h | 1,852 |
-| ft/min | m/s | 0,00508 |
-
-`distance` en `slant_distance` staan al in kilometers.
+De getallen staan in de [eenheden](configuration.md#eenheden) die je voor het station koos, en de `*_unit`-attributen ernaast zeggen welke, dus het paneel klopt wat je ook kiest.
 
 **Passages vandaag** is de teller, en de laatste twintig staan als attributen op de sensor: hoe laat ze aankwamen, de callsign, de maatschappij, het type, hoe hoog en hoe dichtbij ze kwamen, hoe lang ze in beeld waren (`duration`, in seconden) en hoe sterk ze op hun best gehoord werden (`peak_rssi`). Die laatste twee weet een passage en één poll niet; ze lopen op zolang het toestel er nog is en staan stil zodra het weg is. Alles overleeft een herstart van Home Assistant, zodat het bord een verslag is en niet een sessie.
 
@@ -139,9 +117,10 @@ Elke regel houdt het toestel op zijn dichtste punt vast en niet bij aankomst, wa
 ```yaml
 type: markdown
 content: |
-  {% for plane in state_attr('sensor.ads_b_station_passages_vandaag', 'passages') %}
+  {% set board = 'sensor.ads_b_station_passages_vandaag' %}
+  {% for plane in state_attr(board, 'passages') %}
   `{{ as_timestamp(plane.at) | timestamp_custom('%H:%M') }}` **{{ plane.airline | default(plane.flight) | default('?') }}**
-  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} km
+  {{ plane.route | default('') }} {{ plane.description | default('') }} · {{ plane.distance }} {{ state_attr(board, 'distance_unit') }}
   {% endfor %}
 ```
 
@@ -174,7 +153,7 @@ automation:
           title: "{{ trigger.event.data.airline | default('Overhead') }}"
           message: >-
             {{ trigger.event.data.description | default('') }}
-            {{ trigger.event.data.altitude }} ft
+            {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
             {%- if trigger.event.data.route is defined %},
             {{ trigger.event.data.route }}{% endif %}
           data:
@@ -205,7 +184,7 @@ Drie waarden reizen mee met elk toestel dat jouw kant op komt:
 | Attribuut | |
 |---|---|
 | `approaching` | Staat er alleen als het zo is |
-| `closest_passing_distance` | Hoe dichtbij hij komt, in kilometers **over de grond** |
+| `closest_passing_distance` | Hoe dichtbij hij komt **over de grond**, in `distance_unit` |
 | `seconds_to_closest` | Hoe lang dat nog duurt |
 
 ```yaml
@@ -219,7 +198,7 @@ automation:
         message: >
           {{ trigger.event.data.airline or trigger.event.data.flight }} komt over
           {{ (trigger.event.data.seconds_to_closest / 60) | round }} minuten op
-          {{ trigger.event.data.closest_passing_distance }} km langs.
+          {{ trigger.event.data.closest_passing_distance }} {{ trigger.event.data.distance_unit }} langs.
 ```
 
 ## Wat het waard is

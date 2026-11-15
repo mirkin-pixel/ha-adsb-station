@@ -10,13 +10,19 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.adsb_station.const import DOMAIN
+from custom_components.adsb_station.const import CONF_UNITS, DOMAIN
 from custom_components.adsb_station.services import (
     SERVICE_LIST_AIRCRAFT,
     SERVICE_LOOK_UP_AIRCRAFT,
 )
 
-from .conftest import MOCK_PIAWARE, PIAWARE_URL, set_responses, setup_integration
+from .conftest import (
+    MOCK_PIAWARE,
+    PIAWARE_URL,
+    metres,
+    set_responses,
+    setup_integration,
+)
 
 # Two in range and one far out, so a service can be told from the nearby list.
 MOCK_SKY: dict[str, Any] = {
@@ -86,7 +92,9 @@ async def test_look_up_by_hex_or_callsign(
     aircraft = answer["aircraft"]
     assert aircraft["hex"] == "484123"
     assert aircraft["flight"] == "KLM123"
-    assert aircraft["altitude"] == 2000
+    # In the station's units, metric in the tests, and saying so
+    assert aircraft["altitude"] == metres(2000)
+    assert answer["altitude_unit"] == "m"
     # The distance the attributes leave out, and the direction no attribute
     # set carries at all
     assert aircraft["distance"] == 1.1
@@ -103,7 +111,7 @@ async def test_look_up_an_aircraft_that_is_not_there(
 
     answer = await _call(hass, SERVICE_LOOK_UP_AIRCRAFT, aircraft="BAW1")
 
-    assert answer == {"aircraft": None}
+    assert answer["aircraft"] is None
 
 
 async def test_look_up_reaches_beyond_the_radius(
@@ -141,9 +149,10 @@ async def test_list_everything_nearest_first(
     ("filters", "expected"),
     [
         ({"max_distance": 10}, ["3c6444", "484123"]),
-        ({"min_altitude": 5000}, ["3c6444", "480123"]),
-        ({"max_altitude": 5000}, ["484123"]),
-        ({"min_altitude": 5000, "max_altitude": 10000}, ["480123"]),
+        # In the station's units, metric here: 1,524 m is 5,000 ft
+        ({"min_altitude": 1524}, ["3c6444", "480123"]),
+        ({"max_altitude": 1524}, ["484123"]),
+        ({"min_altitude": 1524, "max_altitude": 3048}, ["480123"]),
         ({"category": "A7"}, ["480123"]),
         # Written however it arrives, because it is a code and not a word
         ({"category": "a7"}, ["480123"]),
@@ -152,7 +161,7 @@ async def test_list_everything_nearest_first(
         # Netherlands keeps for its own aircraft, so the table answers for it
         ({"military": True}, ["480123"]),
         ({"military": False}, ["3c6444", "484123"]),
-        ({"max_distance": 10, "min_altitude": 10000}, ["3c6444"]),
+        ({"max_distance": 10, "min_altitude": 3048}, ["3c6444"]),
     ],
 )
 async def test_list_filters(
@@ -168,6 +177,25 @@ async def test_list_filters(
     answer = await _call(hass, SERVICE_LIST_AIRCRAFT, **filters)
 
     assert [item["hex"] for item in answer["aircraft"]] == expected
+
+
+async def test_filters_in_the_station_s_units(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test nautical miles and feet on a station set to aviation units."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_UNITS: "nautical"}
+    )
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    # 0.5 NM is 0.93 km: the one 0.56 km out, not the one at 1.1 km
+    answer = await _call(hass, SERVICE_LIST_AIRCRAFT, max_distance=0.5)
+    assert [item["hex"] for item in answer["aircraft"]] == ["3c6444"]
+    answer = await _call(hass, SERVICE_LIST_AIRCRAFT, max_altitude=5000)
+    assert [item["hex"] for item in answer["aircraft"]] == ["484123"]
 
 
 async def test_aircraft_without_a_figure_are_left_out(

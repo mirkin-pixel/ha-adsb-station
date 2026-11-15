@@ -32,6 +32,7 @@ from .const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
     CONF_STATISTICS_INTERVAL,
+    CONF_UNITS,
     CONF_WATCHLIST,
     DB_FLAG_INTERESTING,
     DB_FLAG_LADD,
@@ -93,6 +94,7 @@ from .reference import (
 )
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
 from .trails import SkyTrails
+from .units import Units, converted, unit_attributes, units_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -402,9 +404,9 @@ def slant_distance(summary: AircraftSummary) -> float | None:
     return hypot(summary.distance, summary.altitude * FEET_TO_METRES)
 
 
-def _kilometres(metres: float | None) -> float | None:
-    """Return metres as kilometres to one decimal, None as None."""
-    return None if metres is None else round(metres / 1000, 1)
+def kilometres(metres: float | None) -> float | None:
+    """Return metres as kilometres, None as None; rounded on the way out."""
+    return None if metres is None else metres / 1000
 
 
 def approach_of(
@@ -598,9 +600,7 @@ def aircraft_attributes(
         "seen": summary.seen,
     }
     if include_distance:
-        attributes["distance"] = (
-            None if summary.distance is None else round(summary.distance / 1000, 1)
-        )
+        attributes["distance"] = kilometres(summary.distance)
     # Left out rather than empty when unknown.
     if summary.bearing is not None:
         attributes["bearing"] = round(summary.bearing)
@@ -630,10 +630,8 @@ def aircraft_attributes(
         attributes["on_ground"] = True
     if summary.approaching:
         attributes["approaching"] = True
-        attributes["closest_passing_distance"] = (
-            None
-            if summary.closest_passing_distance is None
-            else round(summary.closest_passing_distance / 1000, 1)
+        attributes["closest_passing_distance"] = kilometres(
+            summary.closest_passing_distance
         )
         attributes["seconds_to_closest"] = (
             None
@@ -667,6 +665,15 @@ def traffic_kind(summary: AircraftSummary) -> str:
 def count_of(stats: AircraftStats, kind: str) -> int:
     """Return how many of the aircraft heard this poll are of one kind."""
     return sum(1 for summary in stats.heard if traffic_kind(summary) == kind)
+
+
+def sky_signal(entry_id: str) -> str:
+    """Return what is sent after every poll, for the cards following an entry.
+
+    By entry rather than by coordinator, so a card keeps following a station
+    that is reloaded under it, as a change under Configure does.
+    """
+    return f"{DOMAIN}_{entry_id}_sky"
 
 
 def watchlist_signal(entry_id: str) -> str:
@@ -865,6 +872,18 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             CONF_PROXIMITY_RADIUS, DEFAULT_PROXIMITY_RADIUS
         )
         return float(kilometres) * 1000
+
+    @property
+    def units(self) -> Units:
+        """Return the units figures leave the integration in."""
+        return units_of(self.hass, self.config_entry.options.get(CONF_UNITS))
+
+    def _fire(self, event_type: str, data: dict[str, Any]) -> None:
+        """Fire an event, its figures in the chosen units and named."""
+        units = self.units
+        self.hass.bus.async_fire(
+            event_type, {**converted(data, units), **unit_attributes(units)}
+        )
 
     @property
     def proximity_ceiling(self) -> float | None:
@@ -1291,7 +1310,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if warned is not None and now - warned <= PASSAGE_GAP:
                 continue
             self._warned[summary.hex] = now
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_AIRCRAFT_APPROACHING,
                 {
                     **self._event_base(),
@@ -1337,7 +1356,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - last <= self._remembered():
                 continue
             del self._announced[hex_code]
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_WATCHLIST_LOST,
                 {
                     **self._watch_data(match),
@@ -1350,7 +1369,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             first = now if known is None else known[0]
             self._announced[match.summary.hex] = (first, now, match)
             if known is None:
-                self.hass.bus.async_fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
+                self._fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
 
     def _watch_data(self, match: WatchlistMatch) -> dict[str, Any]:
         """Describe a watched aircraft, as last seen, for an event."""
@@ -1374,7 +1393,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self._distressed[emergency.hex] = now
             if seen is not None and now - seen <= self._remembered():
                 continue
-            self.hass.bus.async_fire(
+            self._fire(
                 EVENT_AIRCRAFT_EMERGENCY,
                 {
                     **self._event_base(),
@@ -1396,13 +1415,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         Per aircraft, so a second arrival while one is overhead is not missed.
         """
-        self.hass.bus.async_fire(
+        self._fire(
             EVENT_AIRCRAFT_PASSAGE,
             {
                 **self._event_base(),
                 **aircraft_attributes(passage.closest, include_distance=True),
                 # Through the air; "distance" is across the ground.
-                "slant_distance": _kilometres(slant_distance(passage.closest)),
+                "slant_distance": kilometres(slant_distance(passage.closest)),
             },
         )
 
