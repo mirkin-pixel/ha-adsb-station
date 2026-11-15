@@ -9,10 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Final
 
-from homeassistant.const import UnitOfLength, UnitOfSpeed
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.const import CONF_UNIT_OF_MEASUREMENT, UnitOfLength, UnitOfSpeed
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util.unit_conversion import DistanceConverter, SpeedConverter
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
+
+from .const import UNIT_SENSOR_KEYS
 
 UNITS_AUTO: Final = "auto"
 UNITS_NAUTICAL: Final = "nautical"
@@ -167,3 +171,38 @@ def feet_in(feet: float, units: Units) -> float:
 def feet_from(value: float, units: Units) -> float:
     """Return a height given in these units, in feet."""
     return DistanceConverter.convert(value, units.altitude, UnitOfLength.FEET)
+
+
+def set_by_hand(hass: HomeAssistant, entry_id: str) -> list[er.RegistryEntry]:
+    """Return the height, speed and distance sensors with a unit of their own.
+
+    Home Assistant offers no way back from one; Repairs and Configure do.
+    """
+    registry = er.async_get(hass)
+    return [
+        entity
+        for entity in er.async_entries_for_config_entry(registry, entry_id)
+        if entity.domain == SENSOR_DOMAIN
+        and any(entity.unique_id.endswith(f"_{key}") for key in UNIT_SENSOR_KEYS)
+        and CONF_UNIT_OF_MEASUREMENT in entity.options.get(SENSOR_DOMAIN, {})
+    ]
+
+
+def set_by_hand_lines(sensors: list[er.RegistryEntry]) -> str:
+    """Return a line per sensor with the unit it was given."""
+    return "\n".join(
+        f"- {sensor.name or sensor.original_name or sensor.entity_id}: "
+        f"{sensor.options[SENSOR_DOMAIN][CONF_UNIT_OF_MEASUREMENT]}"
+        for sensor in sensors
+    )
+
+
+def let_follow(hass: HomeAssistant, sensors: list[er.RegistryEntry]) -> None:
+    """Clear the unit set by hand on these sensors; their other options stay."""
+    registry = er.async_get(hass)
+    for sensor in sensors:
+        options = dict(sensor.options[SENSOR_DOMAIN])
+        del options[CONF_UNIT_OF_MEASUREMENT]
+        registry.async_update_entity_options(
+            sensor.entity_id, SENSOR_DOMAIN, options or None
+        )

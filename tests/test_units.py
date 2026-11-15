@@ -17,6 +17,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_FOLLOW_UNITS,
     CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
@@ -253,6 +254,64 @@ async def test_a_unit_set_by_hand_is_offered_to_follow_again(
         registry.async_get(status).options["sensor"]["unit_of_measurement"] == "msg/min"
     )
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_configure_lets_a_unit_set_by_hand_follow(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test the box: absent without one, under the units with one, clearing it."""
+    assert await setup_integration(hass, mock_config_entry)
+    flows = hass.config_entries.options
+
+    def fields(result: Any) -> list[str]:
+        return [str(key) for key in result["data_schema"].schema]
+
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert CONF_FOLLOW_UNITS not in fields(result)
+    await flows.async_configure(result["flow_id"], _shown(result))
+
+    registry = er.async_get(hass)
+    highest = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_highest_aircraft"
+    )
+    registry.async_update_entity_options(
+        highest, "sensor", {"unit_of_measurement": "km"}
+    )
+    await hass.async_block_till_done()
+    assert _unit(hass, "highest_aircraft") == "km"
+
+    # Shown, named, and left alone when not ticked
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert fields(result)[:2] == [CONF_UNITS, CONF_FOLLOW_UNITS]
+    assert result["description_placeholders"]["sensors"].endswith(": km")
+    await flows.async_configure(result["flow_id"], _shown(result))
+    await hass.async_block_till_done()
+    assert _unit(hass, "highest_aircraft") == "km"
+
+    # Ticked: the sensor follows, the same question under Repairs goes, and
+    # the tick is not kept as an option
+    issue_id = set_by_hand_issue_id(mock_config_entry.entry_id)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="units_set_by_hand",
+    )
+    result = await flows.async_init(mock_config_entry.entry_id)
+    result = await flows.async_configure(
+        result["flow_id"], {**_shown(result), CONF_FOLLOW_UNITS: True}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert _unit(hass, "highest_aircraft") == "m"
+    assert CONF_FOLLOW_UNITS not in mock_config_entry.options
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert CONF_FOLLOW_UNITS not in fields(result)
 
 
 async def test_no_question_without_a_unit_set_by_hand(

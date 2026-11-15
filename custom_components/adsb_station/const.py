@@ -275,6 +275,11 @@ CONF_LOOK_UP_PHOTOS = "look_up_photos"
 DEFAULT_LOOK_UP_PHOTOS = False
 # Nautical, metric or imperial, or "auto" for Home Assistant's own.
 CONF_UNITS = "units"
+# A one-off under Configure: sensors with a unit set by hand follow again.
+CONF_FOLLOW_UNITS = "follow_units"
+# Repairs: the units an upgraded station is now in, and units set by hand.
+ISSUE_UNITS = "units_changed"
+ISSUE_SET_BY_HAND = "units_set_by_hand"
 # Downloaded registrations and types, for a decoder without a database.
 CONF_AIRCRAFT_DATABASE = "aircraft_database"
 

@@ -27,6 +27,8 @@ from .const import (
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
+    ISSUE_SET_BY_HAND,
+    ISSUE_UNITS,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -35,15 +37,13 @@ from .coordinator import (
 )
 from .reference import async_load_reference
 from .repairs import (
-    ISSUE_SET_BY_HAND,
-    ISSUE_UNITS,
-    set_by_hand,
     set_by_hand_issue_id,
     set_by_hand_placeholders,
     units_issue_id,
     units_placeholders,
 )
 from .services import async_setup_services
+from .units import set_by_hand
 from .websocket import async_setup_websocket
 
 # What the option was called while it named a source rather than a yes or no.

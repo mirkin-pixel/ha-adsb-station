@@ -138,7 +138,8 @@
           "look_up_photos": "Foto's van vliegtuigen opzoeken",
           "watchlist": "Watchlist",
           "aircraft_database": "Vliegtuigdatabase downloaden",
-          "units": "Eenheden"
+          "units": "Eenheden",
+          "follow_units": "Sensoren met een eigen eenheid laten meegaan"
         },
         "data_description": {
           "scan_interval": "Hoe vaak de vliegtuigen uitgelezen worden, in seconden. Alles draait op je eigen netwerk, dus een korte tijd kan prima.",
@@ -150,7 +151,8 @@
           "look_up_photos": "Voegt een foto toe van elk vliegtuig binnen de straal 'dichtbij', en van elk vliegtuig op de watchlist, van Planespotters.net. Alleen het adres dat het vliegtuig uitzendt wordt verstuurd, en antwoorden worden een dag bewaard. De foto's worden uitgeleend op voorwaarde dat de fotograaf erbij genoemd wordt en dat de foto naar zijn pagina linkt, dus ze komen als attributen voor een dashboardkaart en niet als entiteitsafbeelding.",
           "watchlist": "Toestellen die je wilt weten zodra ze opduiken, één per regel. Er is geen straal: de vraag is of het toestel überhaupt in de lucht is, hoe ver weg ook. Een regel kan een hexcode zijn (484123), een registratie of callsign (PH-BXA, KLM123), een vliegtuigtype (EC35), een squawk (7700), het begin van een registratie of callsign (PH-B*, KLM*), military, helicopter of een land (country:US).",
           "aircraft_database": "Je decoder noemt zelf geen vliegtuigen, dus registraties en types ontbreken. Dit downloadt de tabel van tar1090-db (gegevens van Mictronics, zo'n 9 MB) rechtstreeks van GitHub naar je Home Assistant, hooguit één keer per week, bewaart hem op schijf, zo'n 26 MB, en zoekt de toestellen die je hoort daarin op. Niets over die toestellen verlaat je netwerk. Uitzetten verwijdert het bestand.",
-          "units": "Waarin hoogtes, snelheden en afstanden staan: bij de sensoren, in hun attributen en events, in gesproken antwoorden en op de kaart, en wat je invult: de straal en de hoogtegrens hier, en de filters van de acties. Zoals Home Assistant volgt het eenhedenstelsel van Home Assistant: metrisch, of imperiaal bij Amerikaanse eenheden. Luchtvaart is voet, knopen en zeemijl."
+          "units": "Waarin hoogtes, snelheden en afstanden staan: bij de sensoren, in hun attributen en events, in gesproken antwoorden en op de kaart, en wat je invult: de straal en de hoogtegrens hier, en de filters van de acties. Zoals Home Assistant volgt het eenhedenstelsel van Home Assistant: metrisch, of imperiaal bij Amerikaanse eenheden. Luchtvaart is voet, knopen en zeemijl.",
+          "follow_units": "Op deze sensoren is met de hand een eenheid gekozen, waardoor ze de eenheden hierboven niet volgen:\n\n{sensors}\n\nVink dit aan en sla op om die eenheid te wissen, zodat ze de eenheden van het station tonen zoals de rest. Dit vakje staat er alleen zolang er zo'n sensor is."
         }
       }
     },

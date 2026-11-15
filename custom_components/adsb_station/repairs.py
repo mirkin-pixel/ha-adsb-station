@@ -5,15 +5,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.repairs import RepairsFlow
-from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_UNIT_OF_MEASUREMENT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .config_flow import UNITS_FIELD
-from .const import CONF_UNITS, UNIT_SENSOR_KEYS
-from .units import UNITS_AUTO, label_of, units_of
+from .const import CONF_UNITS, ISSUE_SET_BY_HAND, ISSUE_UNITS
+from .units import (
+    UNITS_AUTO,
+    label_of,
+    let_follow,
+    set_by_hand,
+    set_by_hand_lines,
+    units_of,
+)
 
 # As in the config flow: probatio under the name voluptuous since 2026.10.
 if TYPE_CHECKING:
@@ -22,9 +27,6 @@ if TYPE_CHECKING:
     import probatio as vol
 else:
     import voluptuous as vol
-
-ISSUE_UNITS = "units_changed"
-ISSUE_SET_BY_HAND = "units_set_by_hand"
 
 
 def units_placeholders(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, str]:
@@ -46,31 +48,11 @@ def set_by_hand_issue_id(entry_id: str) -> str:
     return f"{ISSUE_SET_BY_HAND}_{entry_id}"
 
 
-def set_by_hand(hass: HomeAssistant, entry_id: str) -> list[er.RegistryEntry]:
-    """Return the height, speed and distance sensors with a unit of their own.
-
-    Home Assistant offers no way back from one, so the issue does.
-    """
-    registry = er.async_get(hass)
-    return [
-        entity
-        for entity in er.async_entries_for_config_entry(registry, entry_id)
-        if entity.domain == SENSOR_DOMAIN
-        and any(entity.unique_id.endswith(f"_{key}") for key in UNIT_SENSOR_KEYS)
-        and CONF_UNIT_OF_MEASUREMENT in entity.options.get(SENSOR_DOMAIN, {})
-    ]
-
-
 def set_by_hand_placeholders(
     entry: ConfigEntry, sensors: list[er.RegistryEntry]
 ) -> dict[str, str]:
     """Return the station and a line per sensor with the unit it was given."""
-    lines = "\n".join(
-        f"- {sensor.name or sensor.original_name or sensor.entity_id}: "
-        f"{sensor.options[SENSOR_DOMAIN][CONF_UNIT_OF_MEASUREMENT]}"
-        for sensor in sensors
-    )
-    return {"station": entry.title, "sensors": lines}
+    return {"station": entry.title, "sensors": set_by_hand_lines(sensors)}
 
 
 class UnitsRepairFlow(RepairsFlow):
@@ -133,13 +115,7 @@ class SetByHandRepairFlow(RepairsFlow):
             return self.async_abort(reason="station_removed")
         sensors = set_by_hand(self.hass, self._entry_id)
         if user_input is not None:
-            registry = er.async_get(self.hass)
-            for sensor in sensors:
-                options = dict(sensor.options[SENSOR_DOMAIN])
-                del options[CONF_UNIT_OF_MEASUREMENT]
-                registry.async_update_entity_options(
-                    sensor.entity_id, SENSOR_DOMAIN, options or None
-                )
+            let_follow(self.hass, sensors)
             return self.async_create_entry(data={})
         return self.async_show_form(
             step_id="confirm",

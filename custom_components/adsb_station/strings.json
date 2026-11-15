@@ -138,7 +138,8 @@
           "look_up_photos": "Look up aircraft photos",
           "watchlist": "Watchlist",
           "aircraft_database": "Download an aircraft database",
-          "units": "Units"
+          "units": "Units",
+          "follow_units": "Let sensors with a unit of their own follow"
         },
         "data_description": {
           "scan_interval": "How often the aircraft are read, in seconds. Everything runs on your own network, so a short interval is fine.",
@@ -150,7 +151,8 @@
           "look_up_photos": "Adds a photo of each aircraft inside the nearby radius, and of each one on the watchlist, from Planespotters.net. Only the address the aircraft broadcasts is sent, and answers are kept for a day. The photos are lent on condition that the photographer is named beside one and that it links to its page, so they come as attributes for a dashboard card rather than as entity pictures.",
           "watchlist": "Aircraft worth knowing about whenever they turn up, one to a line. There is no radius: this asks whether the aircraft is in the air at all, however far away. A line can be a hex code (484123), a registration or a callsign (PH-BXA, KLM123), an aircraft type (EC35), a squawk (7700), the start of a registration or callsign (PH-B*, KLM*), military, helicopter or a country (country:US).",
           "aircraft_database": "Your decoder names no aircraft itself, so registrations and types are missing. This downloads the tar1090-db table (Mictronics' data, about 9 MB) straight from GitHub to your Home Assistant at most once a week, keeps it on disk, about 26 MB, and looks the aircraft you hear up there. Nothing about them leaves your network. Switching it off deletes the file.",
-          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling here, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
+          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling here, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles.",
+          "follow_units": "These sensors were given a unit by hand, so they do not follow the units above:\n\n{sensors}\n\nTick this and save to clear that unit, so they show the station's units like the rest. The box is only here while such a sensor is."
         }
       }
     },
