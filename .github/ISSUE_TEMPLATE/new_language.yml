@@ -2,6 +2,7 @@ name: New language
 description: Offer a translation, or announce one you are working on, so nobody translates the same thing twice.
 title: "Translation: <language>"
 labels: ["translation"]
+assignees: ["mirkin-pixel"]
 body:
   - type: markdown
     attributes:
