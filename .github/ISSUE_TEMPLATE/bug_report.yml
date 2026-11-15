@@ -2,6 +2,7 @@ name: Something is not working
 description: An entity that is missing or wrong, a setup that fails, an answer that makes no sense.
 title: "<what goes wrong, in a few words>"
 labels: ["bug"]
+assignees: ["mirkin-pixel"]
 body:
   - type: markdown
     attributes:
