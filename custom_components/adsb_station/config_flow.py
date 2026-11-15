@@ -193,6 +193,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self._feeder_type: str | None = None
         self._title = DEFAULT_STATION_NAME
         self._aircraft_url = ""
+        self._units = UNITS_AUTO
         self._stats_url: str | None = None
         self._features: list[str] = []
         # What a search found, by the value of its option: kind and port.
@@ -545,11 +546,10 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             # changed; reloading here as well would reload it twice.
             self.hass.config_entries.async_update_entry(entry, data=data)
             return self.async_abort(reason="reconfigure_successful")
-        units = getattr(self, "_units", UNITS_AUTO)
         return self.async_create_entry(
             title=self._title,
             data=data,
-            options={} if units == UNITS_AUTO else {CONF_UNITS: units},
+            options={} if self._units == UNITS_AUTO else {CONF_UNITS: self._units},
         )
 
     @staticmethod

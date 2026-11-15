@@ -1592,7 +1592,7 @@ class AdsbStationCard extends HTMLElement {
 
   _overhead(found, text) {
     const state = this._state(found.overhead);
-    const plane = state ? this._fromSensors(state.attributes) : {};
+    const plane = state ? this._fromSensors(state.attributes, state) : {};
     const known = state && !["unknown", "unavailable"].includes(state.state) && (plane.flight || plane.hex);
     if (!known) {
       return el("div", { class: "empty" }, el("ha-icon", { icon: "mdi:airplane-off" }), text.nothing);
@@ -1696,15 +1696,24 @@ class AdsbStationCard extends HTMLElement {
 
   // What the integration sends its sensors' figures in, or null before 1.4.
   _stationUnits() {
-    const state = this._found && this._state(this._found.overhead);
+    const found = this._found || {};
+    for (const key of ["overhead", "nearby", "passages"]) {
+      const units = this._unitsOf(this._state(found[key]));
+      if (units) return units;
+    }
+    return null;
+  }
+
+  // The units one sensor gives its figures in, as its attributes name them.
+  _unitsOf(state) {
     const name = state && SYSTEM_BY_DISTANCE[state.attributes.distance_unit];
     return name ? UNIT_SYSTEMS[name] : null;
   }
 
   // An aircraft from a sensor's attributes, back in the feet, knots and
   // kilometres the radar's feed has, so both are shown the same way.
-  _fromSensors(plane) {
-    const units = this._stationUnits();
+  _fromSensors(plane, state) {
+    const units = this._unitsOf(state);
     if (!units || !plane) return plane;
     const back = (value, per) => (typeof value === "number" ? value / per : value);
     return {
@@ -1721,7 +1730,7 @@ class AdsbStationCard extends HTMLElement {
     const state = this._state(found.nearby);
     const list =
       state && Array.isArray(state.attributes.aircraft)
-        ? state.attributes.aircraft.map((p) => this._fromSensors(p))
+        ? state.attributes.aircraft.map((p) => this._fromSensors(p, state))
         : [];
     const overhead = this._state(found.overhead);
     const skip = overhead && overhead.attributes.overhead !== false ? overhead.attributes.hex : null;
@@ -1832,7 +1841,7 @@ class AdsbStationCard extends HTMLElement {
     const board = this._passages() && this._state(this._found && this._found.passages);
     const source = this._passages()
       ? ((board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []).map((p) =>
-          this._fromSensors(p),
+          this._fromSensors(p, board),
         )
       : (this._sky && this._sky.aircraft) || [];
     const planes = source

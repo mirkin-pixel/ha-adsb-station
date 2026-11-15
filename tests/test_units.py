@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_MAP_AIRCRAFT,
     CONF_UNITS,
     DOMAIN,
     EVENT_AIRCRAFT_PASSAGE,
@@ -136,6 +137,26 @@ async def test_events_say_what_their_figures_are_in(
         "kn",
         "ft/min",
     )
+
+
+async def test_an_aircraft_on_the_map_in_the_same_unit_as_its_attributes(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the distance that is the state named as the attributes name it."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_MAP_AIRCRAFT: True, CONF_UNITS: "nautical"}
+    )
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD))
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    [entity_id] = hass.states.async_entity_ids("geo_location")
+    state = hass.states.get(entity_id)
+    assert (state.state, state.attributes["unit_of_measurement"]) == ("0.6", "nmi")
+    assert state.attributes["distance_unit"] == "nmi"
 
 
 async def test_asked_for_when_a_station_is_added(

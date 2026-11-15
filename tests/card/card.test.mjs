@@ -1085,6 +1085,20 @@ const tests = {
     assert.match(panel(nautical, { units: "metric" }), /1\.1 km/);
   },
 
+  "reads the list in its own sensor's units before anything was overhead"() {
+    const w = browser();
+    const list = (config = {}) => {
+      const hass = hassWith();
+      hass.states["sensor.t_etur47_vliegtuigen_dichtbij"].attributes = {
+        aircraft: [{ hex: "1", flight: "PHABC", distance: 0.6 }],
+        distance_unit: "nmi",
+      };
+      return render(w, hass, config).shadowRoot.querySelector(".nearby").textContent;
+    };
+    assert.match(list(), /0\.6 NM/);
+    assert.match(list({ units: "metric" }), /1\.1 km/);
+  },
+
   "draws the route of a tapped aircraft it was sent"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

@@ -10,6 +10,7 @@ from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.const import MATCH_ALL, UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import (
     CATEGORY_ROTORCRAFT,
@@ -92,7 +93,6 @@ class AdsbStationAircraftLocation(GeolocationEvent):
 
     _attr_should_poll = False
     _attr_source = DOMAIN
-    _attr_unit_of_measurement = UnitOfLength.KILOMETERS
     # The map reads the live state; recording every position is not worth it.
     # Without _attr_: Home Assistant reads this name, as a class attribute.
     _unrecorded_attributes = frozenset({MATCH_ALL})
@@ -105,6 +105,7 @@ class AdsbStationAircraftLocation(GeolocationEvent):
     ) -> None:
         """Initialize the aircraft at the position it arrived on."""
         self._units = coordinator.units
+        self._attr_unit_of_measurement = self._units.distance
         # Fixed at arrival, so a late callsign does not change the entity ID.
         self._attr_name = summary.flight or summary.hex
         self._apply(summary, position)
@@ -114,7 +115,11 @@ class AdsbStationAircraftLocation(GeolocationEvent):
         self._summary = summary
         self._attr_latitude, self._attr_longitude = position
         self._attr_distance = (
-            None if summary.distance is None else summary.distance / 1000
+            None
+            if summary.distance is None
+            else DistanceConverter.convert(
+                summary.distance, UnitOfLength.METERS, self._units.distance
+            )
         )
 
     @callback
