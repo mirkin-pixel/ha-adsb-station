@@ -961,9 +961,11 @@ class AdsbStationCard extends HTMLElement {
         this._picked(text),
       ].filter(Boolean),
     );
+    // Without scrolling to it: redrawn every second, it would pull a phone
+    // scrolled down to the passage board back up to the radar.
     if (focused) {
       const marker = this._skyBox.querySelector(`.plane[data-hex="${focused}"]`);
-      if (marker) marker.focus();
+      if (marker) marker.focus({ preventScroll: true });
     }
   }
 

@@ -1086,6 +1086,25 @@ const tests = {
     assert.match(panel(nautical), /0\.6 NM/);
   },
 
+  "keeps a tapped aircraft focused without scrolling the page to it"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    const asked = [];
+    const focus = w.SVGElement.prototype.focus;
+    w.SVGElement.prototype.focus = function (options) {
+      asked.push(options);
+      return focus.call(this, options);
+    };
+    card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).focus();
+    asked.length = 0;
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.activeElement.dataset.hex, LOW.hex, "still the tapped one");
+    assert.equal(JSON.stringify(asked), JSON.stringify([{ preventScroll: true }]));
+  },
+
   "takes the units from the sky, before any sensor names them"() {
     const w = browser();
     const hass = hassWith();
