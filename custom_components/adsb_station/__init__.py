@@ -7,6 +7,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from .aircraft_db import database_of
@@ -23,7 +24,11 @@ from .const import (
     DOMAIN,
     FEEDER_FR24,
 )
-from .coordinator import AdsbStationConfigEntry, AdsbStationDataUpdateCoordinator
+from .coordinator import (
+    AdsbStationConfigEntry,
+    AdsbStationDataUpdateCoordinator,
+    sky_signal,
+)
 from .reference import async_load_reference
 from .services import async_setup_services
 from .websocket import async_setup_websocket
@@ -83,6 +88,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
+    entry.async_on_unload(
+        coordinator.async_add_listener(
+            lambda: async_dispatcher_send(hass, sky_signal(entry.entry_id))
+        )
+    )
 
     return True
 
@@ -127,7 +137,14 @@ async def async_migrate_entry(
                     disabled_by=er.RegistryEntryDisabler.INTEGRATION,
                 )
 
-    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
+    # Sensors took the units fixed before 1.4; they look again once, as they
+    # do when the setting changes. A unit chosen on a sensor stays.
+    if entry.version < 5 or entry.minor_version < 2:
+        _refresh_sensor_units(hass, entry)
+
+    hass.config_entries.async_update_entry(
+        entry, data=data, options=options, version=5, minor_version=2
+    )
     return True
 
 

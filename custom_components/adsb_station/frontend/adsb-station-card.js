@@ -985,11 +985,14 @@ class AdsbStationCard extends HTMLElement {
       // The records as well, so the whole shape of the coverage fits.
       ...(mode === "coverage" ? this._outlineKm(sky) || this._coverage() || [] : []),
     );
+    // Round steps in the unit shown, up to the first that reaches 700 km;
+    // a step of other units is no step at all.
+    const per = this._units().distance[1];
+    if (this._rangePer !== per) this._range = undefined;
+    this._rangePer = per;
     // Held until the sky clearly fits a smaller ring, so one aircraft at the
     // edge coming and going does not make the whole radar breathe.
     if (this._range && furthest <= this._range && furthest > this._range * 0.6) return this._range;
-    // Round steps in the unit shown, up to the first that reaches 700 km.
-    const per = this._units().distance[1];
     const steps = RANGE_STEPS.map((step) => step / per);
     const last = steps.findIndex((km) => km >= FURTHEST_KM);
     const usable = last < 0 ? steps : steps.slice(0, last + 1);

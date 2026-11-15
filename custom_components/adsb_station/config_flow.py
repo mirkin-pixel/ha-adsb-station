@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from math import ceil, floor
 import socket
 from typing import TYPE_CHECKING, Any
 
@@ -182,8 +183,9 @@ def options_schema(units: Units) -> vol.Schema:
                 default=round(kilometres_in(DEFAULT_PROXIMITY_RADIUS, units), 1),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=round(kilometres_in(MIN_PROXIMITY_RADIUS, units), 1),
-                    max=round(kilometres_in(MAX_PROXIMITY_RADIUS, units)),
+                    # Outward, so a radius at either end is shown inside them.
+                    min=floor(kilometres_in(MIN_PROXIMITY_RADIUS, units) * 10) / 10,
+                    max=ceil(kilometres_in(MAX_PROXIMITY_RADIUS, units)),
                     step=0.1,
                     unit_of_measurement=label_of(units.distance),
                     mode=selector.NumberSelectorMode.BOX,
@@ -207,6 +209,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
     VERSION = 5
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -426,7 +429,8 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
                 self._aircraft_schema(required),
-                {CONF_AIRCRAFT_URL: self._aircraft_url},
+                # The units chosen stay chosen when the address was wrong.
+                {CONF_AIRCRAFT_URL: self._aircraft_url, CONF_UNITS: self._units},
             ),
             errors=errors,
         )
@@ -592,11 +596,18 @@ class AdsbStationOptionsFlow(OptionsFlow):
             options: dict[str, Any] = {
                 CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                 CONF_STATISTICS_INTERVAL: int(user_input[CONF_STATISTICS_INTERVAL]),
-                CONF_PROXIMITY_RADIUS: self._kept(
-                    CONF_PROXIMITY_RADIUS,
-                    user_input[CONF_PROXIMITY_RADIUS],
-                    kilometres_from,
-                    DEFAULT_PROXIMITY_RADIUS,
+                # Kept within what the integration takes, whatever the unit.
+                CONF_PROXIMITY_RADIUS: min(
+                    max(
+                        self._kept(
+                            CONF_PROXIMITY_RADIUS,
+                            user_input[CONF_PROXIMITY_RADIUS],
+                            kilometres_from,
+                            DEFAULT_PROXIMITY_RADIUS,
+                        ),
+                        MIN_PROXIMITY_RADIUS,
+                    ),
+                    MAX_PROXIMITY_RADIUS,
                 ),
                 CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],

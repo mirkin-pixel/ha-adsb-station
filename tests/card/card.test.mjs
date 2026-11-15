@@ -1633,6 +1633,19 @@ const tests = {
     assert.equal(outer({ map_scale: "aircraft", map_range: 25 }), "50 km");
   },
 
+  "rounds its rings again when the units change"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const rings = () => [...card.shadowRoot.querySelectorAll(".radar .distance")].map((ring) => ring.textContent);
+    link.send({ ...SKY([{ ...HIGH, distance: 70 }]), units: "metric" });
+    assert.deepEqual(rings(), ["50 km", "100 km"]);
+    // 70 km is 38 NM: the round 50 NM, not 100 km kept as 54 NM
+    link.send({ ...SKY([{ ...HIGH, distance: 70 }]), units: "nautical" });
+    assert.deepEqual(rings(), ["25 NM", "50 NM"]);
+  },
+
   "takes a fixed range and a ceiling in the station's units"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

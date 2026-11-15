@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from typing import Any
 
@@ -18,6 +19,7 @@ from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.adsb_station.const import (
     CONF_LOOK_UP_ROUTES,
+    CONF_UNITS,
     DEFAULT_SCAN_INTERVAL,
     ROUTESET_URL,
 )
@@ -125,6 +127,42 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     # TRA45 was not in the last poll. Its trail went with it, rather than
     # lying on the map with no aircraft at the end of it.
     assert "484124" not in trails
+
+
+async def test_the_sky_follows_a_station_reloaded_under_it(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test a card still told after a change under Configure, in its new units."""
+    set_responses(aioclient_mock)
+    assert await setup_integration(hass, mock_config_entry)
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {
+            "type": SUBSCRIBE_AIRCRAFT,
+            "device_id": _station_device(hass, mock_config_entry),
+        }
+    )
+    assert (await client.receive_json())["success"]
+    assert (await client.receive_json())["event"]["units"] == "metric"
+
+    # A new setting reloads the station, and with it its coordinator
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_UNITS: "nautical"}
+    )
+    await hass.async_block_till_done()
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + timedelta(seconds=DEFAULT_SCAN_INTERVAL + 5)
+    )
+    await hass.async_block_till_done()
+
+    # Before, the card was left following the coordinator that was replaced
+    async with asyncio.timeout(5):
+        sky = (await client.receive_json())["event"]
+    assert sky["units"] == "nautical"
+    assert sky["aircraft"]
 
 
 async def test_an_unknown_device_is_an_error(

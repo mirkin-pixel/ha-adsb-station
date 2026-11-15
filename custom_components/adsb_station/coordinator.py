@@ -667,6 +667,15 @@ def count_of(stats: AircraftStats, kind: str) -> int:
     return sum(1 for summary in stats.heard if traffic_kind(summary) == kind)
 
 
+def sky_signal(entry_id: str) -> str:
+    """Return what is sent after every poll, for the cards following an entry.
+
+    By entry rather than by coordinator, so a card keeps following a station
+    that is reloaded under it, as a change under Configure does.
+    """
+    return f"{DOMAIN}_{entry_id}_sky"
+
+
 def watchlist_signal(entry_id: str) -> str:
     """Return what is sent when an entry's watchlist changes in place."""
     return f"{DOMAIN}_{entry_id}_watchlist"

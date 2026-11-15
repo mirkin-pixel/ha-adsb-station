@@ -35,7 +35,7 @@ from .conftest import (
     set_responses,
     setup_integration,
 )
-from .test_config_flow import _start_user_step
+from .test_config_flow import _start_receiver_step, _start_user_step, _suggested
 from .test_passages import OVERHEAD, poll
 
 # A kilometre north of home, 2,000 ft up, at 250 kt, climbing 1,000 ft/min
@@ -121,6 +121,52 @@ async def test_a_change_moves_the_sensors_but_not_a_choice_of_your_own(
         registry.async_get_entity_id("sensor", DOMAIN, f"{MOCK_ALIAS}_closest_aircraft")
     ).attributes
     assert attributes["altitude"] == 2000
+
+
+async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test sensors registered with 1.3's fixed units following the setting."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=5,
+        minor_version=1,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+
+    def registered(key: str, unit: str) -> str:
+        """Register a sensor as 1.3 left it: feet, knots and kilometres."""
+        entity = registry.async_get_or_create(
+            "sensor", DOMAIN, f"{MOCK_ALIAS}_{key}", config_entry=entry
+        )
+        registry.async_update_entity_options(
+            entity.entity_id,
+            "sensor.private",
+            {"suggested_unit_of_measurement": unit},
+        )
+        return entity.entity_id
+
+    highest = registered("highest_aircraft", "ft")
+    fastest = registered("fastest_aircraft", "kn")
+    sector = registered("max_range_n", "km")
+    # And one the user set to miles themselves
+    registry.async_update_entity_options(
+        sector, "sensor", {"unit_of_measurement": "mi"}
+    )
+
+    assert await setup_integration(hass, entry)
+
+    assert (entry.version, entry.minor_version) == (5, 2)
+    units = [
+        hass.states.get(entity_id).attributes.get("unit_of_measurement")
+        for entity_id in (highest, fastest, sector)
+    ]
+    assert units == ["m", "km/h", "mi"]
 
 
 async def test_events_say_what_their_figures_are_in(
@@ -243,6 +289,61 @@ async def test_the_radius_and_ceiling_are_filled_in_in_the_chosen_units(
         )[CONF_PROXIMITY_MAX_ALTITUDE]
         == 3000
     )
+
+
+@pytest.mark.parametrize("system", ["nautical", "imperial"])
+@pytest.mark.parametrize("typed", ["min", "max"])
+async def test_a_radius_at_either_end_can_be_saved_again(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+    system: str,
+    typed: str,
+) -> None:
+    """Test the lowest and highest radius of one system, then shown in another."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_UNITS: system}
+    )
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    async def save(values: dict[str, Any]) -> None:
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
+        field = next(
+            key for key in result["data_schema"].schema if key == CONF_PROXIMITY_RADIUS
+        )
+        config = result["data_schema"].schema[field].config
+        radius = {"min": config["min"], "max": config["max"]}[typed]
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_PROXIMITY_RADIUS: radius, **values}
+        )
+        await hass.async_block_till_done()
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    # The end of the range in this system, saved while switching to metric
+    await save({CONF_UNITS: "metric"})
+    assert 1 <= mock_config_entry.options[CONF_PROXIMITY_RADIUS] <= 500
+    # And opened and saved untouched in metric
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], _shown(result)
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_the_units_chosen_survive_a_wrong_address(
+    hass: HomeAssistant, mock_api: AiohttpClientMocker
+) -> None:
+    """Test the choice still made when the step is shown again."""
+    result = await _start_receiver_step(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_AIRCRAFT_URL: "", CONF_UNITS: "nautical"}
+    )
+    assert result["errors"] == {"base": "aircraft_url_required"}
+    assert _suggested(result, CONF_UNITS) == "nautical"
 
 
 async def test_asked_for_when_a_station_is_added(

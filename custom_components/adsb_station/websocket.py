@@ -9,15 +9,17 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 import voluptuous as vol
 
 from .const import DOMAIN
 from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
+    sky_signal,
     traffic_kind,
 )
 from .route import FlightPosition, RouteLookupError, route_points
@@ -119,14 +121,21 @@ def _subscribe_aircraft(
         )
         return
     coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+    entry_id = entry.entry_id
 
     @callback
     def _send() -> None:
+        # The coordinator of now: a reload replaces it.
+        current = hass.config_entries.async_get_entry(entry_id)
+        if current is None or current.state is not ConfigEntryState.LOADED:
+            return
         connection.send_message(
-            websocket_api.event_message(msg["id"], sky(coordinator))
+            websocket_api.event_message(msg["id"], sky(current.runtime_data))
         )
 
-    connection.subscriptions[msg["id"]] = coordinator.async_add_listener(_send)
+    connection.subscriptions[msg["id"]] = async_dispatcher_connect(
+        hass, sky_signal(entry_id), _send
+    )
     connection.send_result(msg["id"])
     # Trails go out once; the card extends them itself from then on.
     connection.send_message(
