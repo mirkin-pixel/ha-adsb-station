@@ -153,7 +153,8 @@ const ROUTE_RETRY_SECONDS = 60;
 const ROUTE_WAIT_SECONDS = 60;
 // The radar's outer ring snaps to one of these, in kilometres, unless it is
 // fixed: to the aircraft in the sky now, or to the range records as well.
-const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
+// Up to 700 km, the furthest the integration believes a position at all.
+const RANGE_STEPS = [5, 10, 25, 50, 100, 150, 200, 300, 400, 500, 600, 700];
 const SCALES = ["aircraft", "coverage", "fixed"];
 // What the table card lists: the sky now, or the passage board.
 const LISTS = ["now", "passages"];
@@ -628,7 +629,7 @@ class AdsbStationCard extends HTMLElement {
         },
         {
           name: "map_range",
-          selector: { number: { min: 5, max: 500, mode: "box", unit_of_measurement: "km" } },
+          selector: { number: { min: 5, max: 700, mode: "box", unit_of_measurement: "km" } },
         },
         {
           name: "max_altitude",
