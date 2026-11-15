@@ -350,6 +350,10 @@ def gps_poor(entry: dict[str, Any]) -> bool | None:
     # readsb's own verdict, after 17 poor messages in a row.
     if "gpsOkBefore" in entry:
         return True
+    # ADS-B version 0 sends no accuracy; a decoder's guess from the message
+    # type would make an old transponder look jammed for good.
+    if _as_int(entry.get("version")) == 0:
+        return None
     nac_p = _as_int(entry.get("nac_p"))
     return None if nac_p is None else nac_p <= GPS_POOR_NAC_P
 

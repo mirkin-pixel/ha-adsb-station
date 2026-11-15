@@ -35,6 +35,9 @@ def fleet(good: int, poor: int) -> dict[str, Any]:
         ({**FLYING}, False),
         ({**FLYING, "nac_p": 2}, True),
         ({**FLYING, "nac_p": 3}, False),
+        # Version 0 sends no accuracy of its own, only a guess from its type
+        ({**FLYING, "version": 0, "nac_p": 0}, None),
+        ({**FLYING, "version": 2, "nac_p": 0}, True),
         # readsb's own verdict, whatever the last accuracy said
         ({**FLYING, "gpsOkBefore": 1794655098.1}, True),
         # Nothing to say: on the ground, taxiing, or no accuracy sent
