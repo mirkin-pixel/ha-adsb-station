@@ -1086,6 +1086,34 @@ const tests = {
     assert.match(panel(nautical), /0\.6 NM/);
   },
 
+  async "keeps its height while a poll's new content settles, and the photo it had"() {
+    const w = browser();
+    const photographed = {
+      ...KLM,
+      photo: "https://cdn.example/p.jpg",
+      photo_link: "https://example.org/p",
+      photographer: "A",
+    };
+    const hass = hassWith({ overhead: overheadState(photographed) });
+    const card = render(w, hass);
+    const body = card.shadowRoot.querySelector(".body");
+    const photo = card.shadowRoot.querySelector(".photo img");
+    // jsdom lays nothing out; the panel as a phone would measure it
+    Object.defineProperty(body, "offsetHeight", { value: 512, configurable: true });
+
+    card.hass = {
+      ...hass,
+      states: {
+        ...hass.states,
+        "sensor.t_etur47_vlucht_overhead": { ...overheadState({ ...photographed, altitude: 3300 }), last_updated: "u" },
+      },
+    };
+    assert.equal(body.style.minHeight, "512px", "held through the redraw");
+    assert.equal(card.shadowRoot.querySelector(".photo img"), photo, "the same picture, not loaded again");
+    await new Promise((done) => setTimeout(done, 1100));
+    assert.equal(body.style.minHeight, "", "and let go once settled");
+  },
+
   "keeps a tapped aircraft focused without scrolling the page to it"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

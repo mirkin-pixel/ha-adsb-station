@@ -210,6 +210,8 @@ const LISTS = ["now", "passages"];
 // The traffic counters' kinds, to show or hide on the radar.
 const KINDS = ["airline", "other", "helicopter", "military"];
 const DEFAULT_FIXED_RANGE = 100;
+// How long a part keeps its height after a redraw, for icons and pictures to arrive.
+const STEADY_MS = 1000;
 // The compass sectors the station keeps a range record for, clockwise from
 // north, each centred on its direction.
 const SECTORS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -844,10 +846,34 @@ class AdsbStationCard extends HTMLElement {
       if (this._config.show_nearby) body.push(this._nearby(found, text));
       if (this._config.show_status) body.push(this._status(found, text));
     }
-    this._body.replaceChildren(...body.filter(Boolean));
+    this._steady(this._body, () => this._body.replaceChildren(...body.filter(Boolean)));
     if (showSky) this._drawSky();
     this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
+  }
+
+  // Keeps a part at least as tall as it was while its new content settles: an
+  // icon or a picture that arrives a moment later would otherwise shrink the
+  // page for an instant, and a phone scrolled to the bottom follows it up, a
+  // step on every poll until it is back at the top.
+  _steady(box, fill) {
+    const height = box.offsetHeight;
+    if (height) box.style.minHeight = `${height}px`;
+    fill();
+    clearTimeout(box._settle);
+    box._settle = setTimeout(() => {
+      box.style.minHeight = "";
+    }, STEADY_MS);
+  }
+
+  // The same picture element while the aircraft stays, so a poll does not
+  // load it again.
+  _photoOf(src, alt) {
+    if (!this._photo || this._photo.getAttribute("src") !== src) {
+      this._photo = el("img", { src, alt, loading: "lazy" });
+    }
+    this._photo.alt = alt;
+    return this._photo;
   }
 
   _moreInfo(entry) {
@@ -1596,7 +1622,7 @@ class AdsbStationCard extends HTMLElement {
         el(
           "a",
           { class: "photo", href: link, target: "_blank", rel: "noopener" },
-          el("img", { src: photo, alt: plane.flight || plane.hex, loading: "lazy" }),
+          this._photoOf(photo, plane.flight || plane.hex),
         ),
         el(
           "div",
