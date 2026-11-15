@@ -967,6 +967,32 @@ const tests = {
     assert.deepEqual(marks, ["distress", "watch"]);
   },
 
+  "tells the class, speed, wind and temperature of a tapped aircraft"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const flying = {
+      ...LOW,
+      category: "A3",
+      mach: 0.78,
+      ias: 280,
+      wind_direction: 270,
+      wind_speed: 85,
+      temperature: -56.4,
+      roll: 2,
+    };
+    link.send(SKY([flying]));
+    card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
+    const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
+    // Mach over IAS, and no roll for a wing that is nearly level.
+    assert.equal(lines.at(-1), "Groot vliegtuig · Mach 0,78 · wind 270° 85 kt · -56 °C");
+
+    // A decoder that passes none of it on adds no line at all.
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.querySelectorAll(".picked .secondary").length, lines.length - 1);
+  },
+
   "draws the route of a tapped aircraft it was sent"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

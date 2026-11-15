@@ -318,3 +318,44 @@ async def test_distress_and_the_watchlist_stand_out(
     assert planes["RYR1YY"]["watched"] is True
     assert "emergency" not in planes["PLAIN1"]
     assert "watched" not in planes["PLAIN1"]
+
+
+async def test_what_an_aircraft_says_of_its_flight(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the flight details going to the card, and not into the sensors."""
+    flying = {
+        **DISTRESS,
+        "squawk": "1000",
+        "mach": 0.78,
+        "ias": 280,
+        "roll": -12.5,
+        "ws": 85,
+        "wd": 270,
+        "oat": -56,
+    }
+    set_responses(aioclient_mock, aircraft=poll(flying))
+    assert await setup_integration(hass, mock_config_entry)
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {
+            "type": SUBSCRIBE_AIRCRAFT,
+            "device_id": _station_device(hass, mock_config_entry),
+        }
+    )
+    assert (await client.receive_json())["success"]
+    [plane] = (await client.receive_json())["event"]["aircraft"]
+
+    assert {key: plane[key] for key in ("mach", "ias", "roll")} == {
+        "mach": 0.78,
+        "ias": 280,
+        "roll": -12.5,
+    }
+    assert (plane["wind_direction"], plane["wind_speed"]) == (270, 85)
+    assert plane["temperature"] == -56
+    # Not into the sensors' attributes, so not into the database.
+    for state in hass.states.async_all("sensor"):
+        assert "wind_speed" not in state.attributes
