@@ -17,6 +17,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
+    CONF_FOLLOW_UNITS,
     CONF_MAP_AIRCRAFT,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
@@ -26,7 +27,10 @@ from custom_components.adsb_station.const import (
     EVENT_WATCHLIST_MATCH,
 )
 from custom_components.adsb_station.logbook import async_describe_events
-from custom_components.adsb_station.repairs import units_issue_id
+from custom_components.adsb_station.repairs import (
+    set_by_hand_issue_id,
+    units_issue_id,
+)
 from custom_components.adsb_station.units import SYSTEMS, converted, units_of
 
 from .conftest import (
@@ -161,19 +165,25 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
     highest = registered("highest_aircraft", "ft")
     fastest = registered("fastest_aircraft", "kn")
     sector = registered("max_range_n", "km")
-    # And one the user set to miles themselves
+    # And one set to miles by hand, round the mixed units
     registry.async_update_entity_options(
         sector, "sensor", {"unit_of_measurement": "mi"}
     )
 
     assert await setup_integration(hass, entry)
 
-    assert (entry.version, entry.minor_version) == (5, 2)
+    assert (entry.version, entry.minor_version) == (5, 3)
     units = [
         hass.states.get(entity_id).attributes.get("unit_of_measurement")
         for entity_id in (highest, fastest, sector)
     ]
+    # The one set by hand stays, and is offered to follow under Repairs
     assert units == ["m", "km/h", "mi"]
+    by_hand = ir.async_get(hass).async_get_issue(
+        DOMAIN, set_by_hand_issue_id(entry.entry_id)
+    )
+    assert by_hand is not None
+    assert by_hand.translation_placeholders["sensors"].endswith(": mi")
 
     # And it is told so, in the units it now has
     issue = ir.async_get(hass).async_get_issue(DOMAIN, units_issue_id(entry.entry_id))
@@ -183,6 +193,138 @@ async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
         "station": entry.title,
         "units": "m, km/h, km",
     }
+
+
+async def test_a_unit_set_by_hand_is_offered_to_follow_again(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test a station on 1.4.0b3 with km on the height: asked, and cleared on yes.
+
+    The precision set beside it stays, and so does a unit on a sensor that
+    is not in the station's units.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=5,
+        minor_version=2,
+        unique_id=mock_config_entry.unique_id,
+        data=dict(mock_config_entry.data),
+        options={CONF_UNITS: "nautical"},
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    highest = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_highest_aircraft", config_entry=entry
+    ).entity_id
+    registry.async_update_entity_options(
+        highest, "sensor", {"unit_of_measurement": "km", "display_precision": 1}
+    )
+    status = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_message_rate", config_entry=entry
+    ).entity_id
+    registry.async_update_entity_options(
+        status, "sensor", {"unit_of_measurement": "msg/min"}
+    )
+
+    assert await setup_integration(hass, entry)
+
+    # Nothing changed by itself, and only this question asked
+    assert (entry.version, entry.minor_version) == (5, 3)
+    assert hass.states.get(highest).attributes["unit_of_measurement"] == "km"
+    issue_id = set_by_hand_issue_id(entry.entry_id)
+    assert [key[1] for key in ir.async_get(hass).issues] == [issue_id]
+
+    assert await async_setup_component(hass, "repairs", {})
+    flows = hass.data["repairs"]["flow_manager"]
+    result = await flows.async_init(DOMAIN, data={"issue_id": issue_id})
+    assert result["type"] is FlowResultType.FORM
+    assert result["description_placeholders"]["station"] == entry.title
+    assert result["description_placeholders"]["sensors"].endswith(": km")
+    result = await flows.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert hass.states.get(highest).attributes["unit_of_measurement"] == "ft"
+    kept = registry.async_get(highest).options["sensor"]
+    assert "unit_of_measurement" not in kept
+    assert kept["display_precision"] == 1
+    assert (
+        registry.async_get(status).options["sensor"]["unit_of_measurement"] == "msg/min"
+    )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_configure_lets_a_unit_set_by_hand_follow(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test the box: absent without one, under the units with one, clearing it."""
+    assert await setup_integration(hass, mock_config_entry)
+    flows = hass.config_entries.options
+
+    def fields(result: Any) -> list[str]:
+        return [str(key) for key in result["data_schema"].schema]
+
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert CONF_FOLLOW_UNITS not in fields(result)
+    await flows.async_configure(result["flow_id"], _shown(result))
+
+    registry = er.async_get(hass)
+    highest = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MOCK_ALIAS}_highest_aircraft"
+    )
+    registry.async_update_entity_options(
+        highest, "sensor", {"unit_of_measurement": "km"}
+    )
+    await hass.async_block_till_done()
+    assert _unit(hass, "highest_aircraft") == "km"
+
+    # Shown, named, and left alone when not ticked
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert fields(result)[:2] == [CONF_UNITS, CONF_FOLLOW_UNITS]
+    assert result["description_placeholders"]["sensors"].endswith(": km")
+    await flows.async_configure(result["flow_id"], _shown(result))
+    await hass.async_block_till_done()
+    assert _unit(hass, "highest_aircraft") == "km"
+
+    # Ticked: the sensor follows, the same question under Repairs goes, and
+    # the tick is not kept as an option
+    issue_id = set_by_hand_issue_id(mock_config_entry.entry_id)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="units_set_by_hand",
+    )
+    result = await flows.async_init(mock_config_entry.entry_id)
+    result = await flows.async_configure(
+        result["flow_id"], {**_shown(result), CONF_FOLLOW_UNITS: True}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert _unit(hass, "highest_aircraft") == "m"
+    assert CONF_FOLLOW_UNITS not in mock_config_entry.options
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    result = await flows.async_init(mock_config_entry.entry_id)
+    assert CONF_FOLLOW_UNITS not in fields(result)
+
+
+async def test_no_question_without_a_unit_set_by_hand(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test an upgrade with nothing set by hand asks about the units alone."""
+    entry = await _upgraded(hass, mock_config_entry)
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, set_by_hand_issue_id(entry.entry_id))
+        is None
+    )
 
 
 async def _upgraded(

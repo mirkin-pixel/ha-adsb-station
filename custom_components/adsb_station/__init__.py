@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.const import CONF_HOST, CONF_PORT, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -23,6 +27,8 @@ from .const import (
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
+    ISSUE_SET_BY_HAND,
+    ISSUE_UNITS,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -30,8 +36,14 @@ from .coordinator import (
     sky_signal,
 )
 from .reference import async_load_reference
-from .repairs import ISSUE_UNITS, units_issue_id, units_placeholders
+from .repairs import (
+    set_by_hand_issue_id,
+    set_by_hand_placeholders,
+    units_issue_id,
+    units_placeholders,
+)
 from .services import async_setup_services
+from .units import set_by_hand
 from .websocket import async_setup_websocket
 
 # What the option was called while it named a source rather than a yes or no.
@@ -139,14 +151,20 @@ async def async_migrate_entry(
                 )
 
     # Sensors took the units fixed before 1.4; they look again once, as they
-    # do when the setting changes. A unit chosen on a sensor stays.
+    # do when the setting changes.
     if entry.version < 5 or entry.minor_version < 2:
         _refresh_sensor_units(hass, entry)
         if data.get(CONF_AIRCRAFT_URL):
             _ask_for_units(hass, entry)
 
+    # A unit set by hand back then was likely a way round the mixed units, and
+    # Home Assistant has no way back from one; offered once, under Repairs.
+    # 1.4.0b3 went out without this, hence its own step.
+    if entry.version < 5 or entry.minor_version < 3:
+        _ask_about_units_set_by_hand(hass, entry)
+
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=5, minor_version=2
+        entry, data=data, options=options, version=5, minor_version=3
     )
     return True
 
@@ -189,8 +207,28 @@ async def async_options_updated(
 async def async_remove_entry(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> None:
-    """Take the question about units away with the station."""
+    """Take the questions about units away with the station."""
     ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
+    ir.async_delete_issue(hass, DOMAIN, set_by_hand_issue_id(entry.entry_id))
+
+
+def _ask_about_units_set_by_hand(
+    hass: HomeAssistant, entry: AdsbStationConfigEntry
+) -> None:
+    """Offer to let the sensors with a unit of their own follow the setting."""
+    if not (sensors := set_by_hand(hass, entry.entry_id)):
+        return
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        set_by_hand_issue_id(entry.entry_id),
+        is_fixable=True,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_SET_BY_HAND,
+        translation_placeholders=set_by_hand_placeholders(entry, sensors),
+        data={"entry_id": entry.entry_id},
+    )
 
 
 def _ask_for_units(hass: HomeAssistant, entry: AdsbStationConfigEntry) -> None:

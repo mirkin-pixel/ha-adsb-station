@@ -16,7 +16,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
-from homeassistant.helpers import selector
+from homeassistant.helpers import issue_registry as ir, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 # Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
@@ -38,6 +38,7 @@ from .const import (
     CONF_AIRCRAFT_DATABASE,
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    CONF_FOLLOW_UNITS,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
@@ -60,6 +61,7 @@ from .const import (
     FEEDER_PIAWARE,
     FEEDER_PLANEFINDER,
     FEEDERS,
+    ISSUE_SET_BY_HAND,
     MAX_PROXIMITY_ALTITUDE,
     MAX_PROXIMITY_RADIUS,
     MAX_SCAN_INTERVAL,
@@ -77,6 +79,9 @@ from .units import (
     kilometres_from,
     kilometres_in,
     label_of,
+    let_follow,
+    set_by_hand,
+    set_by_hand_lines,
     units_of,
 )
 
@@ -209,7 +214,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for an ADS-B station."""
 
     VERSION = 5
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -640,10 +645,24 @@ class AdsbStationOptionsFlow(OptionsFlow):
                         self._schema(), user_input
                     ),
                     errors={CONF_WATCHLIST: "unreadable_watchlist"},
-                    description_placeholders={"lines": ", ".join(unreadable)},
+                    description_placeholders={
+                        **self._placeholders(),
+                        "lines": ", ".join(unreadable),
+                    },
                 )
             if watchlist.strip():
                 options[CONF_WATCHLIST] = watchlist.strip()
+
+            # Not an option: a one-off, which leaves nothing to keep.
+            if user_input.get(CONF_FOLLOW_UNITS):
+                let_follow(
+                    self.hass, set_by_hand(self.hass, self.config_entry.entry_id)
+                )
+                ir.async_delete_issue(
+                    self.hass,
+                    DOMAIN,
+                    f"{ISSUE_SET_BY_HAND}_{self.config_entry.entry_id}",
+                )
 
             return self.async_create_entry(data=options)
 
@@ -652,7 +671,14 @@ class AdsbStationOptionsFlow(OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(
                 self._schema(), self._shown()
             ),
+            description_placeholders=self._placeholders(),
         )
+
+    def _placeholders(self) -> dict[str, str]:
+        """Name the sensors with a unit of their own, for the box about them."""
+        if not (sensors := set_by_hand(self.hass, self.config_entry.entry_id)):
+            return {}
+        return {"sensors": set_by_hand_lines(sensors)}
 
     @property
     def _units(self) -> Units:
@@ -682,15 +708,25 @@ class AdsbStationOptionsFlow(OptionsFlow):
         return round(float(to_stored(float(typed), self._units)), 3)
 
     def _schema(self) -> vol.Schema:
-        """Offer the download only to a decoder that names no aircraft itself."""
+        """Offer the download only to a decoder that names no aircraft itself.
+
+        And the box that lets sensors follow only while one has a unit of its own,
+        under the units it is about.
+        """
         entry = self.config_entry
+        fields = dict(options_schema(self._units).schema)
+        if set_by_hand(self.hass, entry.entry_id):
+            units, *rest = fields.items()
+            fields = {
+                units[0]: units[1],
+                vol.Optional(CONF_FOLLOW_UNITS, default=False): bool,
+                **dict(rest),
+            }
         coordinator = getattr(entry, "runtime_data", None)
         if entry.options.get(CONF_AIRCRAFT_DATABASE) or (
             entry.data.get(CONF_AIRCRAFT_URL)
             and coordinator is not None
             and coordinator.decoder_has_database is False
         ):
-            return options_schema(self._units).extend(
-                {vol.Optional(CONF_AIRCRAFT_DATABASE, default=False): bool}
-            )
-        return options_schema(self._units)
+            fields[vol.Optional(CONF_AIRCRAFT_DATABASE, default=False)] = bool
+        return vol.Schema(fields)

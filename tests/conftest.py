@@ -318,7 +318,7 @@ def mock_config_entry() -> MockConfigEntry:
         unique_id=MOCK_ALIAS,
         # As the config flow makes one today, so nothing is migrated.
         version=5,
-        minor_version=2,
+        minor_version=3,
         data={
             CONF_HOST: MOCK_HOST,
             CONF_PORT: DEFAULT_PORT,
