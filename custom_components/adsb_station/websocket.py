@@ -72,6 +72,7 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
             **aircraft_attributes(summary, include_distance=True),
             # As the traffic counters count it, for the card's filters.
             "kind": traffic_kind(summary),
+            **summary.details,
             "latitude": summary.position[0],
             "longitude": summary.position[1],
         }

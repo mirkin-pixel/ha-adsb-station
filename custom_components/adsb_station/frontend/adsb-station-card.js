@@ -70,6 +70,23 @@ const STRINGS = {
     kind_other: "Other",
     kind_helicopter: "Helicopter",
     kind_military: "Military",
+    class_A1: "Light aircraft",
+    class_A2: "Small aircraft",
+    class_A3: "Large aircraft",
+    class_A4: "Large aircraft",
+    class_A5: "Heavy aircraft",
+    class_A6: "High performance aircraft",
+    class_A7: "Helicopter",
+    class_B1: "Glider",
+    class_B2: "Balloon",
+    class_B3: "Parachutist",
+    class_B4: "Ultralight",
+    class_B6: "Drone",
+    class_B7: "Spacecraft",
+    class_C1: "Emergency vehicle",
+    class_C2: "Service vehicle",
+    wind: "wind",
+    roll: "roll",
     route_pending: "Looking up the route…",
     route_unknown: "No route known",
     route_failed: "Could not look up the route",
@@ -130,6 +147,23 @@ const STRINGS = {
     kind_other: "Overig",
     kind_helicopter: "Helikopter",
     kind_military: "Militair",
+    class_A1: "Licht vliegtuig",
+    class_A2: "Klein vliegtuig",
+    class_A3: "Groot vliegtuig",
+    class_A4: "Groot vliegtuig",
+    class_A5: "Zwaar vliegtuig",
+    class_A6: "Snel, wendbaar toestel",
+    class_A7: "Helikopter",
+    class_B1: "Zweefvliegtuig",
+    class_B2: "Ballon",
+    class_B3: "Parachutist",
+    class_B4: "Ultralicht",
+    class_B6: "Drone",
+    class_B7: "Ruimtevaartuig",
+    class_C1: "Hulpvoertuig",
+    class_C2: "Dienstvoertuig",
+    wind: "wind",
+    roll: "rolhoek",
     route_pending: "Route opzoeken…",
     route_unknown: "Geen route bekend",
     route_failed: "Route opzoeken mislukt",
@@ -1465,7 +1499,28 @@ class AdsbStationCard extends HTMLElement {
           .filter(Boolean)
           .join("   "),
       ),
+      this._flightLine(plane, text),
     );
+  }
+
+  // What else the aircraft says of its flight, where the decoder passes it on.
+  _flightLine(plane, text) {
+    const number = (value) => typeof value === "number";
+    const parts = [
+      text[`class_${plane.category}`],
+      number(plane.mach)
+        ? `Mach ${this._number(plane.mach, 2)}`
+        : number(plane.ias)
+          ? `IAS ${this._number(plane.ias, 0)} kt`
+          : null,
+      number(plane.wind_direction) && number(plane.wind_speed)
+        ? `${text.wind} ${this._number(plane.wind_direction, 0)}° ${this._number(plane.wind_speed, 0)} kt`
+        : null,
+      number(plane.temperature) ? `${this._number(plane.temperature, 0)} °C` : null,
+      // Only in a turn worth the name.
+      number(plane.roll) && Math.abs(plane.roll) >= 5 ? `${text.roll} ${this._number(Math.abs(plane.roll), 0)}°` : null,
+    ].filter(Boolean);
+    return parts.length ? el("div", { class: "secondary" }, parts.join(" · ")) : null;
   }
 
   // Where it comes from and goes to, under the aircraft's name. Without a

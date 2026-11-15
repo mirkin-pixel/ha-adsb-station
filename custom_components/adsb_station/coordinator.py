@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import logging
 from math import atan2, cos, degrees, hypot, radians, sin, sqrt
 import sqlite3
-from typing import Any, Protocol
+from typing import Any, Final, Protocol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
@@ -158,6 +158,9 @@ class AircraftSummary:
     approaching: bool = False
     closest_passing_distance: float | None = None
     seconds_to_closest: float | None = None
+    # What the aircraft says of its flight, for the card only: airspeed, Mach,
+    # roll, and the wind and temperature readsb works out from them.
+    details: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
@@ -485,6 +488,17 @@ def _elevation(metres: float | None, altitude: float | None) -> float | None:
     return degrees(atan2(above * cos(angle) - EARTH_RADIUS_METRES, above * sin(angle)))
 
 
+# aircraft.json's key, and the card's name for it.
+FLIGHT_DETAILS: Final = {
+    "ias": "ias",
+    "mach": "mach",
+    "roll": "roll",
+    "ws": "wind_speed",
+    "wd": "wind_direction",
+    "oat": "temperature",
+}
+
+
 def _summarise(
     entry: dict[str, Any],
     metres: float | None,
@@ -526,6 +540,11 @@ def _summarise(
         heard_as=_as_text(entry.get("type")),
         airline=reference.airline_of(flight),
         airline_code=designator_of(flight),
+        details={
+            name: value
+            for key, name in FLIGHT_DETAILS.items()
+            if (value := _as_float(entry.get(key))) is not None
+        },
     )
 
 
