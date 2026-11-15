@@ -23,7 +23,7 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `title` | none | A header above the card |
 | `map` | `radar` | The sky around the station: `radar`, `map` for the same sky on a map with streets, or `none` |
 | `map_scale` | `aircraft` | How far out the radar, or the map, reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
-| `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres |
+| `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres, from 5 to 700 |
 | `max_altitude` | | Leave aircraft higher than this, in feet, off the radar. Empty shows them all |
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |

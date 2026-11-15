@@ -399,6 +399,33 @@ const tests = {
     assert.ok(x > 200, "so does the aircraft");
   },
 
+  "reaches out to 700 km, and no further"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_scale: "coverage" });
+    // 650 km north, as a station by the sea can hear on a good day.
+    link.send({
+      ...SKY([LOW]),
+      outline: [
+        [57.85, 5.0],
+        [52.0, 5.1],
+        [51.9, 5.0],
+      ],
+    });
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /700 km/);
+    // A position no antenna can hear does not take the radar further.
+    link.send({
+      ...SKY([LOW]),
+      outline: [
+        [61.0, 5.0],
+        [52.0, 5.1],
+        [51.9, 5.0],
+      ],
+    });
+    assert.match(card.shadowRoot.querySelector(".radar").textContent, /700 km/);
+  },
+
   "keeps the table on a card of its own"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
