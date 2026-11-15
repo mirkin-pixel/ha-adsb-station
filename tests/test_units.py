@@ -123,15 +123,20 @@ async def test_a_change_moves_the_sensors_but_not_a_choice_of_your_own(
     assert attributes["altitude"] == 2000
 
 
+@pytest.mark.parametrize("version", [3, 5])
 async def test_an_upgrade_moves_the_sensors_of_an_existing_station(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_api: AiohttpClientMocker,
+    version: int,
 ) -> None:
-    """Test sensors registered with 1.3's fixed units following the setting."""
+    """Test sensors registered with fixed units following the setting.
+
+    From 1.3, and from a release that still has the older migrations to go.
+    """
     entry = MockConfigEntry(
         domain=DOMAIN,
-        version=5,
+        version=version,
         minor_version=1,
         unique_id=mock_config_entry.unique_id,
         data=dict(mock_config_entry.data),
