@@ -114,14 +114,13 @@ async def test_overhead(
     """Test the question the whole receiver was put on the roof for."""
     await _setup(hass, mock_config_entry, aioclient_mock)
 
-    # Overhead is measured through the air, so the Lufthansa at 12,000 feet
-    # a little to the north beats the KLM at 30,000 feet almost straight up.
-    # And Lufthansa is a name because the shipped table has one for DLH.
+    # Overhead is the circle on the map, so the KLM at 30,000 feet almost
+    # straight up beats the Lufthansa at 12,000 feet a little to the north.
     assert await _ask(hass, INTENT_OVERHEAD) == (
-        "Lufthansa 99 is overhead, 3,700 metres up."
+        "KLM 123 is overhead, 9,100 metres up."
     )
     assert await _ask(hass, INTENT_OVERHEAD, language="nl") == (
-        "Lufthansa 99 vliegt over, 3.700 meter hoog."
+        "KLM 123 vliegt over, 9.100 meter hoog."
     )
 
 
@@ -488,7 +487,7 @@ async def test_speak_without_any_sentence_file(
         return_response=True,
     )
     # The same sentence the voice question gives, word for word
-    assert spoken == {"speech": "Lufthansa 99 is overhead, 3,700 metres up."}
+    assert spoken == {"speech": "KLM 123 is overhead, 9,100 metres up."}
 
 
 async def test_speak_takes_a_kind_and_a_language(

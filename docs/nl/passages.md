@@ -25,11 +25,11 @@ Het event draagt dezelfde sleutels als de vliegtuigattributen, dus alles uit de 
 
 Drie dingen houden het draaglijk.
 
-**De afstand telt de hoogte mee.** Elke andere afstand in deze integratie wordt over de grond gemeten, en dat is het juiste antwoord op hoe ver je antenne reikt en het verkeerde op wat er boven je hangt. Een verkeersvliegtuig op 37.000 voet dat negen kilometer noordelijk passeert zit op de kaart binnen een straal van tien kilometer, en is veertien kilometer bij je vandaan door de lucht. Hij telt als dichtbij, en dat hoort ook, en hij is geen passage, en dat hoort ook. De `distance` in het event is nog steeds die over de grond; `slant_distance` is de echte.
+**Het is de cirkel op de kaart.** Een vliegtuig komt over zodra het over de grond binnen je straal komt, dezelfde cirkel die **Vliegtuigen dichtbij** en **Vliegtuig overhead** bepaalt, hoe hoog het ook vliegt. Een verkeersvliegtuig op 37.000 voet recht boven je huis komt over; door de lucht is het elf kilometer bij je vandaan, en zo meten, zoals deze integratie vóór 1.4 deed, betekende dat een verkeersvliegtuig op kruishoogte nooit overkwam. Wil je hoog verkeer erbuiten laten, dan is daar het [hoogtegrens](configuration.md#wat-overhead-precies-betekent) voor. De `distance` in het event is die over de grond; `slant_distance` die door de lucht.
 
 **Een vliegtuig moet eerst weg zijn voor het opnieuw kan aankomen.** De ontvangst valt weg, toestellen draaien rondjes, en eentje op de rand van de straal knippert in en uit. Een vliegtuig dat weggaat en binnen tien minuten terugkomt is dezelfde passage; duurt het langer, dan is het een nieuwe. Een helikopter die vlakbij een perceel afwerkt belt dus één keer aan, niet elke minuut.
 
-**Een vliegtuig moet vliegen.** Eentje op de grond meldt geen hoogte, dus de afstand door de lucht valt terug op die over de grond en een taxiënd verkeersvliegtuig lijkt precies op een lage overkomst. Woon je vlakbij een veld, dan is dat het grootste deel van je verkeer, dus die blijven erbuiten. Ze staan wel gewoon bij **Vliegtuigen dichtbij**, gemarkeerd met `on_ground`, want het is echt een vliegtuig binnen je straal.
+**Een vliegtuig moet vliegen.** Een taxiënd verkeersvliegtuig binnen je straal lijkt precies op een lage overkomst. Woon je vlakbij een veld, dan is dat het grootste deel van je verkeer, dus die blijven erbuiten. Ze staan wel gewoon bij **Vliegtuigen dichtbij**, gemarkeerd met `on_ground`, want het is echt een vliegtuig binnen je straal.
 
 ## Een melding die leest als een paneel
 
@@ -97,7 +97,7 @@ Het logo lever je zelf: de app accepteert een `/local/`-pad naar je `www`-map, d
 
 Twee sensoren lezen die passages uit, en samen zijn ze een vertrekbord voor je eigen dak.
 
-**Vlucht overhead** is het toestel dat nu boven je hangt, het dichtstbijzijnde door de lucht gemeten, met alles erover als attributen: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, de route als je die opzoekt, en `since`, het moment dat hij aankwam. Hij houdt het laatste toestel vast in plaats van leeg te lopen als de lucht leeg raakt, want een paneel dat tussen twee vliegtuigen door leeg staat is het ophangen niet waard. Het attribuut `overhead` zegt welke van de twee je ziet, en `seen_at` wanneer het gelezen is.
+**Vlucht overhead** is het toestel dat nu boven je hangt, het dichtstbijzijnde op de kaart, met alles erover als attributen: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, de route als je die opzoekt, en `since`, het moment dat hij aankwam. Hij houdt het laatste toestel vast in plaats van leeg te lopen als de lucht leeg raakt, want een paneel dat tussen twee vliegtuigen door leeg staat is het ophangen niet waard. Het attribuut `overhead` zegt welke van de twee je ziet, en `seen_at` wanneer het gelezen is.
 
 Meer heb je voor een paneel niet nodig, alleen een markdown-card:
 

@@ -32,7 +32,7 @@ If your decoder runs as a Home Assistant add-on rather than on a machine of its 
 
 ## What counts as overhead
 
-A radius is a circle drawn on the ground. An airliner at 36,000 feet passing over your street is inside a ten kilometre circle, and it is nothing anybody would look up at — the height is already counted for the distance, but a wide radius lets it in anyway.
+A radius is a circle drawn on the ground, and everything that enters it counts as nearby and comes over, however high it flies. An airliner at 36,000 feet passing over your street is inside a ten kilometre circle, and you may not want it on your board or in your announcements.
 
 **Overhead ceiling** under **Configure** is the answer, in feet, and it is empty until you set it. Ten thousand feet is a reasonable place to start: below it is traffic on approach, helicopters, and anything with a reason to be low.
 

@@ -14,7 +14,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Fastest aircraft | Sensor (kn) | Ground speed of the fastest aircraft in range, with the same attributes |
 | Aircraft nearby | Sensor | How many aircraft are inside the nearby radius, with all of them as attributes, nearest first. These are the two that can carry [where the flight is going](routes.md) |
 | Aircraft overhead | Binary sensor | On while at least one aircraft is inside that radius |
-| Overhead flight | Sensor | The one aircraft above you, nearest first and measured through the air. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](passages.md) |
+| Overhead flight | Sensor | The one aircraft above you, the nearest on the map. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](passages.md) |
 | Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
 | Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](watchlist.md) is in the air. Only there when you have set one |

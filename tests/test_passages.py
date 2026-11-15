@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.adsb_station.const import (
     CONF_PROXIMITY_MAX_ALTITUDE,
+    CONF_PROXIMITY_RADIUS,
     DEFAULT_SCAN_INTERVAL,
     EVENT_AIRCRAFT_PASSAGE,
     MAX_SCAN_INTERVAL,
@@ -140,16 +141,17 @@ async def test_a_passing_aircraft_fires_once(
     assert len(passages) == 1
 
 
-async def test_the_height_is_counted(
+async def test_high_traffic_overhead_comes_over(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
     passages: list[Event],
 ) -> None:
-    """Test that traffic crossing high overhead is not a passage.
+    """Test the circle on the map, whatever the height, as nearby uses it.
 
     Both aircraft are a kilometre away across the ground and inside the ten
-    kilometre radius, so both are nearby. Only the low one is overhead.
+    kilometre radius. Through the air the airliner at 37,000 feet is over
+    eleven kilometres away, and used to never come over at all.
     """
     set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE))
 
@@ -160,6 +162,27 @@ async def test_the_height_is_counted(
         "KLM123",
         "TRA45",
     ]
+    assert sorted(event.data["flight"] for event in passages) == ["KLM123", "TRA45"]
+    high = next(event for event in passages if event.data["flight"] == "TRA45")
+    assert high.data["distance"] == pytest.approx(1.1, abs=0.1)
+    assert high.data["slant_distance"] == pytest.approx(11.3, abs=0.1)
+
+
+async def test_the_ceiling_leaves_high_traffic_out(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    passages: list[Event],
+) -> None:
+    """Test the ceiling, the way to keep cruising airliners off the board."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_PROXIMITY_MAX_ALTITUDE: 10000}
+    )
+    set_responses(aioclient_mock, aircraft=poll(OVERHEAD, HIGH_ABOVE))
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
     assert [event.data["flight"] for event in passages] == ["KLM123"]
 
 
@@ -317,9 +340,9 @@ async def test_the_overhead_sensor_shows_the_nearest(
     mock_config_entry: MockConfigEntry,
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Test that the panel shows the aircraft nearest through the air."""
-    # A shade over a kilometre away and low, against one right overhead but
-    # three kilometres up, which is the further of the two.
+    """Test that the panel shows the aircraft nearest on the map."""
+    # A shade over a kilometre away and low, against one straight overhead
+    # three kilometres up: the one to look straight up at.
     higher = {**OVERHEAD, "hex": "484124", "flight": "EZY22"}
     higher.update(lat=52.0, lon=5.0, alt_baro=10000)
     set_responses(aioclient_mock, aircraft=poll(OVERHEAD, higher))
@@ -327,10 +350,10 @@ async def test_the_overhead_sensor_shows_the_nearest(
     assert await setup_integration(hass, mock_config_entry)
 
     state = hass.states.get("sensor.t_ehxx23_overhead_flight")
-    assert state.state == "KLM123"
+    assert state.state == "EZY22"
     assert state.attributes["overhead"] is True
-    assert state.attributes["airline"] == "KLM"
-    assert state.attributes["slant_distance"] == pytest.approx(1.3, abs=0.2)
+    assert state.attributes["airline"] == "easyJet"
+    assert state.attributes["slant_distance"] == pytest.approx(3.0, abs=0.1)
     assert "since" in state.attributes
 
 
@@ -569,3 +592,42 @@ async def test_one_passage_at_the_slowest_interval(
 
     assert len(passages) == 1
     assert hass.states.get("sensor.t_ehxx23_passages_today").state == "1"
+
+
+async def test_an_airliner_at_cruise_comes_over_and_stays_on_top(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    passages: list[Event],
+) -> None:
+    """Test a radius of 12 km and an airliner at 39,000 ft passing close by.
+
+    Through the air it is over 12 km away even straight overhead, so it never
+    came over: Aircraft overhead turned on, the panel showed an older one,
+    and the airliner was listed under nearby beside it.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_PROXIMITY_RADIUS: 12}
+    )
+    cruising = {**OVERHEAD, "hex": "4a8123", "flight": "SAS584", "alt_baro": 39000}
+    # About two kilometres to the side
+    set_responses(aioclient_mock, aircraft=poll({**cruising, "lat": 52.018}))
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert [event.data["flight"] for event in passages] == ["SAS584"]
+    assert hass.states.get("binary_sensor.t_ehxx23_aircraft_overhead").state == "on"
+    panel = hass.states.get("sensor.t_ehxx23_overhead_flight")
+    assert panel.state == "SAS584"
+    # Overhead now, so the card leaves it out of the nearby list beneath
+    assert panel.attributes["overhead"] is True
+
+    # Still inside the circle further out: still on top, not a second line
+    set_responses(aioclient_mock, aircraft=poll({**cruising, "lat": 52.09}))
+    await next_poll(hass, freezer)
+    panel = hass.states.get("sensor.t_ehxx23_overhead_flight")
+    assert (panel.state, panel.attributes["overhead"]) == ("SAS584", True)
+    board = hass.states.get("sensor.t_ehxx23_passages_today").attributes["passages"]
+    assert [entry["flight"] for entry in board] == ["SAS584"]

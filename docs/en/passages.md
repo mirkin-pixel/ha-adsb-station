@@ -25,11 +25,11 @@ The event carries the same keys as the aircraft attributes, so everything in the
 
 Three things stop it becoming a nuisance.
 
-**The distance counts the height.** Every other distance in this integration is measured across the ground, which is the right answer for how far your antenna reaches and the wrong one for what is above you. An airliner at 37,000 feet passing nine kilometres to the north is inside a ten kilometre radius on the map, and is fourteen kilometres away from you in the sky. It counts as nearby, as it should, and it is not a passage, as it should not be. The `distance` in the event is still the one across the ground; `slant_distance` is the real one.
+**It is the circle on the map.** An aircraft comes over when it enters your radius across the ground, the same circle that decides **Aircraft nearby** and **Aircraft overhead**, however high it flies. An airliner at 37,000 feet straight over your house comes over; it is eleven kilometres away from you through the air, and measuring that way, as this integration did before 1.4, meant a cruising airliner never came over at all. If you would rather leave high traffic out, that is what the [overhead ceiling](configuration.md#what-counts-as-overhead) is for. The `distance` in the event is the one across the ground; `slant_distance` is the one through the air.
 
 **An aircraft has to leave before it can arrive again.** Reception drops out, aircraft circle, and one on the edge of the radius flickers in and out. An aircraft that goes and comes back inside ten minutes is the same passage; longer than that and it is a new one. So a helicopter working a field nearby rings once, not once a minute.
 
-**An aircraft has to be flying.** One on the ground reports no altitude, so the distance through the air falls back to the distance across the ground and a taxiing airliner would look exactly like a low pass. If you live near a field that is most of your traffic, so it is left out. It still shows up under **Aircraft nearby**, marked `on_ground`, because it really is an aircraft within your radius.
+**An aircraft has to be flying.** A taxiing airliner inside your radius would look exactly like a low pass. If you live near a field that is most of your traffic, so it is left out. It still shows up under **Aircraft nearby**, marked `on_ground`, because it really is an aircraft within your radius.
 
 ## A notification that reads like a panel
 
@@ -97,7 +97,7 @@ The logo is yours to supply: the app takes a `/local/` path into your `www` fold
 
 Two sensors read those passages, and between them they are a departure board for your own roof.
 
-**Overhead flight** is the aircraft above you right now, the nearest one measured through the air, with everything about it as attributes: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, the route if you look them up, and `since`, which is when it arrived. It keeps the last aircraft rather than blanking when the sky empties, because a panel that goes empty between aircraft is not worth looking at. The `overhead` attribute says which of the two you are looking at, and `seen_at` says when it was read.
+**Overhead flight** is the aircraft above you right now, the nearest one on the map, with everything about it as attributes: `airline`, `description`, `altitude`, `speed`, `track`, `vertical_rate`, `slant_distance`, the route if you look them up, and `since`, which is when it arrived. It keeps the last aircraft rather than blanking when the sky empties, because a panel that goes empty between aircraft is not worth looking at. The `overhead` attribute says which of the two you are looking at, and `seen_at` says when it was read.
 
 That is enough for a panel, with nothing but a markdown card:
 

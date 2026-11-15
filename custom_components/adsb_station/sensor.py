@@ -54,6 +54,7 @@ from .coordinator import (
     ReceiverStats,
     aircraft_attributes,
     count_of,
+    slant_distance,
 )
 from .entity import (
     AdsbStationAircraftEntity,
@@ -1095,7 +1096,11 @@ class AdsbStationOverheadSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
             seen_at=dt_util.utcnow().isoformat(),
             details={
                 **aircraft_attributes(passage.current, include_distance=True),
-                "slant_distance": round(passage.current_distance / 1000, 1),
+                "slant_distance": (
+                    None
+                    if (metres := slant_distance(passage.current)) is None
+                    else round(metres / 1000, 1)
+                ),
                 "since": passage.started_at.isoformat(),
             },
         )
