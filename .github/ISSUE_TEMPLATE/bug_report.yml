@@ -24,7 +24,7 @@ body:
     id: version
     attributes:
       label: Version of ADS-B Station
-      description: Shown in HACS, or under Settings → Devices & services → ADS-B Station.
+      description: Shown in the Marketplace (HACS before Home Assistant 2026.11), or under Settings → Devices & services → ADS-B Station.
       placeholder: "0.8.6"
     validations:
       required: true
