@@ -18,11 +18,12 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, FEEDER_FR24, FEEDER_PLANEFINDER
+from .const import DOMAIN, FEEDER_FR24, FEEDER_PLANEFINDER, GPS_LIKELY
 from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
+    gps_level,
     watchlist_signal,
 )
 from .entity import AdsbStationAircraftEntity, AdsbStationEntity
@@ -148,6 +149,7 @@ async def async_setup_entry(
         entities.append(AdsbStationReceiverSilentBinarySensor(coordinator))
     if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))
+        entities.append(AdsbStationGpsInterferenceBinarySensor(coordinator))
         entities.append(AdsbStationNearbyBinarySensor(coordinator))
         # Only where there is a list to watch. An always-off sensor for a
         # feature nobody switched on is an entity nobody asked for.
@@ -227,6 +229,33 @@ class AdsbStationReceiverSilentBinarySensor(AdsbStationEntity, BinarySensorEntit
     def is_on(self) -> bool:
         """Return True when the dongle has delivered no samples for a while."""
         return self.coordinator.receiver_silent
+
+
+class AdsbStationGpsInterferenceBinarySensor(
+    AdsbStationAircraftEntity, BinarySensorEntity
+):
+    """On while GPS interference is likely, by GPSJAM's measure."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_translation_key = "gps_interference"
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(coordinator, "gps_interference")
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True when more than a tenth of the aircraft lost good GPS."""
+        if (aircraft := self.aircraft) is None or aircraft.gps_interference is None:
+            return None
+        return aircraft.gps_interference > GPS_LIKELY
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return none, possible or likely."""
+        if (aircraft := self.aircraft) is None:
+            return None
+        return {"level": gps_level(aircraft.gps_interference)}
 
 
 class AdsbStationEmergencyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntity):

@@ -478,6 +478,14 @@ AIRCRAFT_SENSORS: tuple[AdsbStationAircraftSensorEntityDescription, ...] = (
         )
     ),
     AdsbStationAircraftSensorEntityDescription(
+        key="gps_interference",
+        translation_key="gps_interference",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda stats: stats.gps_interference,
+    ),
+    AdsbStationAircraftSensorEntityDescription(
         key="aircraft_with_position",
         translation_key="aircraft_with_position",
         state_class=SensorStateClass.MEASUREMENT,

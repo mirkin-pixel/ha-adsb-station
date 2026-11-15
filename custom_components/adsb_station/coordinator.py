@@ -53,6 +53,11 @@ from .const import (
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
+    GPS_LIKELY,
+    GPS_MIN_SPEED,
+    GPS_POOR_NAC_P,
+    GPS_POSSIBLE,
+    GPS_WINDOW,
     GROUND_ALTITUDE,
     KNOTS_TO_METRES_PER_SECOND,
     MAX_PLAUSIBLE_RANGE,
@@ -243,6 +248,8 @@ class AircraftStats:
     emergencies: tuple[EmergencyAircraft, ...] = ()
     # In watchlist order.
     watched: tuple[WatchlistMatch, ...] = ()
+    # Percent of aircraft over GPS_WINDOW with poor GPS; None with none heard.
+    gps_interference: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -337,6 +344,30 @@ def _on_ground(entry: dict[str, Any]) -> bool:
         if key in entry:
             return str(entry[key]).strip().lower() == GROUND_ALTITUDE
     return False
+
+
+def gps_poor(entry: dict[str, Any]) -> bool | None:
+    """Return whether an airborne aircraft's GPS is poor, None if it says nothing."""
+    if _on_ground(entry) or (_ground_speed(entry) or 0) <= GPS_MIN_SPEED:
+        return None
+    # readsb's own verdict, after 17 poor messages in a row.
+    if "gpsOkBefore" in entry:
+        return True
+    # ADS-B version 0 sends no accuracy; a decoder's guess from the message
+    # type would make an old transponder look jammed for good.
+    if _as_int(entry.get("version")) == 0:
+        return None
+    nac_p = _as_int(entry.get("nac_p"))
+    return None if nac_p is None else nac_p <= GPS_POOR_NAC_P
+
+
+def gps_level(share: float | None) -> str | None:
+    """Return GPSJAM's word for a share: none, possible or likely."""
+    if share is None:
+        return None
+    if share > GPS_LIKELY:
+        return "likely"
+    return "possible" if share >= GPS_POSSIBLE else "none"
 
 
 def _ground_speed(entry: dict[str, Any]) -> float | None:
@@ -771,6 +802,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if config_entry.options.get(CONF_AIRCRAFT_DATABASE)
             else None
         )
+        # hex → when last heard with a GPS reading, and whether it was poor.
+        self._gps: dict[str, tuple[datetime, bool]] = {}
         # Whether aircraft.json itself names aircraft; None until any are heard.
         self.decoder_has_database: bool | None = None
         # Registered by the sector sensors, for the reset button.
@@ -1031,7 +1064,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         await self._async_read_receiver()
         await self._async_read_outline()
         data = await self._async_fill_from_database(data)
-        stats = await self._async_add_routes(self._build_aircraft_stats(data))
+        stats = replace(
+            self._build_aircraft_stats(data),
+            gps_interference=self._gps_interference(data["aircraft"]),
+        )
+        stats = await self._async_add_routes(stats)
         stats = await self._async_add_photos(stats)
         # After routes and photos, so the events carry them.
         self._track_passages(stats)
@@ -1039,6 +1076,27 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._announce_approaching(stats)
         self._announce_emergencies(stats)
         return stats
+
+    def _gps_interference(self, aircraft: list[Any]) -> float | None:
+        """Return the share of aircraft over the window whose GPS was poor."""
+        now = dt_util.utcnow()
+        for entry in aircraft:
+            if not isinstance(entry, dict) or (poor := gps_poor(entry)) is None:
+                continue
+            hex_code = str(entry.get("hex", ""))
+            # Poor once in the window is poor, as GPSJAM counts it.
+            _, was_poor = self._gps.get(hex_code, (now, False))
+            self._gps[hex_code] = (now, poor or was_poor)
+        for hex_code in [
+            hex_code
+            for hex_code, (seen, _) in self._gps.items()
+            if now - seen > GPS_WINDOW
+        ]:
+            del self._gps[hex_code]
+        if not self._gps:
+            return None
+        poor_count = sum(1 for _, was_poor in self._gps.values() if was_poor)
+        return round(100 * max(poor_count - 1, 0) / len(self._gps), 1)
 
     async def _async_fill_from_database(self, data: dict[str, Any]) -> dict[str, Any]:
         """Name the aircraft the decoder does not, from the downloaded table."""

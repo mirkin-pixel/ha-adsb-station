@@ -228,6 +228,16 @@ RADIO_HORIZON_ALLOWANCE = 80_000
 # The same limit for aircraft that report no height.
 MAX_PLAUSIBLE_RANGE = 700_000
 
+# GPS interference, after GPSJAM: the share of aircraft heard over a window
+# whose position is uncertain by 4 nmi or more (NACp 2 or less, as readsb
+# itself counts it), one taken off against a single faulty receiver.
+GPS_WINDOW = timedelta(minutes=15)
+GPS_POOR_NAC_P = 2
+# Below this an aircraft may be taxiing or just switched on.
+GPS_MIN_SPEED = 50
+GPS_POSSIBLE = 2.0
+GPS_LIKELY = 10.0
+
 # The altitude every decoder reports for an aircraft on the ground.
 GROUND_ALTITUDE = "ground"
 
