@@ -64,8 +64,8 @@ const STRINGS = {
     scale_aircraft: "Automatic, to fit the aircraft",
     scale_coverage: "Automatic, to fit the range records",
     scale_fixed: "Fixed",
-    map_range: "Fixed range in km",
-    max_altitude: "Highest altitude shown (ft)",
+    map_range: "Fixed range, in the station's units",
+    max_altitude: "Highest altitude shown, in the station's units",
     kind_airline: "Airline",
     kind_other: "Other",
     kind_helicopter: "Helicopter",
@@ -141,8 +141,8 @@ const STRINGS = {
     scale_aircraft: "Automatisch, passend bij de toestellen",
     scale_coverage: "Automatisch, passend bij de bereikrecords",
     scale_fixed: "Vast",
-    map_range: "Vast bereik in km",
-    max_altitude: "Hoogste getoonde hoogte (ft)",
+    map_range: "Vast bereik, in de eenheden van het station",
+    max_altitude: "Hoogste getoonde hoogte, in de eenheden van het station",
     kind_airline: "Lijnvlucht",
     kind_other: "Overig",
     kind_helicopter: "Helikopter",
@@ -678,11 +678,11 @@ class AdsbStationCard extends HTMLElement {
         },
         {
           name: "map_range",
-          selector: { number: { min: 5, max: 700, mode: "box", unit_of_measurement: "km" } },
+          selector: { number: { min: 5, max: 700, mode: "box" } },
         },
         {
           name: "max_altitude",
-          selector: { number: { min: 1000, max: 60000, step: 1000, mode: "box", unit_of_measurement: "ft" } },
+          selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
         },
         { name: "show_nearby", selector: { boolean: {} } },
         {
@@ -977,8 +977,8 @@ class AdsbStationCard extends HTMLElement {
 
   _scale(sky) {
     const mode = this._scaleMode();
-    if (mode === "fixed")
-      return Number(this._config.map_range) > 0 ? Number(this._config.map_range) : DEFAULT_FIXED_RANGE;
+    // Set in the station's units, like everything the card shows.
+    if (mode === "fixed") return (Number(this._config.map_range) || DEFAULT_FIXED_RANGE) / this._units().distance[1];
     const furthest = Math.max(
       sky ? sky.radius || 0 : 0,
       ...((sky && sky.aircraft) || []).map((plane) => plane.distance || 0),
@@ -1431,7 +1431,8 @@ class AdsbStationCard extends HTMLElement {
 
   // Every aircraft at or under the altitude set, if one is.
   _belowCeiling() {
-    const ceiling = Number(this._config.max_altitude) || 0;
+    // In the station's units; the sky is in feet.
+    const ceiling = (Number(this._config.max_altitude) || 0) / this._units().height[1];
     return ((this._sky && this._sky.aircraft) || []).filter((plane) => !ceiling || !(plane.altitude > ceiling));
   }
 

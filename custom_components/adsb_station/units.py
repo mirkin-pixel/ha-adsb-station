@@ -137,3 +137,33 @@ def unit_attributes(units: Units) -> dict[str, str]:
         "distance_unit": str(units.distance),
         "vertical_rate_unit": units.rate,
     }
+
+
+# What a person reads beside a number they type, rather than Home Assistant's
+# unit name: "NM" where it says "nmi".
+LABELS: Final[dict[str, str]] = {UnitOfLength.NAUTICAL_MILES.value: "NM"}
+
+
+def label_of(unit: str) -> str:
+    """Return how a unit is written beside a number to fill in."""
+    return LABELS.get(str(unit), str(unit))
+
+
+def kilometres_in(km: float, units: Units) -> float:
+    """Return a distance kept in kilometres, in these units."""
+    return DistanceConverter.convert(km, UnitOfLength.KILOMETERS, units.distance)
+
+
+def kilometres_from(value: float, units: Units) -> float:
+    """Return a distance given in these units, in kilometres."""
+    return DistanceConverter.convert(value, units.distance, UnitOfLength.KILOMETERS)
+
+
+def feet_in(feet: float, units: Units) -> float:
+    """Return a height kept in feet, in these units."""
+    return DistanceConverter.convert(feet, UnitOfLength.FEET, units.altitude)
+
+
+def feet_from(value: float, units: Units) -> float:
+    """Return a height given in these units, in feet."""
+    return DistanceConverter.convert(value, units.altitude, UnitOfLength.FEET)

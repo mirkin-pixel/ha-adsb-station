@@ -6,6 +6,7 @@ decoder. Watch and unwatch edit the watchlist.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -39,7 +40,7 @@ from .coordinator import (
 )
 from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
 from .speech import language_of
-from .units import converted, unit_attributes
+from .units import Units, converted, feet_from, kilometres_from, unit_attributes
 from .watchlist import add_line, remove_line
 
 SERVICE_LOOK_UP_AIRCRAFT: Final = "look_up_aircraft"
@@ -203,12 +204,22 @@ async def _async_look_up_aircraft(call: ServiceCall) -> ServiceResponse:
     return {"aircraft": None, **unit_attributes(coordinator.units)}
 
 
+def _given(
+    call: ServiceCall, key: str, to_base: Callable[[float, Units], float], units: Units
+) -> float | None:
+    """Return a filter given in the station's units, in km or feet."""
+    value = call.data.get(key)
+    return None if value is None else to_base(value, units)
+
+
 async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     """Answer with every aircraft that matches, nearest first."""
     coordinator, aircraft = _station(call.hass, call)
-    max_distance = call.data.get(ATTR_MAX_DISTANCE)
-    min_altitude = call.data.get(ATTR_MIN_ALTITUDE)
-    max_altitude = call.data.get(ATTR_MAX_ALTITUDE)
+    # Given in the station's units, as its answers are; compared in km and feet.
+    units = coordinator.units
+    max_distance = _given(call, ATTR_MAX_DISTANCE, kilometres_from, units)
+    min_altitude = _given(call, ATTR_MIN_ALTITUDE, feet_from, units)
+    max_altitude = _given(call, ATTR_MAX_ALTITUDE, feet_from, units)
     military = call.data.get(ATTR_MILITARY)
     category = call.data.get(ATTR_CATEGORY)
     if category is not None:

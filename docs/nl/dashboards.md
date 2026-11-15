@@ -23,8 +23,8 @@ Meer heeft hij niet nodig. Hij vindt de entiteiten van het station aan wat ze zi
 | `title` | geen | Een kop boven de kaart |
 | `map` | `radar` | De lucht rond het station: `radar`, `map` voor dezelfde lucht op een kaart met straten, of `none` |
 | `map_scale` | `aircraft` | Hoe ver de radar, of de kaart, reikt: `aircraft` passend bij de toestellen in de lucht, `coverage` ook passend bij de bereikrecords, of `fixed` |
-| `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in kilometers, van 5 tot 700 |
-| `max_altitude` | | Laat toestellen hoger dan dit, in voet, van de radar weg. Leeg toont ze allemaal |
+| `map_range` | `100` | Met `map_scale: fixed`: hoe ver de radar reikt, in de [eenheden](configuration.md#eenheden) van het station, van 5 tot 700 |
+| `max_altitude` | | Laat toestellen hoger dan dit, in de eenheden van het station, van de radar weg. Leeg toont ze allemaal |
 | `show_nearby` | `true` | De andere toestellen binnen de straal "dichtbij", onder het toestel overhead |
 | `max_nearby` | `5` | Hoeveel daarvan maximaal |
 | `show_status` | `true` | Vliegtuigen ontvangen, berichten per seconde, maximaal bereik en signaal-ruisverhouding, en een bolletje per netwerk voor Flightradar24 en FlightAware |

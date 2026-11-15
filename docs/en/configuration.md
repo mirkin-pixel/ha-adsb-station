@@ -22,7 +22,7 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Nine settings live under **Configure** on the integration page. The first is the [units](#units) the figures are given in, which is also asked when you add the station. The update interval is how often the aircraft are read, 15 seconds by default; everything runs on your own network, so a short interval is fine. The statistics interval, 60 seconds by default, is how often the feeder and the decoder's statistics are read. Those are counters and averages over a minute, so reading them every fifteen seconds mostly fills the recorder; a station that only feeds is read at this interval alone. The nearby radius is 10 km by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Beside it is the [overhead ceiling](#what-counts-as-overhead), which is empty. Then come [aircraft on the map](dashboards.md#aircraft-on-the-map), [where a flight is going](routes.md) and [what it looks like](photos.md), and all three are off. The last is the [watchlist](watchlist.md), which is empty. A decoder that names no aircraft gets a tenth, [an aircraft database to download](decoders.md#the-aircraft-database), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Nine settings live under **Configure** on the integration page. The first is the [units](#units) the figures are given in, which is also asked when you add the station. The update interval is how often the aircraft are read, 15 seconds by default; everything runs on your own network, so a short interval is fine. The statistics interval, 60 seconds by default, is how often the feeder and the decoder's statistics are read. Those are counters and averages over a minute, so reading them every fifteen seconds mostly fills the recorder; a station that only feeds is read at this interval alone. The nearby radius is 10 km, 5.4 NM or 6.2 miles by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Beside it is the [overhead ceiling](#what-counts-as-overhead), which is empty. Then come [aircraft on the map](dashboards.md#aircraft-on-the-map), [where a flight is going](routes.md) and [what it looks like](photos.md), and all three are off. The last is the [watchlist](watchlist.md), which is empty. A decoder that names no aircraft gets a tenth, [an aircraft database to download](decoders.md#the-aircraft-database), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
@@ -40,7 +40,7 @@ Adding a feeder to a station you set up as receiver-only means adding it as a se
 
 Attributes and events say what they are in, so a template never has to guess: `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit` ride along with every figure. The [station card](dashboards.md) shows the same units, so there is one place to choose them.
 
-Three things stay as they are whatever you choose, because they are settings and not figures: the nearby radius in kilometres, the [overhead ceiling](#what-counts-as-overhead) in feet, and the filters of the [actions](services.md).
+What you fill in follows it too: the nearby radius and the [overhead ceiling](#what-counts-as-overhead) under **Configure**, the filters of the [actions](services.md), and the card's `map_range` and `max_altitude`. The radius and the ceiling keep the distance they stand for when you switch: ten kilometres becomes 5.4 NM in the form, not ten. The filters and the card's settings are numbers you wrote down yourself, in a script or on a dashboard, so the integration cannot convert them; after switching, a `max_distance` of 25 means 25 of the new unit.
 
 ## Running the feeder as an add-on
 
@@ -50,7 +50,7 @@ If your decoder runs as a Home Assistant add-on rather than on a machine of its 
 
 A radius is a circle drawn on the ground, and everything that enters it counts as nearby and comes over, however high it flies. An airliner at 36,000 feet passing over your street is inside a ten kilometre circle, and you may not want it on your board or in your announcements.
 
-**Overhead ceiling** under **Configure** is the answer, in feet, and it is empty until you set it. Ten thousand feet is a reasonable place to start: below it is traffic on approach, helicopters, and anything with a reason to be low.
+**Overhead ceiling** under **Configure** is the answer, in the [units](#units) you chose, and it is empty until you set it. Ten thousand feet, about 3,000 metres, is a reasonable place to start: below it is traffic on approach, helicopters, and anything with a reason to be low.
 
 What it changes is deliberately narrow:
 

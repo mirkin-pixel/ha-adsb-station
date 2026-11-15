@@ -224,7 +224,8 @@ mixed feet and knots with kilometres, which no unit system reads as one. 1.4.0
 brought the **Units** setting, and the figures follow it, so on most stations
 they changed unit. They now name their unit beside them, `altitude_unit`,
 `speed_unit`, `distance_unit` and `vertical_rate_unit`, so a template does not
-have to assume one again. It was announced at the top of the release notes as a
+have to assume one again. What is filled in follows the same setting: the
+filters of `list_aircraft` and the card's `map_range` and `max_altitude`. It was announced at the top of the release notes as a
 breaking change.
 
 ## Releases

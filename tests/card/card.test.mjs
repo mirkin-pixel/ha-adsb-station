@@ -889,10 +889,11 @@ const tests = {
     button("Overig").click();
     assert.equal(shown().length, 2);
 
-    // A ceiling leaves the airliner at 37,000 ft out, and out of the count.
+    // A ceiling, in the station's metres, leaves the airliner at 37,000 ft
+    // out, and out of the count.
     const other = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const otherLink = connect(other);
-    const high = render(w, other, { max_altitude: 10000 });
+    const high = render(w, other, { max_altitude: 3000 });
     otherLink.send(
       SKY([
         { ...LOW, kind: "airline" },
@@ -1630,6 +1631,17 @@ const tests = {
     assert.equal(outer({ map_range: 25 }), "25 km");
     // And a range is ignored while the scale is automatic.
     assert.equal(outer({ map_scale: "aircraft", map_range: 25 }), "50 km");
+  },
+
+  "takes a fixed range and a ceiling in the station's units"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass, { map_scale: "fixed", map_range: 50, max_altitude: 1000 });
+    link.send({ ...SKY([LOW, HIGH]), units: "nautical" });
+    assert.equal([...card.shadowRoot.querySelectorAll(".radar .distance")].pop().textContent, "50 NM");
+    // 1,000 ft, which LOW at 1,500 ft is above
+    assert.equal(card.shadowRoot.querySelectorAll(".plane").length, 0);
   },
 
   "leaves the shape off until there is one to draw"() {

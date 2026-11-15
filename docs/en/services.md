@@ -27,20 +27,20 @@ The entities answer the questions you knew to ask when you built the dashboard. 
 - action: adsb_station.list_aircraft
   data:
     max_distance: 25
-    max_altitude: 10000
+    max_altitude: 3000
   response_variable: low
 ```
 
 | Filter | |
 |---|---|
-| `max_distance` | In kilometres |
-| `min_altitude`, `max_altitude` | In feet |
+| `max_distance` | In the station's [units](configuration.md#units): km, NM or miles |
+| `min_altitude`, `max_altitude` | In the station's units: metres or feet |
 | `military` | On for military traffic only, off for everything but |
 | `category` | The emitter category, `A7` for a helicopter and `B6` for a drone |
 
 A filter leaves out what it cannot judge: an aircraft heard over Mode S alone has no position and no altitude, so it drops out of a distance or a height filter rather than being counted as nought.
 
-Both reach **everything the decoder is holding**, which is the whole sky your antenna covers and not just the nearby radius. Without a single filter, `list_aircraft` answers with all of it. Both add one thing the attributes do not carry: `sector`, the compass direction to look in. The figures in the answer are in the station's [units](configuration.md#units), named beside them as `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit`; the filters stay in kilometres and feet whatever you chose.
+Both reach **everything the decoder is holding**, which is the whole sky your antenna covers and not just the nearby radius. Without a single filter, `list_aircraft` answers with all of it. Both add one thing the attributes do not carry: `sector`, the compass direction to look in. The figures in the answer are in the station's [units](configuration.md#units), named beside them as `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit`; the filters are given in those units too.
 
 Try them under **Developer tools → Actions**, with **Return response data** ticked.
 

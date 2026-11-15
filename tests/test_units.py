@@ -17,6 +17,8 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_MAP_AIRCRAFT,
+    CONF_PROXIMITY_MAX_ALTITUDE,
+    CONF_PROXIMITY_RADIUS,
     CONF_UNITS,
     DOMAIN,
     EVENT_AIRCRAFT_PASSAGE,
@@ -193,6 +195,54 @@ async def test_an_aircraft_on_the_map_in_the_same_unit_as_its_attributes(
     state = hass.states.get(entity_id)
     assert (state.state, state.attributes["unit_of_measurement"]) == ("0.6", "nmi")
     assert state.attributes["distance_unit"] == "nmi"
+
+
+def _shown(result: Any) -> dict[str, Any]:
+    """Return what an options form fills its fields with."""
+    return {
+        str(key): key.description["suggested_value"]
+        for key in result["data_schema"].schema
+        if key.description and "suggested_value" in key.description
+    }
+
+
+async def test_the_radius_and_ceiling_are_filled_in_in_the_chosen_units(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test them shown in NM and metres, kept exactly, and read in what was shown."""
+    stored = {CONF_UNITS: "nautical", CONF_PROXIMITY_RADIUS: 10}
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(mock_config_entry, options=stored)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert _shown(result)[CONF_PROXIMITY_RADIUS] == 5.4
+    # Saved as shown, it stays ten kilometres, not 5.4 NM's 10.001
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_UNITS: "metric", CONF_PROXIMITY_RADIUS: 5.4},
+    )
+    await hass.async_block_till_done()
+    assert mock_config_entry.options[CONF_PROXIMITY_RADIUS] == 10
+
+    # Now in metric: a ceiling of 3,000 m is kept as feet
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert _shown(result)[CONF_PROXIMITY_RADIUS] == 10
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_PROXIMITY_RADIUS: 10, CONF_PROXIMITY_MAX_ALTITUDE: 3000},
+    )
+    await hass.async_block_till_done()
+    assert mock_config_entry.options[CONF_PROXIMITY_MAX_ALTITUDE] == 9842.52
+    assert (
+        _shown(
+            await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        )[CONF_PROXIMITY_MAX_ALTITUDE]
+        == 3000
+    )
 
 
 async def test_asked_for_when_a_station_is_added(
