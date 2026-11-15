@@ -65,11 +65,6 @@ const STRINGS = {
     scale_coverage: "Automatic, to fit the range records",
     scale_fixed: "Fixed",
     map_range: "Fixed range in km",
-    units: "Units",
-    units_auto: "As the integration",
-    units_nautical: "Aviation (ft, kt, NM)",
-    units_metric: "Metric (m, km/h, km)",
-    units_imperial: "Imperial (ft, mph, mi)",
     max_altitude: "Highest altitude shown (ft)",
     kind_airline: "Airline",
     kind_other: "Other",
@@ -147,11 +142,6 @@ const STRINGS = {
     scale_coverage: "Automatisch, passend bij de bereikrecords",
     scale_fixed: "Vast",
     map_range: "Vast bereik in km",
-    units: "Eenheden",
-    units_auto: "Zoals de integratie",
-    units_nautical: "Luchtvaart (ft, kt, NM)",
-    units_metric: "Metrisch (m, km/h, km)",
-    units_imperial: "Imperiaal (ft, mph, mi)",
     max_altitude: "Hoogste getoonde hoogte (ft)",
     kind_airline: "Lijnvlucht",
     kind_other: "Overig",
@@ -212,7 +202,6 @@ const UNIT_SYSTEMS = {
     ticks: [0, 15000, 30000, 45000],
   },
 };
-const UNIT_CHOICES = ["auto", ...Object.keys(UNIT_SYSTEMS)];
 // The integration names its distance unit beside the figures it sends.
 const SYSTEM_BY_DISTANCE = { nmi: "nautical", km: "metric", mi: "imperial" };
 const SCALES = ["aircraft", "coverage", "fixed"];
@@ -666,15 +655,6 @@ class AdsbStationCard extends HTMLElement {
       schema: [
         { name: "device_id", selector: { device: { integration: DOMAIN } } },
         { name: "title", selector: { text: {} } },
-        {
-          name: "units",
-          selector: {
-            select: {
-              mode: "dropdown",
-              options: UNIT_CHOICES.map((value) => ({ value, label: text[`units_${value}`] })),
-            },
-          },
-        },
         {
           name: "map",
           selector: {
@@ -1681,11 +1661,9 @@ class AdsbStationCard extends HTMLElement {
     return `${this._number(knots * per, 0)} ${unit}`;
   }
 
-  // The card's choice, else the integration's, else Home Assistant's own:
+  // The integration's units, else, before 1.4, Home Assistant's own:
   // imperial for its US units, metric otherwise.
   _units() {
-    const chosen = this._config && this._config.units;
-    if (UNIT_SYSTEMS[chosen]) return UNIT_SYSTEMS[chosen];
     return this._stationUnits() || this._hassUnits();
   }
 
@@ -2427,7 +2405,7 @@ class AdsbStationTableCard extends AdsbStationCard {
     };
     return {
       ...form,
-      schema: [...form.schema.filter((field) => ["device_id", "title", "units"].includes(field.name)), list],
+      schema: [...form.schema.filter((field) => ["device_id", "title"].includes(field.name)), list],
     };
   }
 

@@ -425,10 +425,12 @@ const tests = {
     });
     assert.match(card.shadowRoot.querySelector(".radar").textContent, /700 km/);
 
-    // In nautical miles the steps stay round, up to the first past 700 km
-    const other = hassWith({ overhead: overheadState(KLM) });
+    // On a nautical station the steps stay round, up to the first past 700 km
+    const other = hassWith({
+      overhead: overheadState({ ...KLM, distance: 0.6, altitude_unit: "ft", speed_unit: "kn", distance_unit: "nmi" }),
+    });
     const otherLink = connect(other);
-    const nautical = render(w, other, { map_scale: "coverage", units: "nautical" });
+    const nautical = render(w, other, { map_scale: "coverage" });
     otherLink.send({
       ...SKY([LOW]),
       outline: [
@@ -453,7 +455,7 @@ const tests = {
     const form = w.customElements.get("adsb-station-table-card").getConfigForm();
     assert.equal(
       JSON.stringify(form.schema.map((field) => field.name)),
-      JSON.stringify(["device_id", "title", "units", "list"]),
+      JSON.stringify(["device_id", "title", "list"]),
     );
   },
 
@@ -724,7 +726,6 @@ const tests = {
       JSON.stringify([
         "device_id",
         "title",
-        "units",
         "map",
         "map_scale",
         "map_range",
@@ -1008,14 +1009,14 @@ const tests = {
     assert.equal(card.shadowRoot.querySelectorAll(".picked .secondary").length, lines.length - 1);
   },
 
-  "shows the units chosen, or Home Assistant's own"() {
+  "shows the station's units, or Home Assistant's own"() {
     const w = browser();
     const flying = { ...LOW, wind_direction: 270, wind_speed: 85, temperature: -56 };
-    const tapped = (config = {}, unitSystem) => {
-      const hass = hassWith({ overhead: overheadState(KLM) });
+    const tapped = (overhead, unitSystem) => {
+      const hass = hassWith({ overhead: overheadState(overhead) });
       if (unitSystem) hass.config = { unit_system: unitSystem };
       const link = connect(hass);
-      const card = render(w, hass, config);
+      const card = render(w, hass);
       link.send(SKY([flying]));
       card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
       const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
@@ -1026,33 +1027,36 @@ const tests = {
       return { figures: lines[1], weather: lines.at(-1), ticks, rings };
     };
 
-    // Metric by default, as Home Assistant itself
-    let shown = tapped({}, { length: "km" });
+    // Before 1.4 the sensors name no units: metric, as Home Assistant itself
+    let shown = tapped(KLM, { length: "km" });
     assert.equal(shown.figures, "457 m   296 km/h   2.2 km");
     assert.match(shown.weather, /wind 270° 157 km\/h · -56 °C/);
     assert.deepEqual(shown.ticks, ["0", "4,000", "8,000", "12,000 m"]);
     assert.deepEqual(shown.rings, ["5 km", "10 km"]);
 
     // Home Assistant on US units
-    shown = tapped({}, { length: "mi" });
+    shown = tapped(KLM, { length: "mi" });
     assert.equal(shown.figures, "1,500 ft   184 mph   1.4 mi");
     assert.match(shown.weather, /wind 270° 98 mph · -69 °F/);
     assert.deepEqual(shown.ticks, ["0", "15,000", "30,000", "45,000 ft"]);
 
-    // Nautical chosen on the card, whatever Home Assistant says, and round
+    // A station set to nautical, whatever Home Assistant says, and round
     // rings in nautical miles
-    shown = tapped({ units: "nautical" }, { length: "km" });
+    shown = tapped(
+      { ...KLM, distance: 0.6, altitude_unit: "ft", speed_unit: "kn", distance_unit: "nmi" },
+      { length: "km" },
+    );
     assert.equal(shown.figures, "1,500 ft   160 kt   1.2 NM");
     assert.match(shown.weather, /wind 270° 85 kt · -56 °C/);
     assert.deepEqual(shown.rings, ["5 NM", "10 NM"]);
   },
 
-  "follows the integration's units, and converts its figures only once"() {
+  "follows the integration's units, and shows its figures as they are"() {
     const w = browser();
-    const panel = (attributes, config = {}) => {
+    const panel = (attributes) => {
       const hass = hassWith({ overhead: overheadState(attributes) });
       connect(hass);
-      const card = render(w, hass, config);
+      const card = render(w, hass);
       return card.shadowRoot.querySelector(".overhead").textContent;
     };
     // A metric station sends metres and km/h; shown as they are, not again
@@ -1079,24 +1083,19 @@ const tests = {
     };
     assert.match(panel(nautical), /↑ 3,200 ft/);
     assert.match(panel(nautical), /0\.6 NM/);
-
-    // And a card set to metric converts the nautical figures, once
-    assert.match(panel(nautical, { units: "metric" }), /↑ 975 m/);
-    assert.match(panel(nautical, { units: "metric" }), /1\.1 km/);
   },
 
   "reads the list in its own sensor's units before anything was overhead"() {
     const w = browser();
-    const list = (config = {}) => {
+    const list = () => {
       const hass = hassWith();
       hass.states["sensor.t_etur47_vliegtuigen_dichtbij"].attributes = {
         aircraft: [{ hex: "1", flight: "PHABC", distance: 0.6 }],
         distance_unit: "nmi",
       };
-      return render(w, hass, config).shadowRoot.querySelector(".nearby").textContent;
+      return render(w, hass).shadowRoot.querySelector(".nearby").textContent;
     };
     assert.match(list(), /0\.6 NM/);
-    assert.match(list({ units: "metric" }), /1\.1 km/);
   },
 
   "draws the route of a tapped aircraft it was sent"() {

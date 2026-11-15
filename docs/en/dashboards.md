@@ -21,7 +21,6 @@ That is all it needs. It finds the station's entities by what they are, not by t
 |---|---|---|
 | `device_id` | the first station with a receiver | Which station, if you read more than one antenna |
 | `title` | none | A header above the card |
-| `units` | as the integration | The units heights, speeds and distances are shown in, the same three as tar1090: `nautical` (feet, knots, nautical miles), `metric` (metres, km/h, km) or `imperial` (feet, mph, miles). Left out, the card follows the station's [units](configuration.md#units). `map_range` stays in kilometres and `max_altitude` in feet |
 | `map` | `radar` | The sky around the station: `radar`, `map` for the same sky on a map with streets, or `none` |
 | `map_scale` | `aircraft` | How far out the radar, or the map, reaches: `aircraft` to fit the aircraft in the sky now, `coverage` to fit the range records as well, or `fixed` |
 | `map_range` | `100` | With `map_scale: fixed`, how far out the radar reaches, in kilometres, from 5 to 700 |
@@ -29,6 +28,8 @@ That is all it needs. It finds the station's entities by what they are, not by t
 | `show_nearby` | `true` | The other aircraft inside the nearby radius, under the one overhead |
 | `max_nearby` | `5` | How many of those at most |
 | `show_status` | `true` | Aircraft received, message rate, maximum range and signal to noise, and a dot per network for Flightradar24 and FlightAware |
+
+Heights, speeds and distances are in the station's [units](configuration.md#units), the same as its sensors.
 
 On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 

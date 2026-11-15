@@ -38,7 +38,7 @@ Adding a feeder to a station you set up as receiver-only means adding it as a se
 
 **As Home Assistant**, the default, is imperial when Home Assistant is set to US customary units and metric otherwise. Changing it moves the existing sensors along, history and all, except one you gave a unit of its own under **Settings → Entity → Unit of measurement**: that one keeps it.
 
-Attributes and events say what they are in, so a template never has to guess: `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit` ride along with every figure. The [station card](dashboards.md) follows the same choice unless you give it its own `units`.
+Attributes and events say what they are in, so a template never has to guess: `altitude_unit`, `speed_unit`, `distance_unit` and `vertical_rate_unit` ride along with every figure. The [station card](dashboards.md) shows the same units, so there is one place to choose them.
 
 Three things stay as they are whatever you choose, because they are settings and not figures: the nearby radius in kilometres, the [overhead ceiling](#what-counts-as-overhead) in feet, and the filters of the [actions](services.md).
 

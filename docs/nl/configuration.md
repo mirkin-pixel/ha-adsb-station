@@ -38,7 +38,7 @@ Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ing
 
 **Zoals Home Assistant**, de standaard, is imperiaal als Home Assistant op Amerikaanse eenheden staat en anders metrisch. Wissel je, dan gaan de bestaande sensoren mee, met hun historie, behalve een sensor waar je zelf een eenheid voor koos onder **Instellingen → Entiteit → Maateenheid**: die houdt de jouwe.
 
-Attributen en events zeggen zelf waarin ze staan, zodat een template nooit hoeft te raden: `altitude_unit`, `speed_unit`, `distance_unit` en `vertical_rate_unit` gaan mee met elk getal. De [stationskaart](dashboards.md) volgt dezelfde keuze, tenzij je hem een eigen `units` geeft.
+Attributen en events zeggen zelf waarin ze staan, zodat een template nooit hoeft te raden: `altitude_unit`, `speed_unit`, `distance_unit` en `vertical_rate_unit` gaan mee met elk getal. De [stationskaart](dashboards.md) toont dezelfde eenheden, zodat je ze op één plek kiest.
 
 Drie dingen blijven zoals ze zijn, wat je ook kiest, omdat het instellingen zijn en geen getallen: de straal "dichtbij" in kilometers, de [hoogtegrens](#wat-overhead-precies-betekent) in voet en de filters van de [acties](services.md).
 
