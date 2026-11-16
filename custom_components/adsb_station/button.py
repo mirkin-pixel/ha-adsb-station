@@ -26,7 +26,10 @@ async def async_setup_entry(
 
 
 class AdsbStationResetRangeButton(AdsbStationEntity, ButtonEntity):
-    """Clears the range record of every compass sector, for after a change."""
+    """Clears every record, for after a change to the antenna.
+
+    Unique ID from when it cleared the sector ranges only.
+    """
 
     _attr_translation_key = "reset_range"
     _attr_entity_category = EntityCategory.CONFIG
@@ -36,6 +39,7 @@ class AdsbStationResetRangeButton(AdsbStationEntity, ButtonEntity):
         super().__init__(coordinator, "reset_range")
 
     async def async_press(self) -> None:
-        """Forget every sector record."""
-        for sensor in self.coordinator.sector_sensors:
+        """Forget every record: per sector, and the furthest, highest and fastest."""
+        coordinator = self.coordinator
+        for sensor in (*coordinator.sector_sensors, *coordinator.record_sensors):
             sensor.reset()

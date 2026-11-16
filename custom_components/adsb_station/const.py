@@ -86,6 +86,9 @@ UNIT_SENSOR_KEYS: tuple[str, ...] = (
     "fastest_aircraft",
     "max_range",
     *(f"max_range_{sector}" for sector in SECTORS),
+    "range_record",
+    "altitude_record",
+    "speed_record",
 )
 
 # Optional receiver data, detected in the config flow so no entity is created
@@ -210,6 +213,18 @@ WATCHLIST_PREFIX = "prefix"
 WATCHLIST_MILITARY = "military"
 WATCHLIST_HELICOPTER = "helicopter"
 WATCHLIST_COUNTRY = "country"
+
+# Once per aircraft that beats the furthest, highest or fastest ever heard.
+EVENT_RECORD_BROKEN = f"{DOMAIN}_record_broken"
+RECORD_RANGE = "range"
+RECORD_ALTITUDE = "altitude"
+RECORD_SPEED = "speed"
+# The first day nearly every aircraft beats the last, so breaking a record is
+# news only once the records have been kept this long.
+RECORD_SETTLING = timedelta(days=1)
+# Announced once the aircraft has not bettered it for this long, or is gone:
+# a ground speed wavers by a few knots, and would beat it again and again.
+RECORD_SETTLED_AFTER = timedelta(minutes=5)
 
 # Passages kept on the board, written whole to the recorder on each arrival.
 PASSAGE_BOARD_LENGTH = 20

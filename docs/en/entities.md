@@ -24,6 +24,8 @@ Everything from `aircraft.json`, the part every setup gets:
 | GPS interference | Sensor (%) | The share of airborne aircraft over the last 15 minutes that lost good GPS, measured the way [GPSJAM](https://gpsjam.org/faq) does: a position uncertain by 4 nmi or more, or readsb's own verdict, with one aircraft taken off so a single faulty receiver raises nothing. All worked out from your own decoder's data. Unknown while no aircraft sends its accuracy, as with no traffic at night or a decoder that does not pass it on |
 | GPS interference | Binary sensor (problem) | On above 10%, where GPSJAM speaks of likely interference. The `level` attribute says `none` (under 2%), `possible` or `likely` |
 | Aircraft in distress | Event | Fires once per flight for each aircraft in distress, with the `reason` as its type and the aircraft as attributes |
+| Range record, Altitude record, Speed record | Sensor (distance, height, speed) | The furthest, highest and fastest any aircraft has ever been heard, with that aircraft and `recorded_at` as attributes. See [records](#records) |
+| Records | Event | Fires once per flight that sets one of those records, with `range`, `altitude` or `speed` as its type. See [a new record](automations.md#a-new-record) |
 | Receiver silent | Binary sensor (problem, diagnostic) | On when the dongle has delivered nothing to the decoder for three minutes, which is a dongle that is gone or wedged rather than a quiet sky. Also raises a repair. Needs `stats.json`; see [troubleshooting](troubleshooting.md#the-receiver-hears-nothing) |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver, updated at the statistics interval |
 | Receiver updated | Sensor (diagnostic, off by default) | The timestamp inside `aircraft.json`. New on every poll, so off unless you switch it on |
@@ -35,6 +37,16 @@ The highest and the fastest also count aircraft that never broadcast a position:
 A position has to be possible before it is believed. ADS-B is line of sight, so an aircraft at 37,000 feet can be heard from roughly 440 km and one at 2,000 feet from roughly 100 km, and this allows 80 km on top of that for an antenna standing high. A position beyond that was mis-decoded rather than received, and is dropped: it would otherwise put an aircraft overhead that was never there, or leave a [sector record](feeders.md#where-your-antenna-is-blocked) that stands for good. The aircraft still counts as received, because it is real; it just counts as one whose position is unknown.
 
 Those two and the maximum range keep what they last saw rather than blanking when the sky empties, and they survive a restart. A station that hears a couple of aircraft an hour would otherwise report nothing most of the time. The `seen_at` attribute says how long ago it was, and each still follows the sky: a lower aircraft later replaces the reading. That is what separates them from the [sector records](feeders.md#where-your-antenna-is-blocked), which only ever grow.
+
+## Records
+
+**Range record**, **Altitude record** and **Speed record** keep the furthest, highest and fastest any aircraft has been heard since the station was added, and only ever grow. They survive a restart and stay readable with an empty sky.
+
+- **A figure has to be heard twice.** It counts once the same aircraft gives it on two polls in a row, so a single garbled message never stands as a record. The range record also only believes [possible positions](#entities), as the sector records do.
+- **Not on the ground.** A ground speed reported while taxiing sets no speed record.
+- **One button clears them all.** **Reset records** clears these three and the eight [sector records](feeders.md#where-your-antenna-is-blocked), for after a new antenna or a new place.
+
+Records of the day are not sensors of their own: **Maximum range**, **Highest aircraft** and **Fastest aircraft** already keep long-term statistics, so a statistic card shows the best of each day. See [the best of today](automations.md#the-best-of-today).
 
 And, when your receiver also serves `stats.json`, the health of your reception:
 

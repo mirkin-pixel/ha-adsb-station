@@ -339,6 +339,15 @@
       "max_range_nw": {
         "name": "Range record northwest"
       },
+      "range_record": {
+        "name": "Range record"
+      },
+      "altitude_record": {
+        "name": "Altitude record"
+      },
+      "speed_record": {
+        "name": "Speed record"
+      },
       "piaware_radio": {
         "name": "Radio",
         "state": {
@@ -474,7 +483,7 @@
     },
     "button": {
       "reset_range": {
-        "name": "Reset range records"
+        "name": "Reset records"
       }
     },
     "event": {
@@ -498,6 +507,18 @@
               "hijack": "Hijack",
               "radio_failure": "Radio failure",
               "downed": "Downed"
+            }
+          }
+        }
+      },
+      "records": {
+        "name": "Records",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "range": "Range",
+              "altitude": "Altitude",
+              "speed": "Speed"
             }
           }
         }

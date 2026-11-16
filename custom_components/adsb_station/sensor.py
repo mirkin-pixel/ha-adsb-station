@@ -39,6 +39,12 @@ from .const import (
     FEEDER_PIAWARE,
     FEEDER_PLANEFINDER,
     PASSAGE_BOARD_LENGTH,
+    PASSAGE_GAP,
+    RECORD_ALTITUDE,
+    RECORD_RANGE,
+    RECORD_SETTLED_AFTER,
+    RECORD_SETTLING,
+    RECORD_SPEED,
     SECTORS,
     TRAFFIC_AIRLINE,
     TRAFFIC_HELICOPTER,
@@ -698,6 +704,9 @@ async def async_setup_entry(
         entities.extend(
             AdsbStationSectorRangeSensor(coordinator, sector) for sector in SECTORS
         )
+        entities.append(AdsbStationRangeRecordSensor(coordinator))
+        entities.append(AdsbStationAltitudeRecordSensor(coordinator))
+        entities.append(AdsbStationSpeedRecordSensor(coordinator))
     if coordinator.client.stats_url:
         features = set(entry.data.get(CONF_RECEIVER_FEATURES) or ())
         entities.extend(
@@ -1467,3 +1476,248 @@ class AdsbStationSectorRangeSensor(
         """Forget the record, for when the antenna moved."""
         self._record = SectorRecord()
         self.async_write_ha_state()
+
+
+@dataclass
+class Record(ExtraStoredData):
+    """The best any aircraft has done on one count, kept over a restart."""
+
+    value: float | None = None
+    recorded_at: str | None = None
+    # The aircraft that set it, as its attributes were then.
+    details: dict[str, Any] | None = None
+    # When this count began: its first aircraft, or the last reset.
+    since: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the record as the registry stores it."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Record:
+        """Rebuild a record that was restored from the registry."""
+        details = data.get("details")
+        return cls(
+            value=_as_float(data.get("value")),
+            recorded_at=_as_text(data.get("recorded_at")),
+            details=details if isinstance(details, dict) else None,
+            since=_as_text(data.get("since")),
+        )
+
+
+@dataclass
+class _Breaking:
+    """An aircraft beating a record, until it settles: one event per flight."""
+
+    hex: str
+    # The record it beat; None when that is no news.
+    beaten: Record | None
+    bettered_at: datetime
+
+
+class AdsbStationRecordSensor(AdsbStationAircraftEntity, RestoreEntity, SensorEntity):
+    """The furthest, highest or fastest any aircraft has been heard.
+
+    Only grows; the reset button clears it. A figure counts once the same
+    aircraft gives it twice in a row, so one garbled message never stands.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        record: str,
+        read: Callable[[AircraftSummary], float | None],
+        # The attribute the figure is in, and how it is written there.
+        field: str,
+        as_attribute: Callable[[float], float | None] = lambda value: value,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, f"{record}_record")
+        self._attr_translation_key = f"{record}_record"
+        self._name = record
+        self._read = read
+        self._field = field
+        self._as_attribute = as_attribute
+        self._record = Record()
+        self._polled: AircraftStats | None = None
+        self._before: dict[str, float] = {}
+        self._breaking: _Breaking | None = None
+        # Announced aircraft, by when last heard: once per flight.
+        self._announced: dict[str, datetime] = {}
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the record, and be reachable for the reset button."""
+        await super().async_added_to_hass()
+        if (stored := await self.async_get_last_extra_data()) is not None:
+            self._record = Record.from_dict(stored.as_dict())
+        self.coordinator.record_sensors.append(self)
+        self._absorb()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Stop the reset button from reaching a sensor that is going away."""
+        self.coordinator.record_sensors.remove(self)
+        await super().async_will_remove_from_hass()
+
+    @property
+    def extra_restore_state_data(self) -> Record:
+        """Return the record for Home Assistant to store."""
+        return self._record
+
+    @property
+    def available(self) -> bool:
+        """Return True even with no aircraft, so a record stays readable."""
+        return self.coordinator.last_update_success
+
+    def _handle_coordinator_update(self) -> None:
+        """Take over a new record before the state and attributes are read."""
+        self._absorb()
+        super()._handle_coordinator_update()
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the record."""
+        return self._record.value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return when the record was set and by which aircraft."""
+        return self._in_units(
+            {"recorded_at": self._record.recorded_at, **(self._record.details or {})}
+        )
+
+    def _absorb(self) -> None:
+        """Take over a figure from this poll that beats the record."""
+        aircraft = self.aircraft
+        if aircraft is None or aircraft is self._polled:
+            return
+        self._polled = aircraft
+        now = {
+            summary.hex: (value, summary)
+            for summary in aircraft.heard
+            if not summary.on_ground and (value := self._read(summary)) is not None
+        }
+        best: tuple[float, AircraftSummary] | None = None
+        for hex_code, (value, summary) in now.items():
+            if (before := self._before.get(hex_code)) is None:
+                continue
+            confirmed = min(value, before)
+            if best is None or confirmed > best[0]:
+                best = (confirmed, summary)
+        self._before = {hex_code: value for hex_code, (value, _) in now.items()}
+        moment = dt_util.utcnow()
+        for hex_code in now.keys() & self._announced.keys():
+            self._announced[hex_code] = moment
+        self._announced = {
+            hex_code: heard
+            for hex_code, heard in self._announced.items()
+            if moment - heard <= PASSAGE_GAP
+        }
+
+        if best is not None and (
+            self._record.value is None or best[0] > self._record.value
+        ):
+            self._take(*best, moment)
+        if (breaking := self._breaking) is not None and (
+            breaking.hex not in now
+            or moment - breaking.bettered_at >= RECORD_SETTLED_AFTER
+        ):
+            self._announce()
+
+    def _take(self, value: float, summary: AircraftSummary, moment: datetime) -> None:
+        """Make this the record, and follow the aircraft until it settles."""
+        if self._breaking is not None and self._breaking.hex != summary.hex:
+            self._announce()
+        if self._breaking is None:
+            self._breaking = _Breaking(summary.hex, self._newsworthy(summary), moment)
+        self._breaking.bettered_at = moment
+        self._record = Record(
+            value=value,
+            recorded_at=moment.isoformat(),
+            details={
+                **aircraft_attributes(summary, include_distance=True),
+                self._field: self._as_attribute(value),
+            },
+            since=self._record.since or moment.isoformat(),
+        )
+
+    def _newsworthy(self, summary: AircraftSummary) -> Record | None:
+        """Return the record about to be beaten, if beating it is news."""
+        since = dt_util.parse_datetime(self._record.since or "")
+        if self._record.value is None or since is None:
+            return None
+        if summary.hex in self._announced:
+            return None
+        return self._record if dt_util.utcnow() - since >= RECORD_SETTLING else None
+
+    def _announce(self) -> None:
+        """Fire the event for an aircraft that has settled on a record."""
+        breaking, self._breaking = self._breaking, None
+        if breaking is None or (beaten := breaking.beaten) is None:
+            return
+        self._announced[breaking.hex] = dt_util.utcnow()
+        details = beaten.details or {}
+        self.coordinator.announce_record(
+            self._name,
+            self._record.details or {},
+            {
+                self._field: details.get(self._field),
+                "flight": details.get("flight"),
+                "hex": details.get("hex"),
+                "recorded_at": beaten.recorded_at,
+            },
+        )
+
+    def reset(self) -> None:
+        """Forget the record, for when the antenna changed."""
+        self._record = Record()
+        self._breaking = None
+        self._announced = {}
+        self.async_write_ha_state()
+
+
+class AdsbStationRangeRecordSensor(_DistanceInUnits, AdsbStationRecordSensor):
+    """The furthest any aircraft has been heard, in any direction."""
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.METERS
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            RECORD_RANGE,
+            lambda summary: summary.distance,
+            "distance",
+            kilometres,
+        )
+
+
+class AdsbStationAltitudeRecordSensor(_AltitudeInUnits, AdsbStationRecordSensor):
+    """The highest any aircraft has been heard."""
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.FEET
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator, RECORD_ALTITUDE, lambda summary: summary.altitude, "altitude"
+        )
+
+
+class AdsbStationSpeedRecordSensor(_SpeedInUnits, AdsbStationRecordSensor):
+    """The fastest any aircraft has been heard, over the ground."""
+
+    _attr_device_class = SensorDeviceClass.SPEED
+    _attr_native_unit_of_measurement = UnitOfSpeed.KNOTS
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator, RECORD_SPEED, lambda summary: summary.speed, "speed"
+        )

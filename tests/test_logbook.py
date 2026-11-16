@@ -13,6 +13,7 @@ from custom_components.adsb_station.const import (
     EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_RECORD_BROKEN,
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
 )
@@ -67,6 +68,29 @@ def _described(hass: HomeAssistant) -> dict[str, Callable[[Event], dict[str, str
                 "distance": None,
             },
             "hoorde 4CA123 een noodgeval melden",
+        ),
+        (
+            "en",
+            EVENT_RECORD_BROKEN,
+            {
+                **AIRCRAFT,
+                "record": "range",
+                "distance": 231.4,
+                "distance_unit": "nmi",
+            },
+            "heard RYR1YY set a range record: 231.4 NM",
+        ),
+        (
+            "nl",
+            EVENT_RECORD_BROKEN,
+            {**AIRCRAFT, "record": "altitude", "altitude": 13716, "altitude_unit": "m"},
+            "hoorde RYR1YY een hoogterecord zetten: 13716 m",
+        ),
+        (
+            "nl",
+            EVENT_RECORD_BROKEN,
+            {**AIRCRAFT, "record": "speed", "speed": 1080, "speed_unit": "km/h"},
+            "hoorde RYR1YY een snelheidsrecord zetten: 1080 km/h",
         ),
     ],
 )

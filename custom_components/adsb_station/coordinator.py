@@ -51,6 +51,7 @@ from .const import (
     EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_RECORD_BROKEN,
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
     FEET_TO_METRES,
@@ -99,11 +100,11 @@ from .units import Units, converted, unit_attributes, units_of
 _LOGGER = logging.getLogger(__name__)
 
 
-class SectorRangeRecord(Protocol):
-    """A sector range sensor, as far as the reset button needs to know."""
+class ResettableRecord(Protocol):
+    """A record sensor, as far as the reset button needs to know."""
 
     def reset(self) -> None:
-        """Forget the record this sector holds."""
+        """Forget the record it holds."""
 
 
 type AdsbStationConfigEntry = ConfigEntry[AdsbStationDataUpdateCoordinator]
@@ -813,8 +814,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._gps: dict[str, tuple[datetime, bool]] = {}
         # Whether aircraft.json itself names aircraft; None until any are heard.
         self.decoder_has_database: bool | None = None
-        # Registered by the sector sensors, for the reset button.
-        self.sector_sensors: list[SectorRangeRecord] = []
+        # Registered by the sector and record sensors, for the reset button.
+        self.sector_sensors: list[ResettableRecord] = []
+        self.record_sensors: list[ResettableRecord] = []
         # Aircraft crossing the radius now, by hex, kept across polls.
         self.passages: dict[str, Passage] = {}
         # The nearest of those on the last poll, and when that poll was.
@@ -1409,6 +1411,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - seen > self._remembered()
         ]:
             del self._distressed[hex_code]
+
+    def announce_record(
+        self, record: str, holder: dict[str, Any], previous: dict[str, Any]
+    ) -> None:
+        """Fire the event for an aircraft that has set a record."""
+        self._fire(
+            EVENT_RECORD_BROKEN,
+            {**self._event_base(), "record": record, **holder, "previous": previous},
+        )
 
     def _announce(self, passage: Passage) -> None:
         """Fire the event for a passage that has just begun.
