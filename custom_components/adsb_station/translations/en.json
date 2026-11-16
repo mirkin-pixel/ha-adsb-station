@@ -133,6 +133,7 @@
           "statistics_interval": "Statistics interval",
           "proximity_radius": "Nearby radius",
           "proximity_max_altitude": "Overhead ceiling",
+          "keep_passages": "Keep passages",
           "map_aircraft": "Aircraft on the map",
           "look_up_routes": "Look up flight routes",
           "look_up_photos": "Look up aircraft photos",
@@ -146,6 +147,7 @@
           "statistics_interval": "How often the feeder and the decoder's statistics are read, in seconds. Those are counters and averages over a minute, so reading them more often mostly fills the recorder. A station that only feeds is read at this interval alone.",
           "proximity_radius": "How close an aircraft has to be to count as nearby, in the unit shown beside it. Ten kilometres, about six miles, is roughly what you can see and hear.",
           "proximity_max_altitude": "How high an aircraft may be and still count as nearby, in the unit shown beside it. Leave it empty and the radius alone decides, which is worth knowing about: a radius is a circle on the ground, so without a ceiling an airliner at 36,000 feet is overhead. It applies to what is nearby, what is overhead and what counts as a passage, and to nothing else: the aircraft still counts as received, still sets range records, and an emergency squawk is still reported at any height.",
+          "keep_passages": "How many days the passages are kept after the board on Passages today starts over at midnight, to look them up with the List passages action. 0 keeps none. They are kept in a file of their own under .storage, about 200 bytes a passage, written at most every quarter of an hour.",
           "map_aircraft": "Puts every aircraft inside the nearby radius on the map as its own entity, for as long as it is there. Nothing is registered and nothing is kept, so they leave no trace once they have flown on; that also means they cannot be renamed or hidden individually, and they are not listed under this station's device.",
           "look_up_routes": "No aircraft broadcasts where it is flying from or to, so this has to be asked of a service on the internet. It uses routeset, the same source tar1090 does. Only the aircraft inside the nearby radius are looked up, and answers are kept for the day.",
           "look_up_photos": "Adds a photo of each aircraft inside the nearby radius, and of each one on the watchlist, from Planespotters.net. Only the address the aircraft broadcasts is sent, and answers are kept for a day. The photos are lent on condition that the photographer is named beside one and that it links to its page, so they come as attributes for a dashboard card rather than as entity pictures.",
@@ -592,6 +594,28 @@
         }
       }
     },
+    "list_passages": {
+      "name": "List passages",
+      "description": "Answers with the passages this station has kept that match, most recent first. How many days are kept is set under Configure.",
+      "fields": {
+        "aircraft": {
+          "name": "Aircraft",
+          "description": "A hex code, callsign or registration. Leave it empty for every aircraft."
+        },
+        "start": {
+          "name": "From",
+          "description": "Only passages that began at or after this moment."
+        },
+        "end": {
+          "name": "Until",
+          "description": "Only passages that began at or before this moment."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Which station to ask. Only needed when more than one of your entries carries a receiver."
+        }
+      }
+    },
     "list_aircraft": {
       "name": "List aircraft",
       "description": "Answers with every aircraft this station is hearing that matches, nearest first. Without a single filter that is everything the decoder is holding, which reaches far beyond the nearby radius.",
@@ -701,6 +725,12 @@
     },
     "not_on_watchlist": {
       "message": "{line} is not on the watchlist of {station}."
+    },
+    "no_passage_station": {
+      "message": "None of your ADS-B stations reads a receiver, so there are no passages to look up."
+    },
+    "passages_not_kept": {
+      "message": "{station} keeps no passages beyond today's board. Set how many days to keep under Configure."
     }
   },
   "selector": {

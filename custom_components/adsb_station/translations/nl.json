@@ -133,6 +133,7 @@
           "statistics_interval": "Ververstijd statistieken",
           "proximity_radius": "Straal dichtbij",
           "proximity_max_altitude": "Hoogtegrens overhead",
+          "keep_passages": "Passages bewaren",
           "map_aircraft": "Vliegtuigen op de kaart",
           "look_up_routes": "Vluchtroutes opzoeken",
           "look_up_photos": "Foto's van vliegtuigen opzoeken",
@@ -146,6 +147,7 @@
           "statistics_interval": "Hoe vaak de feeder en de statistieken van de decoder uitgelezen worden, in seconden. Dat zijn tellers en gemiddelden over een minuut, dus vaker uitlezen vult vooral de recorder. Een station dat alleen feedt wordt alleen op deze tijd uitgelezen.",
           "proximity_radius": "Hoe dichtbij een vliegtuig moet zijn om als dichtbij te tellen, in de eenheid die ernaast staat. Tien kilometer, zo'n zes mijl, is ongeveer wat je kunt zien en horen.",
           "proximity_max_altitude": "Hoe hoog een toestel mag zitten en toch als dichtbij telt, in de eenheid die ernaast staat. Laat je hem leeg, dan bepaalt de straal het in zijn eentje, en dat is het weten waard: een straal is een cirkel op de grond, dus zonder grens hangt een lijnvliegtuig op 36.000 voet boven je. Hij geldt voor wat dichtbij is, wat overhead is en wat als passage telt, en verder nergens voor: het toestel telt nog steeds als ontvangen, zet nog steeds bereikrecords, en een noodsquawk wordt op elke hoogte gemeld.",
+          "keep_passages": "Hoeveel dagen de passages bewaard blijven nadat het bord van Passages vandaag om middernacht opnieuw begint, om ze terug te zoeken met de actie Passages opzoeken. 0 bewaart er geen. Ze staan in een eigen bestand onder .storage, zo'n 200 bytes per passage, en dat wordt hooguit elk kwartier geschreven.",
           "map_aircraft": "Zet elk toestel binnen de nabijheidsradius als eigen entiteit op de kaart, zolang het er is. Er wordt niets geregistreerd en niets bewaard, dus ze laten geen spoor achter als ze zijn doorgevlogen; daardoor kun je ze ook niet los hernoemen of verbergen, en staan ze niet onder het apparaat van dit station.",
           "look_up_routes": "Geen enkel vliegtuig zendt uit waar het vandaan komt of heen gaat, dus dit moet aan een dienst op internet gevraagd worden. Het gebruikt routeset, dezelfde bron als tar1090. Alleen de vliegtuigen binnen de straal 'dichtbij' worden opgezocht, en antwoorden worden een dag bewaard.",
           "look_up_photos": "Voegt een foto toe van elk vliegtuig binnen de straal 'dichtbij', en van elk vliegtuig op de watchlist, van Planespotters.net. Alleen het adres dat het vliegtuig uitzendt wordt verstuurd, en antwoorden worden een dag bewaard. De foto's worden uitgeleend op voorwaarde dat de fotograaf erbij genoemd wordt en dat de foto naar zijn pagina linkt, dus ze komen als attributen voor een dashboardkaart en niet als entiteitsafbeelding.",
@@ -592,6 +594,28 @@
         }
       }
     },
+    "list_passages": {
+      "name": "Passages opzoeken",
+      "description": "Antwoordt met de bewaarde passages van dit station die passen, de nieuwste eerst. Hoeveel dagen bewaard blijven, stel je in onder Configureren.",
+      "fields": {
+        "aircraft": {
+          "name": "Toestel",
+          "description": "Een hexcode, roepnaam of registratie. Laat leeg voor alle toestellen."
+        },
+        "start": {
+          "name": "Vanaf",
+          "description": "Alleen passages die op of na dit moment begonnen."
+        },
+        "end": {
+          "name": "Tot",
+          "description": "Alleen passages die op of voor dit moment begonnen."
+        },
+        "config_entry": {
+          "name": "Station",
+          "description": "Welk station je vraagt. Alleen nodig als meer dan één van je entries een ontvanger draagt."
+        }
+      }
+    },
     "list_aircraft": {
       "name": "Vliegtuigen opsommen",
       "description": "Antwoordt met elk toestel dat dit station hoort en dat voldoet, dichtstbij eerst. Zonder filter is dat alles wat de decoder vasthoudt, en dat reikt veel verder dan de nabijheidsstraal.",
@@ -701,6 +725,12 @@
     },
     "not_on_watchlist": {
       "message": "{line} staat niet op de watchlist van {station}."
+    },
+    "no_passage_station": {
+      "message": "Geen van je ADS-B-stations leest een ontvanger uit, dus er zijn geen passages om op te zoeken."
+    },
+    "passages_not_kept": {
+      "message": "{station} bewaart geen passages buiten het bord van vandaag. Stel onder Configureren in hoeveel dagen je wilt bewaren."
     }
   },
   "selector": {

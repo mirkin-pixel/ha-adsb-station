@@ -27,6 +27,7 @@ from .const import (
     APPROACH_POLLS,
     CATEGORY_ROTORCRAFT,
     CONF_AIRCRAFT_DATABASE,
+    CONF_KEEP_PASSAGES,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
@@ -38,6 +39,7 @@ from .const import (
     DB_FLAG_LADD,
     DB_FLAG_MILITARY,
     DB_FLAG_PIA,
+    DEFAULT_KEEP_PASSAGES,
     DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_PROXIMITY_RADIUS,
@@ -85,6 +87,7 @@ from .const import (
     WATCHLIST_SQUAWK,
     WATCHLIST_TYPE,
 )
+from .passage_log import PassageLog
 from .photo import AircraftPhoto, build_photo_lookup, photo_attributes
 from .reference import (
     EMPTY as EMPTY_REFERENCE,
@@ -650,6 +653,33 @@ def aircraft_attributes(
     return attributes
 
 
+def passage_entry(passage: Passage) -> dict[str, Any]:
+    """Describe one passage for the board and the log: at its closest approach."""
+    entry: dict[str, Any] = {
+        "at": passage.started_at.isoformat(),
+        "hex": passage.hex,
+        "flight": passage.closest.flight,
+        "altitude": passage.closest.altitude,
+        "distance": kilometres(passage.closest_distance),
+        # Both grow until the aircraft has gone.
+        "duration": round((passage.last_seen - passage.started_at).total_seconds()),
+    }
+    for key, value in (
+        ("peak_rssi", passage.peak_rssi),
+        ("airline", passage.closest.airline),
+        ("registration", passage.closest.registration),
+        ("aircraft_type", passage.closest.aircraft_type),
+        ("description", passage.closest.description),
+        (
+            "route",
+            None if passage.closest.route is None else passage.closest.route.label,
+        ),
+    ):
+        if value is not None:
+            entry[key] = value
+    return entry
+
+
 def traffic_kind(summary: AircraftSummary) -> str:
     """Return which of the four traffic counters an aircraft counts under.
 
@@ -821,6 +851,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.record_sensors: list[ResettableRecord] = []
         # Loaded from its file before the first poll.
         self.sightings = Sightings(hass, config_entry.entry_id)
+        self.passage_log = PassageLog(
+            hass,
+            config_entry.entry_id,
+            int(config_entry.options.get(CONF_KEEP_PASSAGES, DEFAULT_KEEP_PASSAGES)),
+        )
         # Aircraft crossing the radius now, by hex, kept across polls.
         self.passages: dict[str, Passage] = {}
         # The nearest of those on the last poll, and when that poll was.
@@ -1245,6 +1280,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if now - passage.last_seen > self._remembered()
         ]:
             del self.passages[hex_code]
+        self.passage_log.note(passage_entry(passage) for passage in in_view)
 
     def _remembered(self) -> timedelta:
         """Return how long a passage stays in memory after it was last seen.

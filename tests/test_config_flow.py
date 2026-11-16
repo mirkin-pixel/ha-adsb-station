@@ -19,6 +19,7 @@ from custom_components.adsb_station.api import build_candidate_urls
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
+    CONF_KEEP_PASSAGES,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
@@ -26,6 +27,7 @@ from custom_components.adsb_station.const import (
     CONF_RECEIVER_FEATURES,
     CONF_STATISTICS_INTERVAL,
     CONF_STATS_URL,
+    DEFAULT_KEEP_PASSAGES,
     DEFAULT_STATISTICS_INTERVAL,
     DOMAIN,
     FEEDER_FR24,
@@ -622,6 +624,7 @@ async def test_options_flow(
         CONF_SCAN_INTERVAL: 45,
         CONF_STATISTICS_INTERVAL: DEFAULT_STATISTICS_INTERVAL,
         CONF_PROXIMITY_RADIUS: 25,
+        CONF_KEEP_PASSAGES: DEFAULT_KEEP_PASSAGES,
         # Nothing asked for a route or a photo, so nothing looks one up, and
         # nothing asked for a map, so no aircraft is drawn on one.
         CONF_MAP_AIRCRAFT: False,

@@ -7,6 +7,7 @@ decoder. Watch and unwatch edit the watchlist.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -21,6 +22,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.helpers.service import async_register_admin_service
+from homeassistant.util import dt as dt_util
 from homeassistant.util.json import JsonArrayType
 
 # Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
@@ -49,6 +51,7 @@ SERVICE_INSTALL_SENTENCES: Final = "install_sentences"
 SERVICE_SPEAK: Final = "speak"
 SERVICE_WATCH: Final = "watch"
 SERVICE_UNWATCH: Final = "unwatch"
+SERVICE_LIST_PASSAGES: Final = "list_passages"
 
 # Home Assistant reads custom sentences only from the configuration
 # directory, so the service copies them there.
@@ -66,6 +69,8 @@ ATTR_CATEGORY: Final = "category"
 ATTR_QUESTION: Final = "question"
 ATTR_KIND: Final = "kind"
 ATTR_LANGUAGE: Final = "language"
+ATTR_START: Final = "start"
+ATTR_END: Final = "end"
 
 # Shared by both services, so which station is being asked reads the same way
 # in either one.
@@ -95,6 +100,16 @@ LIST_SCHEMA: Final = vol.Schema(
 # callsign, an aircraft type or a squawk.
 WATCH_SCHEMA: Final = vol.Schema(
     {**_STATION_FIELD, vol.Required(ATTR_AIRCRAFT): cv.string}
+)
+
+# By hex code, callsign or registration, and a time span, both optional.
+LIST_PASSAGES_SCHEMA: Final = vol.Schema(
+    {
+        **_STATION_FIELD,
+        vol.Optional(ATTR_AIRCRAFT): cv.string,
+        vol.Optional(ATTR_START): cv.datetime,
+        vol.Optional(ATTR_END): cv.datetime,
+    }
 )
 
 SPEAK_SCHEMA: Final = vol.Schema(
@@ -254,8 +269,10 @@ async def _async_list_aircraft(call: ServiceCall) -> ServiceResponse:
     }
 
 
-def _watching_station(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
-    """Return the receiver entry whose watchlist to change.
+def _receiver_entry(
+    hass: HomeAssistant, call: ServiceCall, none_key: str
+) -> ConfigEntry:
+    """Return the receiver entry whose watchlist or passages are meant.
 
     Works while the decoder is down, unlike the lookups.
     """
@@ -279,7 +296,7 @@ def _watching_station(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
     with_receiver = [entry for entry in entries if _has_receiver(entry)]
     if not with_receiver:
         raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="no_watchlist_station"
+            translation_domain=DOMAIN, translation_key=none_key
         )
     if len(with_receiver) > 1:
         raise ServiceValidationError(
@@ -300,15 +317,46 @@ def _has_receiver(entry: ConfigEntry) -> bool:
 
 async def _async_watch(call: ServiceCall) -> None:
     """Put one line on the watchlist."""
-    entry = _watching_station(call.hass, call)
+    entry = _receiver_entry(call.hass, call, "no_watchlist_station")
     coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
     add_line(call.hass, entry, call.data[ATTR_AIRCRAFT], coordinator.reference.models)
 
 
 async def _async_unwatch(call: ServiceCall) -> None:
     """Take one line off the watchlist."""
-    entry = _watching_station(call.hass, call)
+    entry = _receiver_entry(call.hass, call, "no_watchlist_station")
     remove_line(call.hass, entry, call.data[ATTR_AIRCRAFT])
+
+
+def _moment(value: datetime | None) -> datetime | None:
+    """Return a time as given, in Home Assistant's time zone unless it names one."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=dt_util.get_default_time_zone())
+    return dt_util.as_utc(value)
+
+
+async def _async_list_passages(call: ServiceCall) -> ServiceResponse:
+    """Answer with the kept passages that match, most recent first."""
+    entry = _receiver_entry(call.hass, call, "no_passage_station")
+    coordinator: AdsbStationDataUpdateCoordinator = entry.runtime_data
+    log = coordinator.passage_log
+    if not log.days:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="passages_not_kept",
+            translation_placeholders={"station": entry.title},
+        )
+    found = log.find(
+        call.data.get(ATTR_AIRCRAFT),
+        _moment(call.data.get(ATTR_START)),
+        _moment(call.data.get(ATTR_END)),
+    )
+    return {
+        "passages": converted(found, coordinator.units),
+        **unit_attributes(coordinator.units),
+    }
 
 
 def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
@@ -397,6 +445,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_LOOK_UP_AIRCRAFT,
         _async_look_up_aircraft,
         schema=LOOK_UP_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_LIST_PASSAGES,
+        _async_list_passages,
+        schema=LIST_PASSAGES_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
