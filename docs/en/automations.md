@@ -187,6 +187,47 @@ automation:
             Unplug the dongle and plug it back in.
 ```
 
+## A new record
+
+Notification when an aircraft is the furthest, highest or fastest your station has ever heard:
+
+```yaml
+automation:
+  - alias: "ADS-B: new record"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_record_broken
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          title: "New {{ trigger.event.data.record }} record"
+          message: >
+            {{ trigger.event.data.flight or trigger.event.data.hex }}:
+            {%- if trigger.event.data.record == 'range' %} {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }}
+            {%- elif trigger.event.data.record == 'altitude' %} {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
+            {%- else %} {{ trigger.event.data.speed }} {{ trigger.event.data.speed_unit }}{% endif %}.
+```
+
+`adsb_station_record_broken` fires once per flight, when the aircraft has not bettered the record for five minutes, or has gone: an airliner climbing past the altitude record is one message, with the height it levelled off at. A ground speed wavers by a few knots, so the same aircraft often edges its own record up a little later; the sensor follows that, without another message. `record` says which one, `range`, `altitude` or `speed`, and the fields are those of the other events, in the [units](configuration.md#units) you chose, as the aircraft was when it set the record. `previous` holds the record it beat: the same figure, `flight`, `hex` and `recorded_at`.
+
+The first day after the station is added, or after **Reset records**, is quiet: then nearly every aircraft beats the one before, and the records are only being collected. **Records** is the event entity for the editor, and each record leaves a line in **Activity**.
+
+## The best of today
+
+**Maximum range**, **Highest aircraft** and **Fastest aircraft** keep long-term statistics, so a [statistic card](https://www.home-assistant.io/dashboards/statistic/) shows the best of each day without a sensor of its own:
+
+```yaml
+type: statistic
+entity: sensor.ads_b_station_highest_aircraft
+name: Highest today
+period:
+  calendar:
+    period: day
+stat_type: max
+```
+
+Set `period` to `week` or `month` for the best of those.
+
 ## Trying an automation out
 
 No need to wait for an aircraft: under **Developer tools → Events**, fire `adsb_station_aircraft_emergency`, or any other event here, with data of your own:
@@ -201,4 +242,4 @@ altitude: 900
 altitude_unit: m
 ```
 
-Every automation on that event runs, so the notification goes out for real, and the watchlist and emergency events leave a line in **Activity** as well.
+Every automation on that event runs, so the notification goes out for real, and the watchlist, emergency and record events leave a line in **Activity** as well.

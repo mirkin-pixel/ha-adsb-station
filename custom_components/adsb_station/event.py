@@ -19,8 +19,12 @@ from .const import (
     DOMAIN,
     EMERGENCY_STATUSES,
     EVENT_AIRCRAFT_EMERGENCY,
+    EVENT_RECORD_BROKEN,
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
+    RECORD_ALTITUDE,
+    RECORD_RANGE,
+    RECORD_SPEED,
 )
 from .coordinator import (
     AdsbStationConfigEntry,
@@ -42,7 +46,9 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     if not coordinator.client.aircraft_url:
         return
-    async_add_entities([AdsbStationDistressEvent(coordinator)])
+    async_add_entities(
+        [AdsbStationDistressEvent(coordinator), AdsbStationRecordsEvent(coordinator)]
+    )
 
     # Only while there is a list, as the watchlist sensor.
     watching: list[AdsbStationWatchlistEvent] = []
@@ -70,8 +76,9 @@ async def async_setup_entry(
 class _AdsbStationEvent(AdsbStationAircraftEntity, EventEntity):
     """Repeats this station's bus events, as types of one entity."""
 
-    # Bus event, and the event type it becomes; None takes the reason.
+    # Bus event, and the event type it becomes; None takes it from the field.
     _follows: ClassVar[dict[str, str | None]]
+    _type_field: ClassVar[str] = "reason"
 
     async def async_added_to_hass(self) -> None:
         """Listen for this station's events."""
@@ -88,7 +95,7 @@ class _AdsbStationEvent(AdsbStationAircraftEntity, EventEntity):
         def handle(event: Event) -> None:
             data = event.data
             # Another station's, or one fired by hand without one or a known reason.
-            kind = event_type or data.get("reason")
+            kind = event_type or data.get(self._type_field)
             if data.get("entry_id") != entry_id or kind not in self.event_types:
                 return
             self._trigger_event(
@@ -122,3 +129,16 @@ class AdsbStationDistressEvent(_AdsbStationEvent):
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the event entity."""
         super().__init__(coordinator, "distress")
+
+
+class AdsbStationRecordsEvent(_AdsbStationEvent):
+    """An aircraft sets a record, by which one."""
+
+    _attr_translation_key = "records"
+    _attr_event_types = [RECORD_RANGE, RECORD_ALTITUDE, RECORD_SPEED]
+    _follows = {EVENT_RECORD_BROKEN: None}
+    _type_field = "record"
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the event entity."""
+        super().__init__(coordinator, "records")

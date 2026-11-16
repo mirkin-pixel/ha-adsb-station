@@ -205,6 +205,15 @@
       "max_range_nw": {
         "default": "mdi:compass-outline"
       },
+      "range_record": {
+        "default": "mdi:trophy-outline"
+      },
+      "altitude_record": {
+        "default": "mdi:trophy-outline"
+      },
+      "speed_record": {
+        "default": "mdi:trophy-outline"
+      },
       "gps_interference": {
         "default": "mdi:crosshairs-gps"
       }
@@ -240,6 +249,9 @@
       },
       "distress": {
         "default": "mdi:alert-octagon"
+      },
+      "records": {
+        "default": "mdi:trophy"
       }
     },
     "text": {

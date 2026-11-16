@@ -24,6 +24,8 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | GPS-storing | Sensor (%) | Het aandeel vliegende toestellen in het laatste kwartier dat zijn GPS kwijt was, gemeten zoals [GPSJAM](https://gpsjam.org/faq) het doet: een positie die 4 zeemijl of meer onzeker is, of het eigen oordeel van readsb, met één toestel eraf zodat één kapotte ontvanger niets oplevert. Alles berekend uit de gegevens van je eigen decoder. Onbekend zolang geen toestel zijn nauwkeurigheid stuurt, zoals 's nachts zonder verkeer of bij een decoder die die niet doorgeeft |
 | GPS-storing | Binary sensor (probleem) | Aan boven 10%, waar GPSJAM van waarschijnlijke storing spreekt. Het attribuut `level` zegt `none` (onder 2%), `possible` of `likely` |
 | Toestel in nood | Event | Gaat één keer per vlucht af voor elk toestel in nood, met de `reason` als type en het toestel in de attributen |
+| Bereikrecord, Hoogterecord, Snelheidsrecord | Sensor (afstand, hoogte, snelheid) | Het verste, hoogste en snelste dat ooit een vliegtuig gehoord is, met dat vliegtuig en `recorded_at` in de attributen. Zie [records](#records) |
+| Records | Event | Gaat één keer af per vlucht die een van die records zet, met `range`, `altitude` of `speed` als type. Zie [een nieuw record](automations.md#een-nieuw-record) |
 | Ontvanger stil | Binary sensor (probleem, diagnostisch) | Aan als de dongle drie minuten niets aan de decoder heeft geleverd. Dat is een dongle die weg is of vastzit, geen rustige lucht. Geeft ook een melding onder Reparaties. Heeft `stats.json` nodig; zie [problemen oplossen](troubleshooting.md#de-ontvanger-hoort-niets) |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger, bijgewerkt op de ververstijd voor statistieken |
 | Ontvanger bijgewerkt | Sensor (diagnostisch, standaard uit) | Het tijdstempel in `aircraft.json`. Elke meting nieuw, dus uit tenzij je hem aanzet |
@@ -35,6 +37,16 @@ Het hoogste en het snelste tellen ook vliegtuigen die nooit een positie uitzende
 Een positie moet mogelijk zijn voordat hij geloofd wordt. ADS-B is zichtlijn, dus een vliegtuig op 37.000 voet is tot ongeveer 440 km te horen en een op 2.000 voet tot ongeveer 100 km, en daar komt 80 km bij voor een antenne die hoog staat. Een positie daarbuiten is verkeerd gedecodeerd in plaats van ontvangen, en vervalt: hij zou anders een vliegtuig boven je zetten dat er nooit was, of een [sectorrecord](feeders.md#waar-je-antenne-geblokkeerd-zit) achterlaten dat voorgoed blijft staan. Het vliegtuig telt nog steeds als ontvangen, want het bestaat; alleen als een vliegtuig waarvan de positie onbekend is.
 
 Die twee en het maximale bereik houden vast wat ze het laatst zagen in plaats van leeg te lopen zodra de lucht leeg is, en ze overleven een herstart. Een station dat een paar vliegtuigen per uur hoort zou anders het grootste deel van de tijd niets melden. Het attribuut `seen_at` zegt hoe lang geleden dat was, en elk volgt nog steeds de lucht: een lager toestel later vervangt de waarde. Dat is het verschil met de [sectorrecords](feeders.md#waar-je-antenne-geblokkeerd-zit), die alleen maar groeien.
+
+## Records
+
+**Bereikrecord**, **Hoogterecord** en **Snelheidsrecord** houden het verste, hoogste en snelste vast dat een vliegtuig gehoord is sinds het station is toegevoegd, en groeien alleen maar. Ze overleven een herstart en blijven leesbaar als de lucht leeg is.
+
+- **Een waarde moet twee keer gehoord zijn.** Hij telt pas als hetzelfde vliegtuig hem twee uitlezingen achter elkaar geeft, dus één verminkt bericht wordt nooit een record. Het bereikrecord gelooft ook alleen [mogelijke posities](#entiteiten), net als de sectorrecords.
+- **Niet aan de grond.** Een grondsnelheid tijdens het taxiën zet geen snelheidsrecord.
+- **Eén knop wist ze allemaal.** **Records wissen** wist deze drie en de acht [sectorrecords](feeders.md#waar-je-antenne-geblokkeerd-zit), voor na een nieuwe antenne of een nieuwe plek.
+
+Records van de dag zijn geen eigen sensoren: **Maximaal bereik**, **Hoogste vliegtuig** en **Snelste vliegtuig** houden al langetermijnstatistieken bij, dus een statistiekkaart toont het beste van elke dag. Zie [het beste van vandaag](automations.md#het-beste-van-vandaag).
 
 En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 

@@ -187,6 +187,47 @@ automation:
             Trek de dongle eruit en steek hem er weer in.
 ```
 
+## Een nieuw record
+
+Een melding als een vliegtuig het verste, hoogste of snelste is dat je station ooit gehoord heeft:
+
+```yaml
+automation:
+  - alias: "ADS-B: nieuw record"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_record_broken
+    actions:
+      - action: notify.mobile_app_telefoon
+        data:
+          title: "Nieuw record: {{ trigger.event.data.record }}"
+          message: >
+            {{ trigger.event.data.flight or trigger.event.data.hex }}:
+            {%- if trigger.event.data.record == 'range' %} {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }}
+            {%- elif trigger.event.data.record == 'altitude' %} {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}
+            {%- else %} {{ trigger.event.data.speed }} {{ trigger.event.data.speed_unit }}{% endif %}.
+```
+
+`adsb_station_record_broken` gaat één keer per vlucht af, zodra het vliegtuig het record vijf minuten niet verbeterd heeft, of weg is: een verkeersvliegtuig dat voorbij het hoogterecord klimt is één melding, met de hoogte waarop het uitvlakte. Een grondsnelheid schommelt een paar knopen, dus hetzelfde vliegtuig verbetert zijn eigen record vaak later nog een beetje; de sensor volgt dat, zonder nieuwe melding. `record` zegt welk record, `range`, `altitude` of `speed`, en de velden zijn die van de andere events, in de [eenheden](configuration.md#eenheden) die je koos, zoals het vliegtuig was toen het het record zette. `previous` bevat het record dat het verbeterde: dezelfde waarde, `flight`, `hex` en `recorded_at`.
+
+De eerste dag nadat het station is toegevoegd, of na **Records wissen**, blijft stil: dan verbetert bijna elk vliegtuig het vorige, en worden de records alleen verzameld. **Records** is de event-entiteit voor de editor, en elk record laat een regel achter in **Activiteit**.
+
+## Het beste van vandaag
+
+**Maximaal bereik**, **Hoogste vliegtuig** en **Snelste vliegtuig** houden langetermijnstatistieken bij, dus een [statistiekkaart](https://www.home-assistant.io/dashboards/statistic/) toont het beste van elke dag zonder eigen sensor:
+
+```yaml
+type: statistic
+entity: sensor.ads_b_station_highest_aircraft
+name: Hoogste vandaag
+period:
+  calendar:
+    period: day
+stat_type: max
+```
+
+Zet `period` op `week` of `month` voor het beste daarvan.
+
 ## Een automatisering uitproberen
 
 Je hoeft niet op een vliegtuig te wachten: vuur onder **Ontwikkelhulpmiddelen → Gebeurtenissen** `adsb_station_aircraft_emergency` af, of een ander event van hier, met eigen gegevens:
@@ -201,4 +242,4 @@ altitude: 900
 altitude_unit: m
 ```
 
-Elke automatisering op dat event draait, dus de melding gaat echt uit, en de watchlist- en noodevents laten ook een regel achter in **Activiteit**.
+Elke automatisering op dat event draait, dus de melding gaat echt uit, en de watchlist-, nood- en recordevents laten ook een regel achter in **Activiteit**.

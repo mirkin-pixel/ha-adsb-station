@@ -339,6 +339,15 @@
       "max_range_nw": {
         "name": "Bereikrecord noordwest"
       },
+      "range_record": {
+        "name": "Bereikrecord"
+      },
+      "altitude_record": {
+        "name": "Hoogterecord"
+      },
+      "speed_record": {
+        "name": "Snelheidsrecord"
+      },
       "piaware_radio": {
         "name": "Radio",
         "state": {
@@ -474,7 +483,7 @@
     },
     "button": {
       "reset_range": {
-        "name": "Bereikrecords wissen"
+        "name": "Records wissen"
       }
     },
     "event": {
@@ -498,6 +507,18 @@
               "hijack": "Kaping",
               "radio_failure": "Radiostoring",
               "downed": "Neergestort"
+            }
+          }
+        }
+      },
+      "records": {
+        "name": "Records",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "range": "Bereik",
+              "altitude": "Hoogte",
+              "speed": "Snelheid"
             }
           }
         }
