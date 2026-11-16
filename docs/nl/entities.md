@@ -25,6 +25,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | GPS-storing | Binary sensor (probleem) | Aan boven 10%, waar GPSJAM van waarschijnlijke storing spreekt. Het attribuut `level` zegt `none` (onder 2%), `possible` of `likely` |
 | Toestel in nood | Event | Gaat één keer per vlucht af voor elk toestel in nood, met de `reason` als type en het toestel in de attributen |
 | Bereikrecord, Hoogterecord, Snelheidsrecord | Sensor (afstand, hoogte, snelheid) | Het verste, hoogste en snelste dat ooit een vliegtuig gehoord is, met dat vliegtuig en `recorded_at` in de attributen. Zie [records](#records) |
+| Ooit gehoorde toestellen | Sensor | Hoeveel verschillende toestellen het station gehoord heeft, met `since`, en hoeveel `types` en `airlines`. Zie [een nieuw toestel](automations.md#een-nieuw-toestel) |
 | Records | Event | Gaat één keer af per vlucht die een van die records zet, met `range`, `altitude` of `speed` als type. Zie [een nieuw record](automations.md#een-nieuw-record) |
 | Ontvanger stil | Binary sensor (probleem, diagnostisch) | Aan als de dongle drie minuten niets aan de decoder heeft geleverd. Dat is een dongle die weg is of vastzit, geen rustige lucht. Geeft ook een melding onder Reparaties. Heeft `stats.json` nodig; zie [problemen oplossen](troubleshooting.md#de-ontvanger-hoort-niets) |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger, bijgewerkt op de ververstijd voor statistieken |

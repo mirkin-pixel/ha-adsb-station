@@ -51,6 +51,7 @@ from .const import (
     EVENT_AIRCRAFT_APPROACHING,
     EVENT_AIRCRAFT_EMERGENCY,
     EVENT_AIRCRAFT_PASSAGE,
+    EVENT_NEW_AIRCRAFT,
     EVENT_RECORD_BROKEN,
     EVENT_WATCHLIST_LOST,
     EVENT_WATCHLIST_MATCH,
@@ -94,6 +95,7 @@ from .reference import (
     watch_value,
 )
 from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
+from .sightings import Sightings
 from .trails import SkyTrails
 from .units import Units, converted, unit_attributes, units_of
 
@@ -817,6 +819,8 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Registered by the sector and record sensors, for the reset button.
         self.sector_sensors: list[ResettableRecord] = []
         self.record_sensors: list[ResettableRecord] = []
+        # Loaded from its file before the first poll.
+        self.sightings = Sightings(hass, config_entry.entry_id)
         # Aircraft crossing the radius now, by hex, kept across polls.
         self.passages: dict[str, Passage] = {}
         # The nearest of those on the last poll, and when that poll was.
@@ -1096,7 +1100,22 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._announce_watched(stats)
         self._announce_approaching(stats)
         self._announce_emergencies(stats)
+        self._announce_new(stats)
         return stats
+
+    def _announce_new(self, stats: AircraftStats) -> None:
+        """Fire an event for each aircraft the station has never heard before."""
+        by_hex = {summary.hex: summary for summary in stats.heard}
+        for sighting in self.sightings.note(stats.heard, dt_util.now().date()):
+            self._fire(
+                EVENT_NEW_AIRCRAFT,
+                {
+                    **self._event_base(),
+                    **aircraft_attributes(by_hex[sighting.hex], include_distance=True),
+                    "first_of_type": sighting.first_of_type,
+                    "first_of_airline": sighting.first_of_airline,
+                },
+            )
 
     def _gps_interference(self, aircraft: list[Any]) -> float | None:
         """Return the share of aircraft over the window whose GPS was poor."""

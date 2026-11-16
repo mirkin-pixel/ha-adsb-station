@@ -276,6 +276,9 @@
       "heard_today": {
         "name": "Vandaag gehoord"
       },
+      "aircraft_ever_heard": {
+        "name": "Ooit gehoorde toestellen"
+      },
       "highest_aircraft": {
         "name": "Hoogste vliegtuig"
       },
