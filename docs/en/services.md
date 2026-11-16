@@ -1,6 +1,6 @@
 # Asking a question
 
-The entities answer the questions you knew to ask when you built the dashboard. Two services answer the rest, out of the same poll, without going back to the decoder.
+The entities answer the questions you knew to ask when you built the dashboard. Two services answer the rest, out of the same poll, without going back to the decoder, and a third looks back at the [passages of the last days](#passages-of-the-last-days).
 
 **`adsb_station.look_up_aircraft`** takes a hex code or a callsign, in either case, and answers with everything the station knows about that one aircraft:
 
@@ -45,6 +45,30 @@ Both reach **everything the decoder is holding**, which is the whole sky your an
 Try them under **Developer tools → Actions**, with **Return response data** ticked.
 
 If you run several entries — a feeder or two beside the entry that carries your decoder — you can leave the station out. Only the entries that actually have a receiver are considered, so the field is needed only when two of yours are reading antennas.
+
+## Passages of the last days
+
+The board on **Passages today** starts over at midnight. The station keeps the passages for 30 days besides, set under **Configure** as **Keep passages**, and **`adsb_station.list_passages`** looks them up, most recent first:
+
+```yaml
+- action: adsb_station.list_passages
+  data:
+    aircraft: PH-BXA
+    start: "2026-11-01 00:00:00"
+  response_variable: seen
+- action: notify.persistent_notification
+  data:
+    message: >
+      PH-BXA came over {{ seen.passages | count }} times this month,
+      last at {{ as_timestamp(seen.passages[0].at) | timestamp_custom('%d %b %H:%M') }}.
+```
+
+| Field | |
+|---|---|
+| `aircraft` | A hex code, callsign or registration, with or without the dash. Empty for every aircraft |
+| `start`, `end` | Only passages that began between these, in Home Assistant's time zone unless the time names one |
+
+Each passage is as on the board: `at`, `hex`, `flight`, `altitude`, `distance`, `duration`, and where known `peak_rssi`, `airline`, `registration`, `aircraft_type`, `description` and `route`, in the station's units. They are kept in a file of their own under `.storage`, about 200 bytes a passage, so a month of a quiet station is a few hundred kilobytes; it is written at most every quarter of an hour, and a station never keeps more than 50,000. Set **Keep passages** to 0 to keep none, which removes the file as well.
 
 ## Changing the watchlist
 

@@ -108,7 +108,7 @@ content: |
 
 The figures are in the [units](configuration.md#units) chosen for the station, and the `*_unit` attributes beside them say which, so the panel reads right whichever you pick.
 
-**Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came, how long they were in view (`duration`, in seconds) and the strongest they were ever heard (`peak_rssi`). Those last two are what a passage knows and a single poll cannot; both keep growing while the aircraft is still there and stand still once it has gone. Everything survives a restart of Home Assistant, so the board is a record rather than a session.
+**Passages today** is the tally, and the last twenty of them are on it as attributes: the time they arrived, the callsign, the airline, the type, how high and how close they came, how long they were in view (`duration`, in seconds) and the strongest they were ever heard (`peak_rssi`). Those last two are what a passage knows and a single poll cannot; both keep growing while the aircraft is still there and stand still once it has gone. Everything survives a restart of Home Assistant, so the board is a record rather than a session. It starts over at midnight; the passages of the last 30 days stay findable with [`list_passages`](services.md#passages-of-the-last-days).
 
 **Heard today** counts something else, and the two are worth having side by side. Passages are what came over your house; **Heard today** is every different aircraft your antenna reached all day, however far away and however high. It is the figure that says what your station is doing rather than what your sky is doing, and it is the one to watch after moving an aerial.
 

@@ -39,6 +39,7 @@ from .const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_FOLLOW_UNITS,
+    CONF_KEEP_PASSAGES,
     CONF_LOOK_UP_PHOTOS,
     CONF_LOOK_UP_ROUTES,
     CONF_MAP_AIRCRAFT,
@@ -49,6 +50,7 @@ from .const import (
     CONF_STATS_URL,
     CONF_UNITS,
     CONF_WATCHLIST,
+    DEFAULT_KEEP_PASSAGES,
     DEFAULT_LOOK_UP_PHOTOS,
     DEFAULT_LOOK_UP_ROUTES,
     DEFAULT_MAP_AIRCRAFT,
@@ -62,6 +64,7 @@ from .const import (
     FEEDER_PLANEFINDER,
     FEEDERS,
     ISSUE_SET_BY_HAND,
+    MAX_KEEP_PASSAGES,
     MAX_PROXIMITY_ALTITUDE,
     MAX_PROXIMITY_RADIUS,
     MAX_SCAN_INTERVAL,
@@ -202,6 +205,17 @@ def options_schema(units: Units) -> vol.Schema:
                     max=round(feet_in(MAX_PROXIMITY_ALTITUDE, units)),
                     step=1,
                     unit_of_measurement=label_of(units.altitude),
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
+                CONF_KEEP_PASSAGES, default=DEFAULT_KEEP_PASSAGES
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=MAX_KEEP_PASSAGES,
+                    step=1,
+                    unit_of_measurement="d",
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
@@ -613,6 +627,9 @@ class AdsbStationOptionsFlow(OptionsFlow):
                         MIN_PROXIMITY_RADIUS,
                     ),
                     MAX_PROXIMITY_RADIUS,
+                ),
+                CONF_KEEP_PASSAGES: int(
+                    user_input.get(CONF_KEEP_PASSAGES, DEFAULT_KEEP_PASSAGES)
                 ),
                 CONF_MAP_AIRCRAFT: user_input[CONF_MAP_AIRCRAFT],
                 CONF_LOOK_UP_ROUTES: user_input[CONF_LOOK_UP_ROUTES],

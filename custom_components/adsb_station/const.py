@@ -230,6 +230,11 @@ RECORD_SETTLING = timedelta(days=1)
 # a ground speed wavers by a few knots, and would beat it again and again.
 RECORD_SETTLED_AFTER = timedelta(minutes=5)
 
+# Days the passages are kept after the board starts over; 0 keeps none.
+CONF_KEEP_PASSAGES = "keep_passages"
+DEFAULT_KEEP_PASSAGES = 30
+MAX_KEEP_PASSAGES = 365
+
 # Passages kept on the board, written whole to the recorder on each arrival.
 PASSAGE_BOARD_LENGTH = 20
 

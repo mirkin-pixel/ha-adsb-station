@@ -10,6 +10,23 @@ look_up_aircraft:
         config_entry:
           integration: adsb_station
 
+list_passages:
+  fields:
+    aircraft:
+      example: KLM123
+      selector:
+        text:
+    start:
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
+    config_entry:
+      selector:
+        config_entry:
+          integration: adsb_station
+
 list_aircraft:
   fields:
     max_distance:

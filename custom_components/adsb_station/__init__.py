@@ -35,6 +35,7 @@ from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     sky_signal,
 )
+from .passage_log import PassageLog
 from .reference import async_load_reference
 from .repairs import (
     set_by_hand_issue_id,
@@ -91,8 +92,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
     )
     if client.aircraft_url:
         await coordinator.sightings.async_load()
-        # Written now, or a reload would read it before the delayed write.
+        await coordinator.passage_log.async_load()
+        # Written now, or a reload would read them before the delayed write.
         entry.async_on_unload(coordinator.sightings.async_save)
+        entry.async_on_unload(coordinator.passage_log.async_save)
 
     await coordinator.async_config_entry_first_refresh()
 
@@ -212,10 +215,11 @@ async def async_options_updated(
 async def async_remove_entry(
     hass: HomeAssistant, entry: AdsbStationConfigEntry
 ) -> None:
-    """Take the questions about units and the heard aircraft away with it."""
+    """Take the questions about units and the kept files away with it."""
     ir.async_delete_issue(hass, DOMAIN, units_issue_id(entry.entry_id))
     ir.async_delete_issue(hass, DOMAIN, set_by_hand_issue_id(entry.entry_id))
     await Sightings(hass, entry.entry_id).async_remove()
+    await PassageLog(hass, entry.entry_id, 0).async_remove()
 
 
 def _ask_about_units_set_by_hand(

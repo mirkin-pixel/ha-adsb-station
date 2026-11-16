@@ -56,11 +56,11 @@ from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     AircraftStats,
     AircraftSummary,
-    Passage,
     ReceiverStats,
     aircraft_attributes,
     count_of,
     kilometres,
+    passage_entry,
     slant_distance,
 )
 from .entity import (
@@ -1060,33 +1060,6 @@ class AdsbStationNearbySensor(AdsbStationAircraftEntity, SensorEntity):
         )
 
 
-def _passage_entry(passage: Passage) -> dict[str, Any]:
-    """Describe one passage for the board: lean, at its closest approach."""
-    entry: dict[str, Any] = {
-        "at": passage.started_at.isoformat(),
-        "hex": passage.hex,
-        "flight": passage.closest.flight,
-        "altitude": passage.closest.altitude,
-        "distance": kilometres(passage.closest_distance),
-        # Both grow until the aircraft has gone.
-        "duration": round((passage.last_seen - passage.started_at).total_seconds()),
-    }
-    for key, value in (
-        ("peak_rssi", passage.peak_rssi),
-        ("airline", passage.closest.airline),
-        ("registration", passage.closest.registration),
-        ("aircraft_type", passage.closest.aircraft_type),
-        ("description", passage.closest.description),
-        (
-            "route",
-            None if passage.closest.route is None else passage.closest.route.label,
-        ),
-    ):
-        if value is not None:
-            entry[key] = value
-    return entry
-
-
 @dataclass
 class RememberedPassage(ExtraStoredData):
     """The aircraft a panel is showing, so a restart does not blank it."""
@@ -1251,7 +1224,7 @@ class AdsbStationPassagesSensor(AdsbStationAircraftEntity, RestoreEntity, Sensor
             self._board = PassageBoard(day=today)
 
         for passage in self.coordinator.passages.values():
-            entry = _passage_entry(passage)
+            entry = passage_entry(passage)
             for index, existing in enumerate(self._board.passages):
                 if existing["hex"] == entry["hex"] and existing["at"] == entry["at"]:
                     self._board.passages[index] = entry
