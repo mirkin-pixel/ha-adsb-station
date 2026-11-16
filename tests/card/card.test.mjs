@@ -1086,6 +1086,67 @@ const tests = {
     assert.match(panel(nautical), /0\.6 NM/);
   },
 
+  "keeps the photo it had through a poll"() {
+    const w = browser();
+    const photographed = {
+      ...KLM,
+      photo: "https://cdn.example/p.jpg",
+      photo_link: "https://example.org/p",
+      photographer: "A",
+    };
+    const hass = hassWith({ overhead: overheadState(photographed) });
+    const card = render(w, hass);
+    const photo = card.shadowRoot.querySelector(".photo img");
+    card.hass = {
+      ...hass,
+      states: {
+        ...hass.states,
+        "sensor.t_etur47_vlucht_overhead": { ...overheadState({ ...photographed, altitude: 3300 }), last_updated: "u" },
+      },
+    };
+    assert.equal(card.shadowRoot.querySelector(".photo img"), photo, "the same picture, not loaded again");
+  },
+
+  "sets its layout by its measured width, not by a container query"() {
+    const w = browser();
+    const observed = [];
+    w.ResizeObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+      }
+      observe(target) {
+        observed.push((width) => this.callback([{ target, contentRect: { width } }]));
+      }
+    };
+    const card = render(w, hassWith({ overhead: overheadState(KLM) }));
+    const haCard = card.shadowRoot.querySelector("ha-card");
+    assert.doesNotMatch(card.shadowRoot.querySelector("style").textContent, /container/);
+    const sizes = { 390: "narrow", 600: "", 1000: "side-by-side" };
+    for (const [width, classes] of Object.entries(sizes)) {
+      observed[0](Number(width));
+      assert.equal(haCard.className, classes, `${width} px wide`);
+    }
+  },
+
+  "keeps a tapped aircraft focused without scrolling the page to it"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW]));
+    const asked = [];
+    const focus = w.SVGElement.prototype.focus;
+    w.SVGElement.prototype.focus = function (options) {
+      asked.push(options);
+      return focus.call(this, options);
+    };
+    card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).focus();
+    asked.length = 0;
+    link.send(SKY([LOW]));
+    assert.equal(card.shadowRoot.activeElement.dataset.hex, LOW.hex, "still the tapped one");
+    assert.equal(JSON.stringify(asked), JSON.stringify([{ preventScroll: true }]));
+  },
+
   "takes the units from the sky, before any sensor names them"() {
     const w = browser();
     const hass = hassWith();

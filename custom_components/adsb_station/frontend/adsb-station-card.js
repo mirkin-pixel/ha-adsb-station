@@ -210,6 +210,10 @@ const LISTS = ["now", "passages"];
 // The traffic counters' kinds, to show or hide on the radar.
 const KINDS = ["airline", "other", "helicopter", "military"];
 const DEFAULT_FIXED_RANGE = 100;
+// From this width the sky and the rest stand side by side; up to the other,
+// the table drops its less needed columns.
+const SIDE_BY_SIDE = 720;
+const NARROW = 480;
 // The compass sectors the station keeps a range record for, clockwise from
 // north, each centred on its direction.
 const SECTORS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -828,6 +832,15 @@ class AdsbStationCard extends HTMLElement {
       this._tableBox = el("div", { class: "table" });
       this._card.append(el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
       this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
+      // Measured, not a container query: WebKit scrolls a phone up when the
+      // content of a query container changes.
+      if (window.ResizeObserver) {
+        new ResizeObserver(([entry]) => {
+          const width = entry.contentRect.width;
+          this._card.classList.toggle("side-by-side", width >= SIDE_BY_SIDE);
+          this._card.classList.toggle("narrow", width <= NARROW);
+        }).observe(this._card);
+      }
     }
     if (this._config.title) this._card.setAttribute("header", this._config.title);
     else this._card.removeAttribute("header");
@@ -848,6 +861,16 @@ class AdsbStationCard extends HTMLElement {
     if (showSky) this._drawSky();
     this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
+  }
+
+  // The same picture element while the aircraft stays, so a poll does not
+  // load it again.
+  _photoOf(src, alt) {
+    if (!this._photo || this._photo.getAttribute("src") !== src) {
+      this._photo = el("img", { src, alt, loading: "lazy" });
+    }
+    this._photo.alt = alt;
+    return this._photo;
   }
 
   _moreInfo(entry) {
@@ -961,9 +984,11 @@ class AdsbStationCard extends HTMLElement {
         this._picked(text),
       ].filter(Boolean),
     );
+    // Without scrolling to it: redrawn every second, it would pull a phone
+    // scrolled down to the passage board back up to the radar.
     if (focused) {
       const marker = this._skyBox.querySelector(`.plane[data-hex="${focused}"]`);
-      if (marker) marker.focus();
+      if (marker) marker.focus({ preventScroll: true });
     }
   }
 
@@ -1594,7 +1619,7 @@ class AdsbStationCard extends HTMLElement {
         el(
           "a",
           { class: "photo", href: link, target: "_blank", rel: "noopener" },
-          el("img", { src: photo, alt: plane.flight || plane.hex, loading: "lazy" }),
+          this._photoOf(photo, plane.flight || plane.hex),
         ),
         el(
           "div",
@@ -1913,20 +1938,17 @@ const STYLE = css`
   ha-card {
     display: block;
     overflow: hidden;
-    container-type: inline-size;
   }
   .layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
   }
-  @container (min-width: 720px) {
-    .layout.with-sky {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    }
-    .layout.with-sky .sky {
-      border-right: 1px solid var(--divider-color);
-      border-bottom: none;
-    }
+  .side-by-side .layout.with-sky {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+  .side-by-side .layout.with-sky .sky {
+    border-right: 1px solid var(--divider-color);
+    border-bottom: none;
   }
   .sky {
     padding: 12px 12px 8px;
@@ -2350,10 +2372,8 @@ const STYLE = css`
     color: var(--secondary-text-color);
     text-align: center;
   }
-  @container (max-width: 480px) {
-    .table .wide {
-      display: none;
-    }
+  .narrow .table .wide {
+    display: none;
   }
   .status {
     display: flex;
