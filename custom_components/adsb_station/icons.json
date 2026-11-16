@@ -237,6 +237,12 @@
           "on": "mdi:file-document-alert-outline"
         }
       },
+      "connector": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "off": "mdi:lan-disconnect"
+        }
+      },
       "nearby": {
         "default": "mdi:airplane-alert"
       },

@@ -64,6 +64,7 @@ from .const import (
     GPS_POSSIBLE,
     GPS_WINDOW,
     GROUND_ALTITUDE,
+    ISSUE_BAD_TUNER,
     KNOTS_TO_METRES_PER_SECOND,
     MAX_PLAUSIBLE_RANGE,
     MISSED_READS_TOLERATED,
@@ -702,6 +703,11 @@ def count_of(stats: AircraftStats, kind: str) -> int:
     return sum(1 for summary in stats.heard if traffic_kind(summary) == kind)
 
 
+def connectors_signal(entry_id: str) -> str:
+    """Return what is sent when readsb lists a connection not seen before."""
+    return f"{DOMAIN}_connectors_{entry_id}"
+
+
 def sky_signal(entry_id: str) -> str:
     """Return what is sent after every poll, for the cards following an entry.
 
@@ -876,6 +882,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._status_moved_at = dt_util.utcnow()
         # What receiver.json says the decoder is and can do, for diagnostics.
         self.receiver_info: dict[str, Any] = {}
+        # Each connection readsb makes, by host:port, and whether it is up.
+        self.connectors: dict[str, bool] = {}
+        # Until stats.prom turns out not to be served.
+        self._has_prometheus = True
         self._stats_misses = 0
         # Unavailable right now, for the log's warning and all-clear. Without a
         # last answer to keep, that is from the first miss.
@@ -995,8 +1005,32 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             aircraft=self._count_messages(aircraft, sample=True),
             stats=await self._async_get_stats(),
         )
+        await self._async_read_connectors()
         self._statistics_read_at = dt_util.utcnow()
         return data
+
+    async def _async_read_connectors(self) -> None:
+        """Read readsb's connections to the networks it feeds, from stats.prom.
+
+        Only readsb serves it; a decoder that does not is not asked again
+        until a reload. One that cannot be read keeps the last answer.
+        """
+        if not self.client.stats_url or not self._has_prometheus:
+            return
+        try:
+            connectors = await self.client.async_get_connectors()
+        except AdsbStationError as err:
+            _LOGGER.debug("Could not read stats.prom, keeping the last: %s", err)
+            return
+        if connectors is None:
+            self._has_prometheus = False
+            return
+        new = connectors.keys() - self.connectors.keys()
+        self.connectors = connectors
+        if new:
+            async_dispatcher_send(
+                self.hass, connectors_signal(self.config_entry.entry_id)
+            )
 
     def status_time_of(self, payload: dict[str, Any]) -> float | None:
         """Return the time the feeder wrote on its status page, in seconds."""
@@ -1629,7 +1663,29 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._stats_misses = 0
 
         self._check_samples(data)
+        self._check_tuner(data)
         return self._build_receiver_stats(data)
+
+    def _check_tuner(self, data: dict[str, Any]) -> None:
+        """Raise a repair while readsb says the dongle's tuner is a bad one.
+
+        It knows the FC0012, FC0013 and FC2580 receive 1090 MHz badly. The
+        flag goes with the dongle.
+        """
+        entry = self.config_entry
+        issue_id = f"{ISSUE_BAD_TUNER}_{entry.entry_id}"
+        if data.get("bad_tuner") is not True:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_BAD_TUNER,
+            translation_placeholders={"station": entry.title},
+        )
 
     async def _async_read_receiver(self) -> None:
         """Read receiver.json once: the antenna position and the decoder version.

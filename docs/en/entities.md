@@ -28,6 +28,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Range record, Altitude record, Speed record | Sensor (distance, height, speed) | The furthest, highest and fastest any aircraft has ever been heard, with that aircraft and `recorded_at` as attributes. See [records](#records) |
 | Records | Event | Fires once per flight that sets one of those records, with `range`, `altitude` or `speed` as its type. See [a new record](automations.md#a-new-record) |
 | Receiver silent | Binary sensor (problem, diagnostic) | On when the dongle has delivered nothing to the decoder for three minutes, which is a dongle that is gone or wedged rather than a quiet sky. Also raises a repair. Needs `stats.json`; see [troubleshooting](troubleshooting.md#the-receiver-hears-nothing) |
+| Connection feed.adsb.fi:30004, … | Binary sensor (connectivity) | One per connection readsb makes to a network it feeds, as Ultrafeeder does to adsb.fi, airplanes.live and the others: on while it is up. Read from readsb's `stats.prom`, beside `stats.json`; each appears once readsb lists it, and is unavailable once it no longer does. Other decoders serve no such page and get none |
 | Messages | Sensor (diagnostic) | The total message counter of the receiver, updated at the statistics interval |
 | Receiver updated | Sensor (diagnostic, off by default) | The timestamp inside `aircraft.json`. New on every poll, so off unless you switch it on |
 

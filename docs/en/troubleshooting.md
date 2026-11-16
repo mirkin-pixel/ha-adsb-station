@@ -8,6 +8,10 @@ It is nearly always the dongle. It dropped off the USB bus, or the host was rebo
 
 The sensor watches the samples rather than the messages or the aircraft, so a quiet sky is never mistaken for a dead receiver: a modest antenna can hear no message at all for twenty minutes on a quiet night, and still be fine. It reads them from `stats.json`, so a decoder without one gets no such sensor. It also turns on when the decoder stops answering at all, with a feeder still there to say so. A station without a feeder becomes unavailable as a whole instead, and the repair appears all the same.
 
+## A tuner that hears 1090 MHz badly
+
+readsb knows three tuners that receive 1090 MHz badly: the FC0012, FC0013 and FC2580, from cheap TV sticks. With one of those it says so in `stats.json`, and a repair appears under **Settings → System → Repairs**. Nothing is broken; the station just hears far fewer aircraft, and far less far, than it could. A dongle made for ADS-B, or one with an R820T, R828D or R860 tuner, does much better. The repair goes away by itself once readsb no longer reports it.
+
 ## Entities stay unknown or unavailable
 
 Collect the two things below and attach them to an [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).

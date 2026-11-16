@@ -130,6 +130,10 @@ STATS_FILENAME = "stats.json"
 RECEIVER_FILENAME = "receiver.json"
 # readsb's furthest position per degree over the last day, for the map.
 OUTLINE_FILENAME = "outline.json"
+# readsb's Prometheus page, beside stats.json: one line per --net-connector.
+PROMETHEUS_FILENAME = "stats.prom"
+# readsb sets it for a tuner that receives 1090 MHz badly.
+ISSUE_BAD_TUNER = "bad_tuner"
 OUTLINE_INTERVAL = timedelta(minutes=5)
 
 # fr24feed's fork has no "emergency" field, only the squawk.

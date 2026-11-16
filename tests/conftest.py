@@ -43,6 +43,7 @@ _DATA_URL = f"http://{MOCK_HOST}:{DEFAULT_AIRCRAFT_PORT}/dump1090/data"
 AIRCRAFT_URL = f"{_DATA_URL}/aircraft.json"
 STATS_URL = f"{_DATA_URL}/stats.json"
 RECEIVER_URL = f"{_DATA_URL}/receiver.json"
+PROMETHEUS_URL = f"{_DATA_URL}/stats.prom"
 
 # Home Assistant's home location for the tests; the first aircraft below sits
 # right on top of it and the second one exactly one degree of latitude north.
@@ -405,8 +406,13 @@ def set_responses(
     aircraft_kwargs: dict[str, Any] | None = None,
     stats_kwargs: dict[str, Any] | None = None,
     receiver_kwargs: dict[str, Any] | None = None,
+    prometheus: str | None = None,
+    prometheus_kwargs: dict[str, Any] | None = None,
 ) -> None:
-    """Replace the mocked responses of every endpoint."""
+    """Replace the mocked responses of every endpoint.
+
+    stats.prom is not served unless given, as by any decoder but readsb.
+    """
     aioclient_mock.clear_requests()
     aioclient_mock.get(
         FEEDER_URL, **(monitor_kwargs or {"json": monitor or MOCK_MONITOR})
@@ -418,6 +424,12 @@ def set_responses(
     aioclient_mock.get(
         RECEIVER_URL, **(receiver_kwargs or {"json": receiver or MOCK_RECEIVER})
     )
+    if prometheus_kwargs is not None:
+        aioclient_mock.get(PROMETHEUS_URL, **prometheus_kwargs)
+    elif prometheus is None:
+        aioclient_mock.get(PROMETHEUS_URL, status=404)
+    else:
+        aioclient_mock.get(PROMETHEUS_URL, text=prometheus)
     mock_unused_candidates(aioclient_mock)
 
 

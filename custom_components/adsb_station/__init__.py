@@ -27,6 +27,7 @@ from .const import (
     CONF_WATCHLIST,
     DOMAIN,
     FEEDER_FR24,
+    ISSUE_BAD_TUNER,
     ISSUE_SET_BY_HAND,
     ISSUE_UNITS,
 )
@@ -184,6 +185,7 @@ async def async_unload_entry(
     # A silent receiver is noticed again by the next coordinator, and an entry
     # that is being removed should not leave a repair behind that names it.
     ir.async_delete_issue(hass, DOMAIN, f"receiver_silent_{entry.entry_id}")
+    ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_BAD_TUNER}_{entry.entry_id}")
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
