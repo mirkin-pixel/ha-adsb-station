@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 import logging
+import re
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
@@ -28,6 +29,7 @@ from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
+    connectors_signal,
     gps_level,
     kilometres,
     watchlist_signal,
@@ -156,6 +158,25 @@ async def async_setup_entry(
     # It reads the samples in stats.json, so only where there is one.
     if coordinator.client.stats_url:
         entities.append(AdsbStationReceiverSilentBinarySensor(coordinator))
+        # One per connection readsb lists, as they turn up.
+        connected: set[str] = set()
+
+        @callback
+        def _follow_connectors() -> None:
+            if new := [
+                name for name in coordinator.connectors if name not in connected
+            ]:
+                connected.update(new)
+                async_add_entities(
+                    AdsbStationConnectorBinarySensor(coordinator, name) for name in new
+                )
+
+        _follow_connectors()
+        entry.async_on_unload(
+            async_dispatcher_connect(
+                hass, connectors_signal(entry.entry_id), _follow_connectors
+            )
+        )
     if coordinator.client.aircraft_url:
         entities.append(AdsbStationEmergencyBinarySensor(coordinator))
         entities.append(AdsbStationGpsInterferenceBinarySensor(coordinator))
@@ -259,6 +280,33 @@ class AdsbStationStatusStaleBinarySensor(AdsbStationEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """Return True when the feeder's own time has stood still too long."""
         return self.coordinator.status_stale
+
+
+class AdsbStationConnectorBinarySensor(AdsbStationEntity, BinarySensorEntity):
+    """On while one of readsb's connections, to a network it feeds, is up."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_translation_key = "connector"
+
+    def __init__(
+        self, coordinator: AdsbStationDataUpdateCoordinator, name: str
+    ) -> None:
+        """Initialize the binary sensor for host:port."""
+        super().__init__(
+            coordinator, f"connector_{re.sub('[^a-z0-9]+', '_', name.lower())}"
+        )
+        self._connection = name
+        self._attr_translation_placeholders = {"connection": name}
+
+    @property
+    def available(self) -> bool:
+        """Return False once readsb no longer lists the connection."""
+        return super().available and self._connection in self.coordinator.connectors
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True while the connection is up."""
+        return self.coordinator.connectors.get(self._connection)
 
 
 class AdsbStationGpsInterferenceBinarySensor(

@@ -379,6 +379,7 @@ async def test_reconfigure_a_station_that_did_not_load(
     aioclient_mock.get(f"{new_data}/aircraft.json", json=MOCK_AIRCRAFT)
     aioclient_mock.get(f"{new_data}/stats.json", json=MOCK_STATS)
     aioclient_mock.get(f"{new_data}/receiver.json", status=404)
+    aioclient_mock.get(f"{new_data}/stats.prom", status=404)
 
     result = await mock_config_entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(

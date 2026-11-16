@@ -458,6 +458,9 @@
           "on": "Frozen"
         }
       },
+      "connector": {
+        "name": "Connection {connection}"
+      },
       "emergency": {
         "name": "Emergency squawk",
         "state": {
@@ -552,6 +555,10 @@
     "receiver_silent": {
       "title": "{station} hears nothing",
       "description": "The dongle of {station} has delivered nothing to the decoder for {minutes} minutes. A working dongle hands over millions of samples a second, whether or not anything is flying, so this is the dongle and not a quiet sky: it dropped off the USB bus, or it did not come back after a reboot because it never lost power.\n\nUnplug the dongle and plug it back in, or restart the decoder. This message goes away by itself as soon as the dongle delivers again."
+    },
+    "bad_tuner": {
+      "title": "The dongle of {station} has a tuner that hears 1090 MHz badly",
+      "description": "readsb reports that the dongle of {station} has an FC0012, FC0013 or FC2580 tuner. Those come from cheap TV sticks and receive 1090 MHz badly, so the station hears far fewer aircraft, and far less far, than it could. Nothing is broken; it is the wrong kind of dongle.\n\nUse a dongle made for ADS-B, or one with an R820T, R828D or R860 tuner. This message goes away by itself once readsb no longer reports it."
     },
     "units_changed": {
       "title": "Units changed for {station}",

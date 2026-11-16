@@ -28,6 +28,7 @@ Alles uit `aircraft.json`, het deel dat elke opstelling krijgt:
 | Ooit gehoorde toestellen | Sensor | Hoeveel verschillende toestellen het station gehoord heeft, met `since`, en hoeveel `types` en `airlines`. Zie [een nieuw toestel](automations.md#een-nieuw-toestel) |
 | Records | Event | Gaat één keer af per vlucht die een van die records zet, met `range`, `altitude` of `speed` als type. Zie [een nieuw record](automations.md#een-nieuw-record) |
 | Ontvanger stil | Binary sensor (probleem, diagnostisch) | Aan als de dongle drie minuten niets aan de decoder heeft geleverd. Dat is een dongle die weg is of vastzit, geen rustige lucht. Geeft ook een melding onder Reparaties. Heeft `stats.json` nodig; zie [problemen oplossen](troubleshooting.md#de-ontvanger-hoort-niets) |
+| Verbinding feed.adsb.fi:30004, … | Binary sensor (verbinding) | Eén per verbinding die readsb maakt met een netwerk waaraan hij voert, zoals Ultrafeeder dat doet met adsb.fi, airplanes.live en de andere: aan zolang hij staat. Gelezen uit `stats.prom` van readsb, naast `stats.json`; elke verschijnt zodra readsb hem noemt, en wordt onbeschikbaar als hij dat niet meer doet. Andere decoders hebben zo'n pagina niet en krijgen er geen |
 | Berichten | Sensor (diagnostisch) | De totale berichtenteller van de ontvanger, bijgewerkt op de ververstijd voor statistieken |
 | Ontvanger bijgewerkt | Sensor (diagnostisch, standaard uit) | Het tijdstempel in `aircraft.json`. Elke meting nieuw, dus uit tenzij je hem aanzet |
 

@@ -458,6 +458,9 @@
           "on": "Bevroren"
         }
       },
+      "connector": {
+        "name": "Verbinding {connection}"
+      },
       "emergency": {
         "name": "Noodsquawk",
         "state": {
@@ -552,6 +555,10 @@
     "receiver_silent": {
       "title": "{station} hoort niets",
       "description": "De dongle van {station} heeft al {minutes} minuten niets aan de decoder geleverd. Een werkende dongle levert miljoenen samples per seconde, of er nu iets vliegt of niet, dus dit is de dongle en geen rustige lucht: hij is van de USB-bus gevallen, of kwam na een herstart niet terug omdat hij nooit stroomloos is geweest.\n\nTrek de dongle eruit en steek hem er weer in, of herstart de decoder. Deze melding verdwijnt vanzelf zodra de dongle weer levert."
+    },
+    "bad_tuner": {
+      "title": "De dongle van {station} heeft een tuner die 1090 MHz slecht hoort",
+      "description": "readsb meldt dat de dongle van {station} een FC0012-, FC0013- of FC2580-tuner heeft. Die komen uit goedkope tv-sticks en ontvangen 1090 MHz slecht, dus het station hoort veel minder vliegtuigen, en veel minder ver, dan het zou kunnen. Er is niets kapot; het is het verkeerde soort dongle.\n\nGebruik een dongle die voor ADS-B gemaakt is, of een met een R820T-, R828D- of R860-tuner. Deze melding verdwijnt vanzelf zodra readsb het niet meer meldt."
     },
     "units_changed": {
       "title": "Eenheden gewijzigd voor {station}",

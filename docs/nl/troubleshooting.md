@@ -8,6 +8,10 @@ Het is bijna altijd de dongle. Die is van de USB-bus gevallen, of de host is her
 
 De sensor kijkt naar de samples en niet naar de berichten of de vliegtuigen, dus een rustige lucht wordt nooit aangezien voor een dode ontvanger: een bescheiden antenne kan op een rustige nacht twintig minuten geen enkel bericht horen en toch prima werken. Hij leest ze uit `stats.json`, dus een decoder zonder krijgt deze sensor niet. Hij gaat ook aan als de decoder helemaal niet meer antwoordt, zolang er een feeder is om dat te melden. Een station zonder feeder wordt dan als geheel onbeschikbaar, en de melding verschijnt toch.
 
+## Een tuner die 1090 MHz slecht hoort
+
+readsb kent drie tuners die 1090 MHz slecht ontvangen: de FC0012, FC0013 en FC2580, uit goedkope tv-sticks. Met een daarvan meldt hij dat in `stats.json`, en verschijnt er een reparatiemelding onder **Instellingen → Systeem → Reparaties**. Er is niets kapot; het station hoort alleen veel minder vliegtuigen, en veel minder ver, dan het zou kunnen. Een dongle die voor ADS-B gemaakt is, of een met een R820T-, R828D- of R860-tuner, doet het veel beter. De melding verdwijnt vanzelf zodra readsb het niet meer meldt.
+
 ## Entiteiten blijven onbekend of onbeschikbaar
 
 Verzamel de twee onderstaande zaken en voeg ze toe aan een [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues).

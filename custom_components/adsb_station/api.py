@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any, TypeGuard
 
 import aiohttp
@@ -17,6 +18,7 @@ from .const import (
     FEATURE_POSITIONS,
     FEEDERS,
     OUTLINE_FILENAME,
+    PROMETHEUS_FILENAME,
     RECEIVER_FILENAME,
     STATS_FILENAME,
 )
@@ -31,6 +33,22 @@ TIMEOUT = 10
 # Probing runs against many candidates at once, so a stuck one should not hold
 # up the config flow for the full timeout.
 DETECT_TIMEOUT = 4
+
+
+# readsb_net_connector_status{host="feed.adsb.fi",port="30004"} 3600: the
+# seconds a connection has been up, or 0 while it is not.
+_CONNECTOR = re.compile(
+    r'^readsb_net_connector_status\{host="([^"]*)",port="([^"]*)"\}\s+(\d+)',
+    re.MULTILINE,
+)
+
+
+def parse_connectors(text: str) -> dict[str, bool]:
+    """Return each connection readsb makes, by host:port, and whether it is up."""
+    return {
+        f"{host}:{port}": int(seconds) > 0
+        for host, port, seconds in _CONNECTOR.findall(text)
+    }
 
 
 class AdsbStationError(Exception):
@@ -307,6 +325,26 @@ class AdsbStationClient:
                 f"Unexpected stats.json response: {data!r}"
             )
         return data
+
+    async def async_get_connectors(self) -> dict[str, bool] | None:
+        """Fetch stats.prom; None when the decoder serves none."""
+        if not self.stats_url:
+            return None
+        url = sibling_url(self.stats_url, PROMETHEUS_FILENAME)
+        try:
+            async with asyncio.timeout(TIMEOUT):
+                response = await self._session.get(url)
+                _LOGGER.debug("GET %s returned HTTP %s", url, response.status)
+                if response.status == 404:
+                    return None
+                response.raise_for_status()
+                return parse_connectors(await response.text())
+        except TimeoutError as err:
+            raise AdsbStationConnectionError(f"Timeout connecting to {url}") from err
+        except aiohttp.ClientError as err:
+            raise AdsbStationConnectionError(
+                f"Error connecting to {url}: {err}"
+            ) from err
 
     async def async_get_receiver(self) -> dict[str, Any]:
         """Fetch receiver.json, which holds the position of the antenna."""
