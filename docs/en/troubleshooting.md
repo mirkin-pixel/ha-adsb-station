@@ -25,4 +25,4 @@ logger:
 
 Debug logging shows the HTTP status of every poll and any value the integration could not parse.
 
-**Download diagnostics.** On the same page, choose **Download diagnostics**. The file contains the configuration and the last poll, with the address of your receiver and your feed alias redacted.
+**Download diagnostics.** On the same page, choose **Download diagnostics**. The file contains the configuration, the last poll and what `receiver.json` says the decoder is and can do, with the address of your receiver and your feed alias redacted, and without the antenna's position.

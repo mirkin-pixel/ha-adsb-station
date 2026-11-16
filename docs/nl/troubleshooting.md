@@ -25,4 +25,4 @@ logger:
 
 In de debug-log zie je de HTTP-status van elke poll en elke waarde die de integratie niet kon verwerken.
 
-**Diagnostiek downloaden.** Kies op dezelfde pagina **Diagnostische gegevens downloaden**. Het bestand bevat de configuratie en de laatste meting, met het adres van je ontvanger en je feed-alias weggehaald.
+**Diagnostiek downloaden.** Kies op dezelfde pagina **Diagnostische gegevens downloaden**. Het bestand bevat de configuratie, de laatste meting en wat `receiver.json` zegt over wat de decoder is en kan, met het adres van je ontvanger en je feed-alias weggehaald, en zonder de positie van de antenne.

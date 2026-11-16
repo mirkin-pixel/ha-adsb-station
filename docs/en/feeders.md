@@ -9,7 +9,7 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | Aircraft tracked | Sensor | Aircraft the feeder is currently tracking |
 | Aircraft tracked via ADS-B | Sensor | Of those, the number tracked via ADS-B |
 | Aircraft uploaded | Sensor | Aircraft in the last upload to Flightradar24 |
-| Feed status | Sensor | The status of the feed as fr24feed puts it: `connected`, `connecting`, `reconnecting` or `disconnected`. Shown in words in your language; an automation compares against the value itself |
+| Feed status | Sensor | The status of the feed as fr24feed puts it: `connected`, `connecting`, `reconnecting` or `disconnected`. Shown in words in your language; an automation compares against the value itself. When fr24feed says why it is not connected, that sentence is the `message` attribute |
 | Receiver | Binary sensor (connectivity) | On while `fr24feed` sees the dongle |
 | Feed | Binary sensor (connectivity) | On while the feed reaches Flightradar24 |
 | MLAT | Binary sensor (connectivity, diagnostic) | On while multilateration works |
@@ -18,6 +18,8 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | Map size | Sensor (diagnostic) | The `d11_map_size` of the feeder |
 | Resets | Sensor (diagnostic) | The number of resets since the start |
 | Last connected | Sensor (diagnostic) | When the feed last connected |
+| Last disconnected | Sensor (diagnostic) | When the feed last dropped, which also tells whether it came back after a short drop at night |
+| Status page frozen | Binary sensor (problem, diagnostic) | See [below](#a-frozen-status-page) |
 | CPU temperature | Sensor (diagnostic) | The SoC temperature of the host. Only on the single board computer builds |
 | Clock drift | Sensor (s, diagnostic) | How far the feeder's clock drifted. Multilateration needs this small |
 | Timing source | Sensor (diagnostic) | What the feeder synchronises its clock against, for example NTP |
@@ -35,8 +37,13 @@ Each feeder adds its own entities, on its own device. Which of these you see dep
 | CPU load | Sensor (%, diagnostic) | Load on the host |
 | Last boot | Sensor (timestamp, diagnostic) | When the host was last started |
 | CPU temperature | Sensor (diagnostic) | Only created on a host that reads one |
+| Status page frozen | Binary sensor (problem, diagnostic) | See [below](#a-frozen-status-page) |
 
 Those four are green, amber or red rather than on or off, because amber says something neither of the other two can: a feeder reporting an unstable clock is running fine but will never multilaterate. The colour is the state, and the sentence behind it, *"Local clock source is unstable"*, is on the entity as a `message` attribute.
+
+### A frozen status page
+
+fr24feed and PiAware write their own time on their status page. **Status page frozen** turns on when the feeder still answers but that time has stood still for five minutes, or three reads at a longer statistics interval: the page is then a picture of the past, and every other entity of that feeder goes on showing a state that may no longer be true. It looks at whether the time moves rather than at what it says, so a feeder whose clock differs from Home Assistant's raises nothing. A build that writes no time gets no such sensor.
 
 **Plane Finder**, from the `/ajax/stats` of `pfclient`:
 

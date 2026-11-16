@@ -9,7 +9,7 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | Vliegtuigen gevolgd | Sensor | Vliegtuigen die de feeder op dit moment volgt |
 | Vliegtuigen gevolgd via ADS-B | Sensor | Daarvan het aantal dat via ADS-B gevolgd wordt |
 | Vliegtuigen doorgestuurd | Sensor | Vliegtuigen in de laatste upload naar Flightradar24 |
-| Feedstatus | Sensor | De status van de feed zoals fr24feed hem geeft: `connected`, `connecting`, `reconnecting` of `disconnected`. Wordt in je eigen taal getoond (Verbonden, Verbinden, Opnieuw verbinden, Verbroken); een automatisering vergelijkt met de waarde zelf |
+| Feedstatus | Sensor | De status van de feed zoals fr24feed hem geeft: `connected`, `connecting`, `reconnecting` of `disconnected`. Wordt in je eigen taal getoond (Verbonden, Verbinden, Opnieuw verbinden, Verbroken); een automatisering vergelijkt met de waarde zelf. Zegt fr24feed waarom hij niet verbonden is, dan staat die zin in het attribuut `message` |
 | Ontvanger | Binary sensor (verbinding) | Aan zolang `fr24feed` de dongle ziet |
 | Feed | Binary sensor (verbinding) | Aan zolang de feed Flightradar24 bereikt |
 | MLAT | Binary sensor (verbinding, diagnostisch) | Aan zolang multilateratie werkt |
@@ -18,6 +18,8 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | Kaartgrootte | Sensor (diagnostisch) | De `d11_map_size` van de feeder |
 | Herstarts | Sensor (diagnostisch) | Het aantal resets sinds de start |
 | Laatst verbonden | Sensor (diagnostisch) | Wanneer de feed voor het laatst verbond |
+| Laatst verbroken | Sensor (diagnostisch) | Wanneer de feed voor het laatst wegviel, zodat je ook ziet of hij 's nachts even weg was |
+| Statuspagina bevroren | Binaire sensor (probleem, diagnostisch) | Zie [hieronder](#een-bevroren-statuspagina) |
 | CPU-temperatuur | Sensor (diagnostisch) | De SoC-temperatuur van de host. Alleen op de builds voor single board computers |
 | Klokafwijking | Sensor (s, diagnostisch) | Hoe ver de klok van de feeder afdreef. Multilateratie heeft dit klein nodig |
 | Tijdbron | Sensor (diagnostisch) | Waar de feeder zijn klok mee gelijkzet, bijvoorbeeld NTP |
@@ -35,8 +37,13 @@ Elke feeder voegt zijn eigen entiteiten toe, op zijn eigen apparaat. Welke je zi
 | CPU-belasting | Sensor (%, diagnostisch) | Belasting van de host |
 | Laatst opgestart | Sensor (tijdstip, diagnostisch) | Wanneer de host voor het laatst is opgestart |
 | CPU-temperatuur | Sensor (diagnostisch) | Alleen aangemaakt op een host die er een uitleest |
+| Statuspagina bevroren | Binaire sensor (probleem, diagnostisch) | Zie [hieronder](#een-bevroren-statuspagina) |
 
 Die vier zijn groen, amber of rood in plaats van aan of uit, want amber zegt iets wat de andere twee niet kunnen: een feeder die een onstabiele klok meldt draait prima, maar zal nooit multilatereren. De kleur is de state, en de zin erachter, *"Local clock source is unstable"*, staat als attribuut `message` op de entiteit.
+
+### Een bevroren statuspagina
+
+fr24feed en PiAware schrijven hun eigen tijd op hun statuspagina. **Statuspagina bevroren** gaat aan als de feeder nog antwoordt, maar die tijd vijf minuten stilstaat, of drie uitlezingen bij een langere ververstijd voor statistieken: de pagina is dan een foto van vroeger, en elke andere entiteit van die feeder blijft een toestand tonen die misschien niet meer klopt. Hij kijkt of de tijd beweegt en niet naar wat hij zegt, dus een feeder met een andere klok dan Home Assistant geeft geen vals alarm. Een versie die geen tijd schrijft, krijgt deze sensor niet.
 
 **Plane Finder**, uit de `/ajax/stats` van `pfclient`:
 

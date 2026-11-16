@@ -217,6 +217,12 @@ FR24_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         key="feed_status",
         translation_key="feed_status",
         value_fn=lambda monitor: _as_text(monitor.get("feed_status")),
+        # Why it is not connected, when fr24feed says; empty while it is.
+        attributes_fn=lambda monitor: (
+            None
+            if (message := _as_text(monitor.get("feed_status_message"))) is None
+            else {"message": message}
+        ),
     ),
     AdsbStationSensorEntityDescription(
         key="feed_mode",
@@ -250,6 +256,16 @@ FR24_SENSORS: tuple[AdsbStationSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda monitor: _as_timestamp(monitor.get("feed_last_connected_time")),
+    ),
+    AdsbStationSensorEntityDescription(
+        key="last_disconnected",
+        translation_key="last_disconnected",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda monitor: _as_timestamp(
+            monitor.get("feed_last_disconnected_time")
+        ),
+        supported_fn=lambda monitor: "feed_last_disconnected_time" in monitor,
     ),
     AdsbStationSensorEntityDescription(
         key="cpu_temperature",

@@ -18,7 +18,12 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, FEEDER_FR24, FEEDER_PLANEFINDER, GPS_LIKELY
+from .const import (
+    DOMAIN,
+    FEEDER_FR24,
+    FEEDER_PLANEFINDER,
+    GPS_LIKELY,
+)
 from .coordinator import (
     AdsbStationConfigEntry,
     AdsbStationDataUpdateCoordinator,
@@ -145,6 +150,9 @@ async def async_setup_entry(
             )
             if description.supported_fn is None or description.supported_fn(payload)
         )
+        # Only a feeder that writes its own time on the status page.
+        if coordinator.status_time_of(payload) is not None:
+            entities.append(AdsbStationStatusStaleBinarySensor(coordinator))
     # It reads the samples in stats.json, so only where there is one.
     if coordinator.client.stats_url:
         entities.append(AdsbStationReceiverSilentBinarySensor(coordinator))
@@ -230,6 +238,27 @@ class AdsbStationReceiverSilentBinarySensor(AdsbStationEntity, BinarySensorEntit
     def is_on(self) -> bool:
         """Return True when the dongle has delivered no samples for a while."""
         return self.coordinator.receiver_silent
+
+
+class AdsbStationStatusStaleBinarySensor(AdsbStationEntity, BinarySensorEntity):
+    """On while the feeder answers, but its status page has stopped moving.
+
+    The other feeder entities would then go on showing a state that is no
+    longer true.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "status_stale"
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(coordinator, "status_stale")
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when the feeder's own time has stood still too long."""
+        return self.coordinator.status_stale
 
 
 class AdsbStationGpsInterferenceBinarySensor(
