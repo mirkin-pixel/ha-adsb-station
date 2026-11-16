@@ -276,6 +276,9 @@
       "heard_today": {
         "name": "Heard today"
       },
+      "aircraft_ever_heard": {
+        "name": "Aircraft ever heard"
+      },
       "highest_aircraft": {
         "name": "Highest aircraft"
       },

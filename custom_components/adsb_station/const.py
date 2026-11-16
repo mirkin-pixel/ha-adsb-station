@@ -214,6 +214,10 @@ WATCHLIST_MILITARY = "military"
 WATCHLIST_HELICOPTER = "helicopter"
 WATCHLIST_COUNTRY = "country"
 
+# An aircraft the station has never heard before; bus only, as dozens a day
+# would bury Activity.
+EVENT_NEW_AIRCRAFT = f"{DOMAIN}_new_aircraft"
+
 # Once per aircraft that beats the furthest, highest or fastest ever heard.
 EVENT_RECORD_BROKEN = f"{DOMAIN}_record_broken"
 RECORD_RANGE = "range"

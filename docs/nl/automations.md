@@ -212,6 +212,35 @@ automation:
 
 De eerste dag nadat het station is toegevoegd, of na **Records wissen**, blijft stil: dan verbetert bijna elk vliegtuig het vorige, en worden de records alleen verzameld. **Records** is de event-entiteit voor de editor, en elk record laat een regel achter in **Activiteit**.
 
+## Een nieuw toestel
+
+Een melding als het station een type hoort dat het nog nooit gehoord heeft, bijvoorbeeld een eerste A380:
+
+```yaml
+automation:
+  - alias: "ADS-B: eerste van dit type"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_new_aircraft
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.first_of_type }}"
+    actions:
+      - action: notify.mobile_app_telefoon
+        data:
+          title: "Eerste {{ trigger.event.data.aircraft_type }}"
+          message: >
+            {{ trigger.event.data.description or trigger.event.data.aircraft_type }},
+            {{ trigger.event.data.registration or trigger.event.data.hex }}
+            {%- if trigger.event.data.flight %} als {{ trigger.event.data.flight }}{% endif %}.
+```
+
+`adsb_station_new_aircraft` gaat af voor elk toestel dat het station nog nooit gehoord heeft, op zijn ICAO-adres, met de velden van de andere events en twee eigen: `first_of_type`, het eerste van zijn type, en `first_of_airline`, de eerste vlucht van een bekende maatschappij. Een type vraagt een decoder met een vliegtuigdatabase, of de [gedownloade](decoders.md#de-vliegtuigdatabase).
+
+Nieuwe toestellen blijven maandenlang komen, in het begin tientallen per dag, dus dit event blijft alleen op de bus, net als de passages, en laat geen regel achter in **Activiteit**. Meestal wil je een voorwaarde zoals `first_of_type`. De eerste week nadat het station is toegevoegd blijft stil: dan is bijna elk toestel nieuw, en verzamelt het station alleen.
+
+**Ooit gehoorde toestellen** telt ze. Ze staan in een eigen bestand onder `.storage`, zo'n 30 bytes per toestel: een jaar van een druk station is een of twee megabyte. Het wordt hooguit elk kwartier geschreven, en als Home Assistant stopt, om een SD-kaart te sparen. Een toestel dat een jaar niet gehoord is, wordt vergeten en is dan weer nieuw.
+
 ## Het beste van vandaag
 
 **Maximaal bereik**, **Hoogste vliegtuig** en **Snelste vliegtuig** houden langetermijnstatistieken bij, dus een [statistiekkaart](https://www.home-assistant.io/dashboards/statistic/) toont het beste van elke dag zonder eigen sensor:

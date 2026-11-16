@@ -212,6 +212,35 @@ automation:
 
 The first day after the station is added, or after **Reset records**, is quiet: then nearly every aircraft beats the one before, and the records are only being collected. **Records** is the event entity for the editor, and each record leaves a line in **Activity**.
 
+## A new aircraft
+
+Notification when the station hears a type it has never heard before, a first A380 say:
+
+```yaml
+automation:
+  - alias: "ADS-B: first of its type"
+    triggers:
+      - trigger: event
+        event_type: adsb_station_new_aircraft
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.first_of_type }}"
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          title: "First {{ trigger.event.data.aircraft_type }}"
+          message: >
+            {{ trigger.event.data.description or trigger.event.data.aircraft_type }},
+            {{ trigger.event.data.registration or trigger.event.data.hex }}
+            {%- if trigger.event.data.flight %} as {{ trigger.event.data.flight }}{% endif %}.
+```
+
+`adsb_station_new_aircraft` fires for every aircraft the station has never heard before, by its ICAO address, with the fields of the other events and two of its own: `first_of_type`, the first of its type, and `first_of_airline`, the first flight of a known airline. A type needs a decoder with an aircraft database, or the [downloaded one](decoders.md#the-aircraft-database).
+
+New aircraft keep coming for months, dozens a day at first, so this event stays on the bus only, like the passages, and leaves no line in **Activity**. Most will want a condition such as `first_of_type`. The first week after the station is added is quiet: then nearly every aircraft is new, and the station is only collecting.
+
+**Aircraft ever heard** counts them. They are kept in a file of their own under `.storage`, about 30 bytes an aircraft: a year of a busy station is a megabyte or two. It is written at most every quarter of an hour, and when Home Assistant stops, to spare an SD card. An aircraft not heard for a year is forgotten, so it would be new again.
+
 ## The best of today
 
 **Maximum range**, **Highest aircraft** and **Fastest aircraft** keep long-term statistics, so a [statistic card](https://www.home-assistant.io/dashboards/statistic/) shows the best of each day without a sensor of its own:

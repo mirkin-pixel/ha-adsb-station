@@ -704,6 +704,7 @@ async def async_setup_entry(
         entities.extend(
             AdsbStationSectorRangeSensor(coordinator, sector) for sector in SECTORS
         )
+        entities.append(AdsbStationEverHeardSensor(coordinator))
         entities.append(AdsbStationRangeRecordSensor(coordinator))
         entities.append(AdsbStationAltitudeRecordSensor(coordinator))
         entities.append(AdsbStationSpeedRecordSensor(coordinator))
@@ -1363,6 +1364,34 @@ class AdsbStationHeardTodaySensor(
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return which day is being counted, and not the codes themselves."""
         return {"since": self._heard.day}
+
+
+class AdsbStationEverHeardSensor(AdsbStationAircraftEntity, SensorEntity):
+    """How many different aircraft the station has heard over the last year."""
+
+    _attr_translation_key = "aircraft_ever_heard"
+    # Not total: one not heard for a year is forgotten, and the count drops.
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, "aircraft_ever_heard")
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of aircraft heard."""
+        return len(self.coordinator.sightings.aircraft)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return since when, and how many types and airlines."""
+        sightings = self.coordinator.sightings
+        since = sightings.since_date()
+        return {
+            "since": None if since is None else since.isoformat(),
+            "types": len(sightings.types),
+            "airlines": len(sightings.airlines),
+        }
 
 
 @dataclass

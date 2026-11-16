@@ -216,6 +216,9 @@
       },
       "gps_interference": {
         "default": "mdi:crosshairs-gps"
+      },
+      "aircraft_ever_heard": {
+        "default": "mdi:book-open-variant"
       }
     },
     "binary_sensor": {

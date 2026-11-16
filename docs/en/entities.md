@@ -17,6 +17,7 @@ Everything from `aircraft.json`, the part every setup gets:
 | Overhead flight | Sensor | The one aircraft above you, the nearest on the map. Keeps the last one when the sky empties, so a panel built on it never goes blank. See [when something comes over](passages.md) |
 | Passages today | Sensor | How many aircraft came over today, with the last twenty of them as attributes, most recent first |
 | Heard today | Sensor | How many different aircraft the station heard today, at any distance |
+| Aircraft ever heard | Sensor | How many different aircraft the station has heard, with `since`, and how many `types` and `airlines`. See [a new aircraft](automations.md#a-new-aircraft) |
 | Watchlist in range | Binary sensor | On while an aircraft from your [watchlist](watchlist.md) is in the air. Only there when you have set one |
 | Watchlist | Event | `in_range` when a watched aircraft turns up, `left` once it has gone, with the same fields as the [events](watchlist.md). Only there when you have set a list |
 | Watchlist: add, Watchlist: remove | Text (configuration) | Type a line to put it on the watchlist or take it off, without opening the options. See [keeping it from a dashboard](watchlist.md#keeping-it-from-a-dashboard) |
