@@ -1086,7 +1086,7 @@ const tests = {
     assert.match(panel(nautical), /0\.6 NM/);
   },
 
-  async "keeps its height while a poll's new content settles, and the photo it had"() {
+  "keeps the photo it had through a poll"() {
     const w = browser();
     const photographed = {
       ...KLM,
@@ -1096,11 +1096,7 @@ const tests = {
     };
     const hass = hassWith({ overhead: overheadState(photographed) });
     const card = render(w, hass);
-    const body = card.shadowRoot.querySelector(".body");
     const photo = card.shadowRoot.querySelector(".photo img");
-    // jsdom lays nothing out; the panel as a phone would measure it
-    Object.defineProperty(body, "offsetHeight", { value: 512, configurable: true });
-
     card.hass = {
       ...hass,
       states: {
@@ -1108,10 +1104,28 @@ const tests = {
         "sensor.t_etur47_vlucht_overhead": { ...overheadState({ ...photographed, altitude: 3300 }), last_updated: "u" },
       },
     };
-    assert.equal(body.style.minHeight, "512px", "held through the redraw");
     assert.equal(card.shadowRoot.querySelector(".photo img"), photo, "the same picture, not loaded again");
-    await new Promise((done) => setTimeout(done, 1100));
-    assert.equal(body.style.minHeight, "", "and let go once settled");
+  },
+
+  "sets its layout by its measured width, not by a container query"() {
+    const w = browser();
+    const observed = [];
+    w.ResizeObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+      }
+      observe(target) {
+        observed.push((width) => this.callback([{ target, contentRect: { width } }]));
+      }
+    };
+    const card = render(w, hassWith({ overhead: overheadState(KLM) }));
+    const haCard = card.shadowRoot.querySelector("ha-card");
+    assert.doesNotMatch(card.shadowRoot.querySelector("style").textContent, /container/);
+    const sizes = { 390: "narrow", 600: "", 1000: "side-by-side" };
+    for (const [width, classes] of Object.entries(sizes)) {
+      observed[0](Number(width));
+      assert.equal(haCard.className, classes, `${width} px wide`);
+    }
   },
 
   "keeps a tapped aircraft focused without scrolling the page to it"() {

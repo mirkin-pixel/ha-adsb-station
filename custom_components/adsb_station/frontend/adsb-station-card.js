@@ -210,8 +210,10 @@ const LISTS = ["now", "passages"];
 // The traffic counters' kinds, to show or hide on the radar.
 const KINDS = ["airline", "other", "helicopter", "military"];
 const DEFAULT_FIXED_RANGE = 100;
-// How long a part keeps its height after a redraw, for icons and pictures to arrive.
-const STEADY_MS = 1000;
+// From this width the sky and the rest stand side by side; up to the other,
+// the table drops its less needed columns.
+const SIDE_BY_SIDE = 720;
+const NARROW = 480;
 // The compass sectors the station keeps a range record for, clockwise from
 // north, each centred on its direction.
 const SECTORS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -830,6 +832,15 @@ class AdsbStationCard extends HTMLElement {
       this._tableBox = el("div", { class: "table" });
       this._card.append(el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
       this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
+      // Measured, not a container query: WebKit scrolls a phone up when the
+      // content of a query container changes.
+      if (window.ResizeObserver) {
+        new ResizeObserver(([entry]) => {
+          const width = entry.contentRect.width;
+          this._card.classList.toggle("side-by-side", width >= SIDE_BY_SIDE);
+          this._card.classList.toggle("narrow", width <= NARROW);
+        }).observe(this._card);
+      }
     }
     if (this._config.title) this._card.setAttribute("header", this._config.title);
     else this._card.removeAttribute("header");
@@ -846,24 +857,10 @@ class AdsbStationCard extends HTMLElement {
       if (this._config.show_nearby) body.push(this._nearby(found, text));
       if (this._config.show_status) body.push(this._status(found, text));
     }
-    this._steady(this._body, () => this._body.replaceChildren(...body.filter(Boolean)));
+    this._body.replaceChildren(...body.filter(Boolean));
     if (showSky) this._drawSky();
     this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
-  }
-
-  // Keeps a part at least as tall as it was while its new content settles: an
-  // icon or a picture that arrives a moment later would otherwise shrink the
-  // page for an instant, and a phone scrolled to the bottom follows it up, a
-  // step on every poll until it is back at the top.
-  _steady(box, fill) {
-    const height = box.offsetHeight;
-    if (height) box.style.minHeight = `${height}px`;
-    fill();
-    clearTimeout(box._settle);
-    box._settle = setTimeout(() => {
-      box.style.minHeight = "";
-    }, STEADY_MS);
   }
 
   // The same picture element while the aircraft stays, so a poll does not
@@ -1941,20 +1938,17 @@ const STYLE = css`
   ha-card {
     display: block;
     overflow: hidden;
-    container-type: inline-size;
   }
   .layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
   }
-  @container (min-width: 720px) {
-    .layout.with-sky {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    }
-    .layout.with-sky .sky {
-      border-right: 1px solid var(--divider-color);
-      border-bottom: none;
-    }
+  .side-by-side .layout.with-sky {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+  .side-by-side .layout.with-sky .sky {
+    border-right: 1px solid var(--divider-color);
+    border-bottom: none;
   }
   .sky {
     padding: 12px 12px 8px;
@@ -2378,10 +2372,8 @@ const STYLE = css`
     color: var(--secondary-text-color);
     text-align: center;
   }
-  @container (max-width: 480px) {
-    .table .wide {
-      display: none;
-    }
+  .narrow .table .wide {
+    display: none;
   }
   .status {
     display: flex;
