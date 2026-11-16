@@ -197,6 +197,9 @@
       "last_connected": {
         "name": "Laatst verbonden"
       },
+      "last_disconnected": {
+        "name": "Laatst verbroken"
+      },
       "cpu_temperature": {
         "name": "CPU-temperatuur"
       },
@@ -446,6 +449,13 @@
         "state": {
           "off": "Levert",
           "on": "Stil"
+        }
+      },
+      "status_stale": {
+        "name": "Statuspagina bevroren",
+        "state": {
+          "off": "Wordt bijgewerkt",
+          "on": "Bevroren"
         }
       },
       "emergency": {

@@ -197,6 +197,9 @@
       "last_connected": {
         "name": "Last connected"
       },
+      "last_disconnected": {
+        "name": "Last disconnected"
+      },
       "cpu_temperature": {
         "name": "CPU temperature"
       },
@@ -446,6 +449,13 @@
         "state": {
           "off": "Delivering",
           "on": "Silent"
+        }
+      },
+      "status_stale": {
+        "name": "Status page frozen",
+        "state": {
+          "off": "Updating",
+          "on": "Frozen"
         }
       },
       "emergency": {

@@ -191,6 +191,15 @@ PASSAGE_GAP = timedelta(minutes=10)
 # back within a minute. Messages cannot tell, a quiet night has none for long.
 RECEIVER_SILENT_AFTER = timedelta(minutes=3)
 
+# A feeder status page whose own time stands still this long, while the
+# feeder still answers, is frozen; at least three reads at the slowest.
+STATUS_STALE_AFTER = timedelta(minutes=5)
+# The field each feeder writes its time into, and how many per second.
+STATUS_TIME_FIELDS = {
+    FEEDER_FR24: ("time_update_utc", 1),
+    FEEDER_PIAWARE: ("time", 1000),
+}
+
 # Missed reads in a row before entities go unavailable. One blip should not
 # leave a gap in graphs or re-trigger automations.
 MISSED_READS_TOLERATED = 2

@@ -105,6 +105,8 @@ async def async_get_config_entry_diagnostics(
         "has_feeder": coordinator.client.has_feeder,
         "feeder_type": coordinator.feeder_type,
         "receiver_version": coordinator.receiver_version,
+        # What the decoder is and can do, from receiver.json.
+        "receiver": coordinator.receiver_info,
         "feeder": (
             None if data.feeder is None else async_redact_data(data.feeder, TO_REDACT)
         ),

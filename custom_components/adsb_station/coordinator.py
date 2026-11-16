@@ -74,6 +74,8 @@ from .const import (
     RECEIVER_READ_ATTEMPTS,
     RECEIVER_SILENT_AFTER,
     SECTORS,
+    STATUS_STALE_AFTER,
+    STATUS_TIME_FIELDS,
     TRAFFIC_AIRLINE,
     TRAFFIC_HELICOPTER,
     TRAFFIC_MILITARY,
@@ -869,6 +871,11 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         # Reads in a row each endpoint has missed; see MISSED_READS_TOLERATED.
         self._feeder_misses = 0
         self._aircraft_misses = 0
+        # The feeder's own time on its status page, and when it last moved.
+        self._status_time: float | None = None
+        self._status_moved_at = dt_util.utcnow()
+        # What receiver.json says the decoder is and can do, for diagnostics.
+        self.receiver_info: dict[str, Any] = {}
         self._stats_misses = 0
         # Unavailable right now, for the log's warning and all-clear. Without a
         # last answer to keep, that is from the first miss.
@@ -980,6 +987,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 feeder = self.data.feeder
             else:
                 self._feeder_misses = 0
+                self._follow_status_time(feeder)
 
         aircraft = await self._async_get_aircraft(required=not self.client.has_feeder)
         data = AdsbStationData(
@@ -989,6 +997,31 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
         self._statistics_read_at = dt_util.utcnow()
         return data
+
+    def status_time_of(self, payload: dict[str, Any]) -> float | None:
+        """Return the time the feeder wrote on its status page, in seconds."""
+        field, per_second = STATUS_TIME_FIELDS.get(self.feeder_type or "", ("", 1))
+        written = _as_float(payload.get(field)) if field else None
+        return None if written is None else written / per_second
+
+    def _follow_status_time(self, payload: dict[str, Any]) -> None:
+        """Note when the feeder's own time last moved on.
+
+        Moving rather than recent, so a clock that differs from ours raises
+        nothing.
+        """
+        written = self.status_time_of(payload)
+        if written is not None and written != self._status_time:
+            self._status_time = written
+            self._status_moved_at = dt_util.utcnow()
+
+    @property
+    def status_stale(self) -> bool:
+        """Return True when the feeder answers but its status no longer moves."""
+        if self._status_time is None:
+            return False
+        limit = max(STATUS_STALE_AFTER, 3 * self.statistics_interval)
+        return dt_util.utcnow() - self._status_moved_at > limit
 
     def _count_messages(
         self, aircraft: AircraftStats | None, *, sample: bool
@@ -1624,6 +1657,13 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         self._receiver_reads_left = 0
         self._has_outline = data.get("outlineJson") is True
+        # Where the antenna is stays out: diagnostics get pasted in public.
+        self.receiver_info = {
+            key: value
+            for key, value in data.items()
+            if key not in ("lat", "lon", "alt_m_amsl")
+            and isinstance(value, bool | int | float | str)
+        }
 
         # Without a feeder, this names the decoder on the device page.
         version = _as_text(data.get("version"))

@@ -28,6 +28,9 @@
       "last_connected": {
         "default": "mdi:clock-check-outline"
       },
+      "last_disconnected": {
+        "default": "mdi:clock-alert-outline"
+      },
       "cpu_temperature": {
         "default": "mdi:thermometer"
       },
@@ -226,6 +229,12 @@
         "default": "mdi:antenna",
         "state": {
           "on": "mdi:access-point-off"
+        }
+      },
+      "status_stale": {
+        "default": "mdi:file-document-check-outline",
+        "state": {
+          "on": "mdi:file-document-alert-outline"
         }
       },
       "nearby": {
