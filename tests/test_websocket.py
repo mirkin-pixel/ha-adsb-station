@@ -95,6 +95,8 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     assert planes["TRA45"]["distance"] == pytest.approx(111.28, abs=0.005)
     # By the traffic counters' kinds, for the card's buttons.
     assert planes["KLM123"]["kind"] == "airline"
+    # The rest of what is received, so the buttons add up to it
+    assert sky["unplaced"] == len(MOCK_AIRCRAFT["aircraft"]) - 2
 
     moved = {
         **MOCK_AIRCRAFT,
