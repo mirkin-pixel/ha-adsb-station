@@ -59,7 +59,7 @@ type: custom:adsb-station-table-card
 
 Vlucht, hoogte, afstand en richting, en type en signaal zodra de kaart breed genoeg is. Tik op een kop om erop te sorteren en nog eens om de volgorde om te draaien; wat onbekend is blijft onderaan. Het vak erboven zoekt op vlucht, registratie, hex en type, en houdt vast wat je typte terwijl de toestellen bewegen. Tik op een rij om hem te markeren. Hij kent `device_id` en `title`, net als de stationskaart, en leest hetzelfde abonnement, dus er komt niets van in de database.
 
-Met `list: passages` toont hij in plaats daarvan het [passagebord](passages.md), wat er vandaag overkwam, nieuwste eerst: tijd, vlucht, hoogte en hoe dichtbij het kwam, en op een bredere kaart ook type en hoe lang het in beeld was. Sorteren en zoeken werken hetzelfde. Zet de kaart twee keer neer voor allebei.
+Met `list: passages` toont hij in plaats daarvan het [passagebord](passages.md), wat er vandaag overkwam, nieuwste eerst: tijd, vlucht, hoogte en hoe dichtbij het kwam, en op een bredere kaart ook type en hoe lang het in beeld was. Sorteren en zoeken werken hetzelfde. Tik op een passage voor alles ervan in een eigen venster: maatschappij, registratie, route, het sterkste signaal en, met [foto's](photos.md) aan, de foto. Daar is de radar niet voor nodig. Zet de kaart twee keer neer voor allebei.
 
 ## Vliegtuigen op de kaart
 

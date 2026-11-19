@@ -12,6 +12,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
@@ -35,6 +36,7 @@ from custom_components.adsb_station.photo import (
     photo_attributes,
     photographable,
 )
+from custom_components.adsb_station.websocket import LOOK_UP_PHOTO
 
 from .conftest import (
     AIRCRAFT_URL,
@@ -45,6 +47,7 @@ from .conftest import (
     set_responses,
     setup_integration,
 )
+from .test_websocket import _station_device
 
 # The only aircraft in MOCK_AIRCRAFT that is inside the radius.
 NEARBY_HEX = "484123"
@@ -407,6 +410,10 @@ async def test_an_aircraft_under_a_pia_address_is_not_asked_about(
     assert state is not None
     assert state.state == "1"
     assert "photo" not in state.attributes["aircraft"][0]
+    # So the passage board does not ask for one either.
+    board = hass.states.get("sensor.t_ehxx23_passages_today")
+    assert board is not None
+    assert board.attributes["passages"][0]["pia"] is True
 
 
 async def test_nothing_is_asked_when_photos_are_off(
@@ -421,3 +428,57 @@ async def test_nothing_is_asked_when_photos_are_off(
     assert state is not None
     assert "photo" not in state.attributes["aircraft"][0]
     assert mock_config_entry.runtime_data.photo_lookup is None
+
+
+async def test_the_passage_board_asks_for_a_photo(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    photo_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a tapped passage gets its photo, or says it has none."""
+    set_responses(aioclient_mock)
+    aioclient_mock.get(photo_url(NEARBY_HEX), json=NO_PHOTO)
+    aioclient_mock.get(photo_url("484124"), json=PLANESPOTTERS_ANSWER)
+    assert await setup_integration(hass, photo_entry)
+    client = await hass_ws_client(hass)
+    device = _station_device(hass, photo_entry)
+
+    await client.send_json_auto_id(
+        {"type": LOOK_UP_PHOTO, "device_id": device, "hex": "484124"}
+    )
+    assert (await client.receive_json())["result"] == {
+        "status": "found",
+        **photo_attributes(PHOTO),
+    }
+
+    await client.send_json_auto_id(
+        {"type": LOOK_UP_PHOTO, "device_id": device, "hex": NEARBY_HEX}
+    )
+    assert (await client.receive_json())["result"] == {"status": "none"}
+
+
+async def test_the_passage_board_gets_no_photo_when_they_are_off(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that nobody is asked when photos are off, or for another device."""
+    assert await setup_integration(hass, mock_config_entry)
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id(
+        {
+            "type": LOOK_UP_PHOTO,
+            "device_id": _station_device(hass, mock_config_entry),
+            "hex": "484124",
+        }
+    )
+    assert (await client.receive_json())["result"] == {"status": "off"}
+
+    await client.send_json_auto_id(
+        {"type": LOOK_UP_PHOTO, "device_id": "elsewhere", "hex": "484124"}
+    )
+    assert (await client.receive_json())["error"]["code"] == "not_found"
+    assert not [call for call in mock_api.mock_calls if "planespotters" in str(call[1])]

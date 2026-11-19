@@ -68,7 +68,7 @@ The board on **Passages today** starts over at midnight. The station keeps the p
 | `aircraft` | A hex code, callsign or registration, with or without the dash. Empty for every aircraft |
 | `start`, `end` | Only passages that began between these, in Home Assistant's time zone unless the time names one |
 
-Each passage is as on the board: `at`, `hex`, `flight`, `altitude`, `distance`, `duration`, and where known `peak_rssi`, `airline`, `registration`, `aircraft_type`, `description` and `route`, in the station's units. They are kept in a file of their own under `.storage`, about 200 bytes a passage, so a month of a quiet station is a few hundred kilobytes; it is written at most every quarter of an hour, and a station never keeps more than 50,000. Set **Keep passages** to 0 to keep none, which removes the file as well.
+Each passage is as on the board: `at`, `hex`, `flight`, `altitude`, `distance`, `duration`, and where known `peak_rssi`, `airline`, `registration`, `aircraft_type`, `description` and `route`, and `pia` for an aircraft under a [PIA address](decoders.md), in the station's units. They are kept in a file of their own under `.storage`, about 200 bytes a passage, so a month of a quiet station is a few hundred kilobytes; it is written at most every quarter of an hour, and a station never keeps more than 50,000. Set **Keep passages** to 0 to keep none, which removes the file as well.
 
 ## Changing the watchlist
 

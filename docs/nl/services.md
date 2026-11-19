@@ -68,7 +68,7 @@ Het bord van **Passages vandaag** begint om middernacht opnieuw. Het station bew
 | `aircraft` | Een hexcode, roepnaam of registratie, met of zonder streepje. Leeg voor alle toestellen |
 | `start`, `end` | Alleen passages die daartussen begonnen, in de tijdzone van Home Assistant tenzij de tijd er zelf een noemt |
 
-Elke passage is zoals op het bord: `at`, `hex`, `flight`, `altitude`, `distance`, `duration`, en waar bekend `peak_rssi`, `airline`, `registration`, `aircraft_type`, `description` en `route`, in de eenheden van het station. Ze staan in een eigen bestand onder `.storage`, zo'n 200 bytes per passage, dus een maand van een rustig station is een paar honderd kilobyte; het wordt hooguit elk kwartier geschreven, en een station bewaart er nooit meer dan 50.000. Zet **Passages bewaren** op 0 om er geen te bewaren; dan verdwijnt ook het bestand.
+Elke passage is zoals op het bord: `at`, `hex`, `flight`, `altitude`, `distance`, `duration`, en waar bekend `peak_rssi`, `airline`, `registration`, `aircraft_type`, `description` en `route`, en `pia` voor een toestel onder een [PIA-adres](decoders.md), in de eenheden van het station. Ze staan in een eigen bestand onder `.storage`, zo'n 200 bytes per passage, dus een maand van een rustig station is een paar honderd kilobyte; het wordt hooguit elk kwartier geschreven, en een station bewaart er nooit meer dan 50.000. Zet **Passages bewaren** op 0 om er geen te bewaren; dan verdwijnt ook het bestand.
 
 ## De watchlist wijzigen
 

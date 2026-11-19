@@ -11,6 +11,7 @@ const CARD = "adsb-station-card";
 const TABLE_CARD = "adsb-station-table-card";
 const SUBSCRIBE = `${DOMAIN}/subscribe_aircraft`;
 const LOOK_UP_ROUTE = `${DOMAIN}/look_up_route`;
+const LOOK_UP_PHOTO = `${DOMAIN}/look_up_photo`;
 const SVG = "http://www.w3.org/2000/svg";
 
 const STRINGS = {
@@ -50,6 +51,9 @@ const STRINGS = {
     list_now: "What is in the air now",
     list_passages: "What came over today",
     no_passages: "Nothing has come over yet today",
+    closest: "Closest",
+    strongest: "Strongest signal",
+    close: "Close",
     watched: "On your watchlist",
     emergency: "Emergency",
     hijack: "Hijack",
@@ -129,6 +133,9 @@ const STRINGS = {
     list_now: "Wat er nu in de lucht is",
     list_passages: "Wat er vandaag overkwam",
     no_passages: "Er is vandaag nog niets overgekomen",
+    closest: "Dichtstbij",
+    strongest: "Sterkste signaal",
+    close: "Sluiten",
     watched: "Op je watchlist",
     emergency: "Noodgeval",
     hijack: "Kaping",
@@ -327,6 +334,8 @@ function flownOn(plane, seconds) {
 }
 
 // Distress first, then the watchlist: what makes an aircraft stand out.
+// How long a passage was in view.
+const minutes = (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`);
 const mark = (plane) => (plane.emergency ? "distress" : plane.watched ? "watch" : null);
 
 function altitudeColor(altitude, onGround) {
@@ -1785,7 +1794,6 @@ class AdsbStationCard extends HTMLElement {
     if (this._passages()) {
       const language = this._hass.locale && this._hass.locale.language;
       const time = (at) => new Date(at).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
-      const minutes = (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`);
       return [
         { key: "at", sort: (p) => p.at, show: (p) => (p.at ? time(p.at) : "") },
         { key: "flight", sort: (p) => p.flight || p.hex, show: (p) => p.flight || p.hex },
@@ -1853,10 +1861,10 @@ class AdsbStationCard extends HTMLElement {
     const by = columns.find((column) => column.key === key).sort;
     const unknown = (value) => value === undefined || value === null;
     const query = this._query;
-    const board = this._passages() && this._state(this._found && this._found.passages);
+    const sensor = this._passages() && this._state(this._found && this._found.passages);
     const source = this._passages()
-      ? ((board && Array.isArray(board.attributes.passages) && board.attributes.passages) || []).map((p) =>
-          this._fromSensors(p, board),
+      ? ((sensor && Array.isArray(sensor.attributes.passages) && sensor.attributes.passages) || []).map((p) =>
+          this._fromSensors(p, sensor),
         )
       : (this._sky && this._sky.aircraft) || [];
     const planes = source
@@ -1873,13 +1881,24 @@ class AdsbStationCard extends HTMLElement {
         return descending ? -order : order;
       });
 
+    // A passage opens on its own; an aircraft in the air is picked on the radar.
+    const board = this._passages();
+    const open = (p) => (board ? this._showPassage(p, text) : this._select(p.hex));
     this._rows.replaceChildren(
       ...planes.map((p) =>
         el(
           "tr",
           {
             class: [p.hex === this._selected && "selected", mark(p)].filter(Boolean).join(" ") || undefined,
-            onclick: () => this._select(p.hex),
+            "data-hex": p.hex,
+            tabindex: board ? "0" : undefined,
+            onclick: () => open(p),
+            onkeydown: (event) => {
+              if (board && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault();
+                open(p);
+              }
+            },
           },
           columns.map((column) => el("td", { class: cell(column) }, column.show(p))),
         ),
@@ -1889,6 +1908,85 @@ class AdsbStationCard extends HTMLElement {
       const none = this._passages() ? text.no_passages : text.no_positions;
       this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, none)));
     }
+  }
+
+  // A passage on its own: on a dashboard without the radar there is nowhere
+  // else to show it. Its photo is asked for when the station looks them up.
+  _showPassage(p, text) {
+    if (!this._dialog) {
+      this._dialog = el("dialog", {
+        class: "passage",
+        "aria-labelledby": "passage-name",
+        // The dialog itself is only what lies around its content.
+        onclick: (event) => event.target === this._dialog && this._dialog.close(),
+        onclose: () => {
+          const row = this._rows.querySelector(`tr[data-hex="${this._shown}"]`);
+          this._shown = null;
+          if (row) row.focus({ preventScroll: true });
+        },
+      });
+      this.shadowRoot.append(this._dialog);
+    }
+    this._shown = p.hex;
+    const language = this._hass.locale && this._hass.locale.language;
+    const facts = [
+      [text.col_at, p.at && new Date(p.at).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" })],
+      [text.col_duration, typeof p.duration === "number" && minutes(p.duration)],
+      [text.closest, this._distance(p.distance)],
+      [text.col_altitude, this._height(p, text)],
+      [text.strongest, typeof p.peak_rssi === "number" && `${this._number(p.peak_rssi, 1)} dBFS`],
+    ].filter(([, value]) => value);
+    const photo = el("div", { class: "passage-photo" });
+    this._dialog.replaceChildren(
+      el(
+        "div",
+        // Focus on the window rather than its button, which would show a ring on a tap.
+        { class: "passage-box", tabindex: "-1", autofocus: true },
+        el(
+          "div",
+          { class: "passage-head" },
+          el("div", { class: "primary", id: "passage-name" }, p.flight || p.hex, p.airline ? ` · ${p.airline}` : ""),
+          el("button", { class: "close", "aria-label": text.close, onclick: () => this._dialog.close() }, "×"),
+        ),
+        photo,
+        el(
+          "div",
+          { class: "secondary" },
+          [p.description || p.aircraft_type, p.registration, p.hex.toUpperCase()].filter(Boolean).join(" · "),
+        ),
+        p.route ? el("div", { class: "secondary" }, p.route) : null,
+        el(
+          "dl",
+          {},
+          facts.flatMap(([name, value]) => [el("dt", {}, name), el("dd", {}, value)]),
+        ),
+      ),
+    );
+    if (!this._dialog.open) this._dialog.showModal();
+    // Not under a borrowed address: the photo would be of another airframe.
+    if (p.pia || !this._found || !this._hass.callWS) return;
+    this._hass
+      .callWS({ type: LOOK_UP_PHOTO, device_id: this._found.device, hex: p.hex })
+      .then((answer) => {
+        const src = safeUrl(answer.photo);
+        const link = safeUrl(answer.photo_link);
+        if (this._shown !== p.hex || !src || !link || !answer.photographer) return;
+        // Credited and linked, as Planespotters asks, like the overhead one.
+        photo.replaceChildren(
+          el(
+            "a",
+            { class: "photo", href: link, target: "_blank", rel: "noopener" },
+            el("img", { src, alt: p.flight || p.hex }),
+          ),
+          el(
+            "div",
+            { class: "credit" },
+            `${text.photo}: ${answer.photographer} / `,
+            el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
+          ),
+        );
+      })
+      .catch(() => {});
   }
 
   // --- The station ----------------------------------------------------------
@@ -2372,6 +2470,59 @@ const STYLE = css`
   }
   .table tr.watch td:first-child {
     box-shadow: inset 3px 0 var(--primary-color);
+  }
+  .table tbody tr:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+  dialog.passage {
+    width: min(420px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    padding: 0;
+    border: none;
+    border-radius: var(--ha-card-border-radius, 12px);
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    color: var(--primary-text-color);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  dialog.passage::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+  }
+  .passage-box {
+    padding: 12px 16px 16px;
+    outline: none;
+  }
+  .passage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .passage .close {
+    border: none;
+    background: none;
+    color: var(--secondary-text-color);
+    font-size: 1.6em;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  .passage-photo:empty {
+    display: none;
+  }
+  .passage dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    margin: 12px 0 0;
+  }
+  .passage dt {
+    color: var(--secondary-text-color);
+  }
+  .passage dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
   .table tr.selected td {
     background: var(--secondary-background-color);

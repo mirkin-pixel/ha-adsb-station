@@ -310,6 +310,77 @@ const tests = {
     assert.equal(rows().length, 1);
   },
 
+  async "opens a passage on its own, with its photo"() {
+    const w = browser();
+    // jsdom has no modal dialogs.
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    w.HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new w.Event("close"));
+    };
+    const passages = [
+      {
+        at: "2026-11-13T14:32:00+00:00",
+        hex: "484506",
+        flight: "KLM1234",
+        airline: "KLM",
+        registration: "PH-BXA",
+        aircraft_type: "B738",
+        route: "AMS → LHR",
+        altitude: 3200,
+        distance: 1.8,
+        duration: 95,
+        peak_rssi: -3.2,
+      },
+      { at: "2026-11-13T09:05:00+00:00", hex: "a1b2c3", altitude: 900, distance: 0.4, duration: 600, pia: true },
+    ];
+    const hass = hassWith({
+      overhead: overheadState(KLM),
+      extraStates: { "sensor.t_etur47_passages_vandaag": { state: "2", attributes: { passages }, last_updated: "t" } },
+    });
+    const asked = [];
+    hass.callWS = (message) => {
+      asked.push(message);
+      return Promise.resolve({
+        status: "found",
+        photo: "https://t.plnspttrs.net/1_280.jpg",
+        photo_link: "https://www.planespotters.net/photo/1",
+        photographer: "Jan Seler",
+      });
+    };
+    const card = renderTable(w, hass, { list: "passages" });
+    const row = (hex) => card.shadowRoot.querySelector(`.table tbody tr[data-hex="${hex}"]`);
+    const dialog = () => card.shadowRoot.querySelector("dialog.passage");
+
+    row("484506").click();
+    await settle();
+    assert.ok(dialog().open);
+    assert.equal(
+      JSON.stringify(asked),
+      JSON.stringify([{ type: "adsb_station/look_up_photo", device_id: DEVICE, hex: "484506" }]),
+    );
+    const shown = dialog().textContent;
+    for (const part of ["KLM1234 · KLM", "B738 · PH-BXA · 484506", "AMS → LHR", "2 min", "Closest", "-3.2 dBFS"]) {
+      assert.ok(shown.includes(part), `${part} in ${shown}`);
+    }
+    assert.equal(dialog().querySelector("img").getAttribute("src"), "https://t.plnspttrs.net/1_280.jpg");
+    assert.match(dialog().querySelector(".credit").textContent, /Jan Seler/);
+
+    // Closed by its button, and back on the row it came from
+    dialog().querySelector("button.close").click();
+    assert.ok(!dialog().open);
+    assert.equal(card.shadowRoot.activeElement, row("484506"));
+
+    // Under a borrowed address no photo is asked for; Enter opens it too
+    row("a1b2c3").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter" }));
+    await settle();
+    assert.ok(dialog().open);
+    assert.equal(asked.length, 1);
+    assert.equal(dialog().querySelector("img"), null);
+  },
+
   "says so when nothing came over"() {
     const w = browser();
     const hass = hassWith({

@@ -59,7 +59,7 @@ type: custom:adsb-station-table-card
 
 Flight, height, distance and direction, with type and signal once the card is wide enough. Tap a heading to sort by it and again to turn it round; whatever is unknown stays at the bottom. The box above searches flight, registration, hex and type, and keeps what you typed while the aircraft move. Tap a row to mark it. It takes `device_id` and `title`, as the station card does, and reads the same subscription, so nothing of it is written to the database.
 
-With `list: passages` it shows the [passage board](passages.md) instead, what came over today, newest first: time, flight, height and how close it came, with type and how long it was in view on a wider card. Sorting and search work the same. Put the card down twice for both.
+With `list: passages` it shows the [passage board](passages.md) instead, what came over today, newest first: time, flight, height and how close it came, with type and how long it was in view on a wider card. Sorting and search work the same. Tap a passage for all of it in a window of its own: airline, registration, route, the strongest signal and, with [photos](photos.md) switched on, its photo. The radar is not needed for that. Put the card down twice for both.
 
 ## Aircraft on the map
 
