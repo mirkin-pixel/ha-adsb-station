@@ -70,6 +70,8 @@ const STRINGS = {
     kind_other: "Other",
     kind_helicopter: "Helicopter",
     kind_military: "Military",
+    no_position: "No position",
+    no_position_hint: "Received, but not on the radar: heard without a position, or with an impossible one",
     class_A1: "Light aircraft",
     class_A2: "Small aircraft",
     class_A3: "Large aircraft",
@@ -147,6 +149,8 @@ const STRINGS = {
     kind_other: "Overig",
     kind_helicopter: "Helikopter",
     kind_military: "Militair",
+    no_position: "Zonder positie",
+    no_position_hint: "Ontvangen, maar niet op de radar: gehoord zonder positie, of met een onmogelijke",
     class_A1: "Licht vliegtuig",
     class_A2: "Klein vliegtuig",
     class_A3: "Groot vliegtuig",
@@ -1485,6 +1489,10 @@ class AdsbStationCard extends HTMLElement {
           `${text[`kind_${kind}`]} ${planes.filter((plane) => plane.kind === kind).length}`,
         ),
       ),
+      // So the five add up to the aircraft received.
+      this._sky.unplaced > 0
+        ? el("span", { class: "kind", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced}`)
+        : null,
     );
   }
 

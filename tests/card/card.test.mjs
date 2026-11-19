@@ -907,6 +907,22 @@ const tests = {
     assert.ok([...high.shadowRoot.querySelectorAll(".kind")].some((b) => b.textContent === "Overig 0"));
   },
 
+  "counts what is received but not on the radar, beside the kinds"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const label = () =>
+      [...card.shadowRoot.querySelectorAll(".kind")].find((item) => item.textContent.startsWith("Zonder positie"));
+    link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 5 });
+    assert.equal(label().textContent, "Zonder positie 5");
+    // Not a button: there is nothing on the radar to take off
+    assert.equal(label().tagName, "SPAN");
+    assert.match(label().title, /zonder positie/);
+    link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 0 });
+    assert.equal(label(), undefined);
+  },
+
   "flies the aircraft on between polls, but not far"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });

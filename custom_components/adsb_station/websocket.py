@@ -93,6 +93,9 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
         # The figures below stay in feet, knots and km; the card shows them in these.
         "units": coordinator.units.system,
         "aircraft": planes,
+        # Received but not on the radar: heard without a position, or with
+        # one further than line of sight allows.
+        "unplaced": 0 if aircraft is None else aircraft.total - len(planes),
         # The shape the card draws, when the decoder keeps one.
         "outline": coordinator.outline,
     }
