@@ -680,6 +680,9 @@ def passage_entry(passage: Passage) -> dict[str, Any]:
     ):
         if value is not None:
             entry[key] = value
+    # Reused by others, so no photo can be trusted to show this one.
+    if passage.closest.pia:
+        entry["pia"] = True
     return entry
 
 

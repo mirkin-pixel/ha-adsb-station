@@ -22,10 +22,12 @@ from .coordinator import (
     sky_signal,
     traffic_kind,
 )
+from .photo import photo_attributes
 from .route import FlightPosition, RouteLookupError, route_points
 
 SUBSCRIBE_AIRCRAFT = f"{DOMAIN}/subscribe_aircraft"
 LOOK_UP_ROUTE = f"{DOMAIN}/look_up_route"
+LOOK_UP_PHOTO = f"{DOMAIN}/look_up_photo"
 
 
 @callback
@@ -33,6 +35,7 @@ def async_setup_websocket(hass: HomeAssistant) -> None:
     """Register the commands, once for the integration."""
     websocket_api.async_register_command(hass, _subscribe_aircraft)
     websocket_api.async_register_command(hass, _look_up_route)
+    websocket_api.async_register_command(hass, _look_up_photo)
 
 
 def _receiver_entry(hass: HomeAssistant, device_id: str) -> ConfigEntry | None:
@@ -205,4 +208,42 @@ async def _look_up_route(
     connection.send_result(
         msg["id"],
         {"route_points": points, "status": "unknown" if points is None else "found"},
+    )
+
+
+# Untyped for the same reason as the subscription's schema.
+_LOOK_UP_PHOTO_SCHEMA: Any = {
+    vol.Required("type"): LOOK_UP_PHOTO,
+    vol.Required("device_id"): str,
+    vol.Required("hex"): str,
+}
+
+
+@websocket_api.websocket_command(_LOOK_UP_PHOTO_SCHEMA)
+@websocket_api.async_response
+async def _look_up_photo(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Answer the photo of an aircraft tapped on the passage board.
+
+    The status is "off" when photos are, "none" without one.
+    """
+    if (entry := _receiver_entry(hass, msg["device_id"])) is None:
+        connection.send_error(
+            msg["id"],
+            websocket_api.ERR_NOT_FOUND,
+            "No loaded ADS-B station with a receiver has this device",
+        )
+        return
+    lookup = entry.runtime_data.photo_lookup
+    if lookup is None:
+        connection.send_result(msg["id"], {"status": "off"})
+        return
+    hex_code = msg["hex"].lower()
+    photo = (await lookup.async_resolve([hex_code])).get(hex_code)
+    connection.send_result(
+        msg["id"],
+        {"status": "none" if photo is None else "found", **photo_attributes(photo)},
     )
