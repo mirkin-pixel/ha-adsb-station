@@ -2229,6 +2229,9 @@ const STYLE = css`
   ha-card {
     display: block;
     overflow: hidden;
+    /* The theme's colour is for the station and what is picked; the map stays neutral. */
+    --adsb-water: #4a90c8;
+    --adsb-coverage: var(--primary-text-color);
   }
   .layout {
     display: grid;
@@ -2373,12 +2376,12 @@ const STYLE = css`
     stroke-linecap: round;
   }
   .radar .basemap .water {
-    fill: var(--primary-color);
-    fill-opacity: 0.24;
+    fill: var(--adsb-water);
+    fill-opacity: 0.34;
   }
   .radar .basemap .river {
-    stroke: var(--primary-color);
-    stroke-opacity: 0.45;
+    stroke: var(--adsb-water);
+    stroke-opacity: 0.5;
   }
   .radar .basemap .motorway {
     stroke: var(--secondary-text-color);
@@ -2433,10 +2436,10 @@ const STYLE = css`
     color: inherit;
   }
   .radar .coverage {
-    fill: var(--primary-color);
-    fill-opacity: 0.1;
-    stroke: var(--primary-color);
-    stroke-opacity: 0.45;
+    fill: var(--adsb-coverage);
+    fill-opacity: 0.07;
+    stroke: var(--adsb-coverage);
+    stroke-opacity: 0.35;
     stroke-linejoin: round;
   }
   .kinds {
@@ -2486,8 +2489,8 @@ const STYLE = css`
   .legend .area {
     width: 10px;
     height: 8px;
-    border: 1px solid var(--primary-color);
-    background: rgba(3, 169, 244, 0.15);
+    border: 1px solid color-mix(in srgb, var(--adsb-coverage) 35%, transparent);
+    background: color-mix(in srgb, var(--adsb-coverage) 7%, transparent);
     border-radius: 2px;
   }
   .legend .scale {
