@@ -983,14 +983,19 @@ const tests = {
     ];
     const codes = (card) => [...card.shadowRoot.querySelectorAll(".fields text")].map((t) => t.textContent);
     const card = render(w, hass, { map_scale: "fixed", map_range: 100 });
-    link.send({ ...SKY([LOW, HIGH]), airports });
+    link.send({ ...SKY([LOW]), airports });
     assert.equal(JSON.stringify(codes(card)), JSON.stringify(["AMS", "LEY"]));
     // Kept from the first sky, which is the only one that brings them.
-    link.send(SKY([LOW, HIGH]));
+    link.send(SKY([LOW]));
     assert.equal(JSON.stringify(codes(card)), JSON.stringify(["AMS", "LEY"]));
+    // A code that would cover a callsign is left off; its dot stays.
+    link.send(SKY([LOW, HIGH]));
+    assert.equal(JSON.stringify(codes(card)), JSON.stringify(["AMS"]));
+    assert.equal(card.shadowRoot.querySelectorAll(".fields circle").length, 2);
 
+    // Further out, the small one goes; no aircraft, so no callsign in the way.
     const wide = render(w, hass, { map_scale: "fixed", map_range: 300 });
-    link.send({ ...SKY([LOW, HIGH]), airports });
+    link.send({ ...SKY([]), airports });
     assert.equal(JSON.stringify(codes(wide)), JSON.stringify(["AMS"]));
 
     const off = render(w, hass, { show_airports: false });

@@ -1255,38 +1255,12 @@ class AdsbStationCard extends HTMLElement {
       );
     }
 
-    // The airports, under everything that moves. A code that would cover
-    // another or the station, or run off the edge, is left off; a picked
-    // route draws its own.
+    // The airports, under everything that moves; their codes are placed once
+    // the aircraft and their callsigns are, below.
     const fields = [];
-    if (origin && this._config.show_airports) {
-      const picked = this._selected && sky && (sky.aircraft || []).find((plane) => plane.hex === this._selected);
-      const route = picked && this._routeOf(picked);
-      const ends = new Set(route ? [route.origin.code, route.destination.code] : []);
-      const layer = svg("g", { class: "fields", "clip-path": "url(#scope)" });
-      const taken = [[centre - 9, centre - 9, centre + 9, centre + 9]];
-      for (const [code, lat, lon, large] of this._airports) {
-        if ((!large && range > ALL_AIRPORTS_KM) || ends.has(code)) continue;
-        const [x, y] = project(lat, lon);
-        if (!inView([x, y])) continue;
-        const box = [x + 4, y - 6, x + 6 + 5.6 * code.length, y + 5];
-        const free =
-          inView([box[2], box[1]]) &&
-          inView([box[2], box[3]]) &&
-          !taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3]);
-        if (free) taken.push(box);
-        layer.append(
-          svg(
-            "g",
-            { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` },
-            svg("circle", { r: 2.5 }),
-            free ? svg("text", { x: 5, y: 3.5 }, code) : null,
-          ),
-        );
-      }
-      fields.push(...taken.slice(1));
-      scope.append(layer);
-    }
+    const fieldLayer =
+      origin && this._config.show_airports ? svg("g", { class: "fields", "clip-path": "url(#scope)" }) : null;
+    if (fieldLayer) scope.append(fieldLayer);
 
     if (origin) {
       const trails = svg("g", { class: "trails", "clip-path": "url(#scope)" });
@@ -1391,6 +1365,42 @@ class AdsbStationCard extends HTMLElement {
         placed.push(box);
         labelled.set(plane.hex, { x: dx, y: dy, "text-anchor": end ? "end" : undefined });
         break;
+      }
+    }
+
+    // An airport's code goes where it covers no other code, aircraft,
+    // callsign, ring distance or the station, and stays on the map; otherwise
+    // only its dot is drawn. A picked route draws its own ends.
+    if (fieldLayer) {
+      const picked = chosen && this._routeOf(chosen);
+      const ends = new Set(picked ? [picked.origin.code, picked.destination.code] : []);
+      const taken = [
+        [centre - 9, centre - 9, centre + 9, centre + 9],
+        ...placed,
+        ...others.map(([, box]) => box),
+        ...ringLabels,
+      ];
+      for (const [code, lat, lon, large] of this._airports) {
+        if ((!large && range > ALL_AIRPORTS_KM) || ends.has(code)) continue;
+        const [x, y] = project(lat, lon);
+        if (!inView([x, y])) continue;
+        const box = [x + 4, y - 6, x + 6 + 5.6 * code.length, y + 5];
+        const free =
+          inView([box[2], box[1]]) &&
+          inView([box[2], box[3]]) &&
+          !taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3]);
+        if (free) {
+          taken.push(box);
+          fields.push(box);
+        }
+        fieldLayer.append(
+          svg(
+            "g",
+            { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` },
+            svg("circle", { r: 2.5 }),
+            free ? svg("text", { x: 5, y: 3.5 }, code) : null,
+          ),
+        );
       }
     }
 
