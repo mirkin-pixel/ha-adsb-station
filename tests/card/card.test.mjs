@@ -845,8 +845,14 @@ const tests = {
     const w = browser();
     const Card = w.customElements.get("adsb-station-card");
     const form = Card.getConfigForm();
+    // Grouped, as Home Assistant's own editors are, but flat in the config.
     assert.equal(
       JSON.stringify(form.schema.map((s) => s.name)),
+      JSON.stringify(["device_id", "title", "map", "section_map", "section_below"]),
+    );
+    assert.ok(form.schema.filter((s) => s.type === "expandable").every((s) => s.flatten));
+    assert.equal(
+      JSON.stringify(form.schema.flatMap((s) => s.schema || [s]).map((s) => s.name)),
       JSON.stringify([
         "device_id",
         "title",
@@ -864,6 +870,7 @@ const tests = {
     w.__adsbStationHass = { locale: { language: "nl" } };
     assert.equal(form.computeLabel({ name: "device_id" }), "Station");
     assert.equal(form.computeLabel({ name: "show_nearby" }), "Toestellen dichtbij tonen");
+    assert.equal(form.computeLabel({ name: "section_map" }), "Radar en kaart");
     assert.equal(JSON.stringify(Card.getStubConfig()), "{}");
     const styles = Card.getConfigForm().schema.find((s) => s.name === "map").selector.select.options;
     assert.equal(JSON.stringify(styles.map((o) => o.label)), JSON.stringify(["Radar", "Landkaart", "Geen kaart"]));
@@ -1116,10 +1123,11 @@ const tests = {
     assert.equal(note().parentElement.textContent, "468 ontvangen");
     // No longer among the kinds, which are switches.
     assert.equal(card.shadowRoot.querySelector(".kinds .unplaced"), null);
-    // A kind with none is dimmed, one with aircraft is not.
+    // A kind with none looks as the others: dimming it would fall short of
+    // the contrast its text needs.
     const kind = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((k) => k.textContent.includes(name));
     assert.equal(kind("Lijnvlucht").className, "kind");
-    assert.equal(kind("Militair").className, "kind none");
+    assert.equal(kind("Militair").className, "kind");
     // A tick while shown, as Home Assistant's filter chips have; none once taken off.
     assert.equal(kind("Militair").querySelector("ha-icon").getAttribute("icon"), "mdi:check");
     kind("Militair").click();
