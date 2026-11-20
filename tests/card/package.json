@@ -9,7 +9,7 @@
     "format:check": "prettier --check ../../custom_components/adsb_station/frontend/adsb-station-card.js card.test.mjs"
   },
   "devDependencies": {
-    "jsdom": "31.0.0",
-    "prettier": "3.9.10"
+    "jsdom": "31.0.1",
+    "prettier": "3.10.1"
   }
 }
