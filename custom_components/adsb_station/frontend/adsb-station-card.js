@@ -34,6 +34,7 @@ const STRINGS = {
     compass: ["N", "E", "S", "W"],
     sky: "Aircraft around the station",
     show_nearby: "Show the aircraft nearby",
+    show_airports: "Show the airports",
     max_nearby: "How many nearby to show at most",
     show_status: "Show how the station is doing",
     table_name: "ADS-B Station table",
@@ -117,6 +118,7 @@ const STRINGS = {
     compass: ["N", "O", "Z", "W"],
     sky: "Toestellen rond het station",
     show_nearby: "Toestellen dichtbij tonen",
+    show_airports: "Luchthavens tonen",
     max_nearby: "Hoeveel toestellen dichtbij maximaal",
     show_status: "Tonen hoe het station ervoor staat",
     table_name: "ADS-B Station tabel",
@@ -196,6 +198,8 @@ const TRAIL_SECONDS = 300;
 const FLY_ON_SECONDS = 30;
 // As far ahead as the integration foresees an approach.
 const HEADING_SECONDS = 300;
+// Wider than this, only the large airports, or the radar is all dots.
+const ALL_AIRPORTS_KM = 200;
 // After "no route", a later tap asks again; the integration caches the miss.
 const ROUTE_RETRY_SECONDS = 60;
 // The integration answers within forty seconds; after this the answer is lost.
@@ -723,6 +727,7 @@ class AdsbStationCard extends HTMLElement {
           name: "max_altitude",
           selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
         },
+        { name: "show_airports", selector: { boolean: {} } },
         { name: "show_nearby", selector: { boolean: {} } },
         {
           name: "max_nearby",
@@ -741,6 +746,8 @@ class AdsbStationCard extends HTMLElement {
     super();
     // hex → the points it was seen at, oldest first.
     this._trails = new Map();
+    // [code, latitude, longitude, large], sent once with the first sky.
+    this._airports = [];
     this._sky = null;
     this._selected = null;
     // Kinds tapped off under the radar; not kept past a reload.
@@ -755,6 +762,7 @@ class AdsbStationCard extends HTMLElement {
   setConfig(config) {
     this._config = {
       map: "radar",
+      show_airports: true,
       show_nearby: true,
       show_status: true,
       max_nearby: DEFAULT_MAX_NEARBY,
@@ -943,6 +951,7 @@ class AdsbStationCard extends HTMLElement {
     this._following = wanted;
     this._sky = null;
     this._trails.clear();
+    this._airports = [];
     const subscription = this._hass.connection.subscribeMessage((sky) => this._receive(sky), {
       type: SUBSCRIBE,
       device_id: wanted,
@@ -970,6 +979,7 @@ class AdsbStationCard extends HTMLElement {
     this._flying ||= setInterval(() => this._skyBox && !this._skyBox.hidden && this._drawSky(), 1000);
     const now = Date.now() / 1000;
     const here = new Set((sky.aircraft || []).map((plane) => plane.hex));
+    if (Array.isArray(sky.airports)) this._airports = sky.airports;
     // The first sky brings where every aircraft has been lately, kept by the
     // integration, so a card that just opened does not start from nothing.
     if (sky.trails) {
@@ -1154,6 +1164,39 @@ class AdsbStationCard extends HTMLElement {
       );
     }
 
+    // The airports, under everything that moves. A code that would cover
+    // another or the station, or run off the edge, is left off; a picked
+    // route draws its own.
+    const fields = [];
+    if (origin && this._config.show_airports) {
+      const picked = this._selected && sky && (sky.aircraft || []).find((plane) => plane.hex === this._selected);
+      const route = picked && this._routeOf(picked);
+      const ends = new Set(route ? [route.origin.code, route.destination.code] : []);
+      const layer = svg("g", { class: "fields", "clip-path": "url(#scope)" });
+      const taken = [[centre - 9, centre - 9, centre + 9, centre + 9]];
+      for (const [code, lat, lon, large] of this._airports) {
+        if ((!large && range > ALL_AIRPORTS_KM) || ends.has(code)) continue;
+        const [x, y] = project(lat, lon);
+        if (!inView([x, y])) continue;
+        const box = [x + 4, y - 6, x + 6 + 5.6 * code.length, y + 5];
+        const free =
+          inView([box[2], box[1]]) &&
+          inView([box[2], box[3]]) &&
+          !taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3]);
+        if (free) taken.push(box);
+        layer.append(
+          svg(
+            "g",
+            { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` },
+            svg("circle", { r: 2.5 }),
+            free ? svg("text", { x: 5, y: 3.5 }, code) : null,
+          ),
+        );
+      }
+      fields.push(...taken.slice(1));
+      scope.append(layer);
+    }
+
     if (origin) {
       const trails = svg("g", { class: "trails", "clip-path": "url(#scope)" });
       const flown = new Map(((sky && sky.aircraft) || []).map((plane) => [plane.hex, plane]));
@@ -1255,7 +1298,7 @@ class AdsbStationCard extends HTMLElement {
       const marks = planes.map(({ at: [x, y] }) => [x - 12, y - 12, x + 12, y + 12]);
       const station = [centre - 9, centre - 9, centre + 9, centre + 9];
       const rings = distances.map(({ x, y, text }) => [x - 2, y - 11, x + 2 + 6.4 * text.length, y + 3]);
-      const names = placeNames(this._basemapLayer.places, size, [...placed, ...marks, station, ...rings]);
+      const names = placeNames(this._basemapLayer.places, size, [...placed, ...marks, station, ...rings, ...fields]);
       tiles.after(svg("g", { class: "basemap", "clip-path": "url(#scope)" }, names));
     }
 
@@ -2191,6 +2234,16 @@ const STYLE = css`
     fill: var(--card-background-color, #fff);
     stroke: var(--primary-color);
     stroke-width: 2;
+  }
+  .radar .fields circle {
+    fill: var(--secondary-text-color);
+  }
+  .radar .fields text {
+    fill: var(--secondary-text-color);
+    font-size: 9.5px;
+    paint-order: stroke;
+    stroke: var(--card-background-color, #fff);
+    stroke-width: 3px;
   }
   .radar .airport circle {
     fill: var(--card-background-color, #fff);

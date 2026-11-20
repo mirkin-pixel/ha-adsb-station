@@ -13,9 +13,10 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.util.location import distance
 import voluptuous as vol
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_PLAUSIBLE_RANGE
 from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
@@ -104,6 +105,17 @@ def sky(coordinator: AdsbStationDataUpdateCoordinator) -> dict[str, Any]:
     }
 
 
+def airports(coordinator: AdsbStationDataUpdateCoordinator) -> list[list[Any]]:
+    """Return the airports as far out as the radar reaches: code, position, large."""
+    home = coordinator.origin
+    return [
+        [code, latitude, longitude, large]
+        for code, latitude, longitude, large in coordinator.reference.airports
+        if (metres := distance(*home, latitude, longitude)) is not None
+        and metres <= MAX_PLAUSIBLE_RANGE
+    ]
+
+
 # Untyped: the decorator's type differs between old and new Home Assistant.
 _SUBSCRIBE_SCHEMA: Any = {
     vol.Required("type"): SUBSCRIBE_AIRCRAFT,
@@ -143,10 +155,15 @@ def _subscribe_aircraft(
         hass, sky_signal(entry_id), _send
     )
     connection.send_result(msg["id"])
-    # Trails go out once; the card extends them itself from then on.
+    # Trails and airports go out once; the card keeps them from then on.
     connection.send_message(
         websocket_api.event_message(
-            msg["id"], {**sky(coordinator), "trails": coordinator.trails.as_dict()}
+            msg["id"],
+            {
+                **sky(coordinator),
+                "trails": coordinator.trails.as_dict(),
+                "airports": airports(coordinator),
+            },
         )
     )
 

@@ -113,8 +113,9 @@ Two things are worth knowing before changing much:
 
 ## The reference tables
 
-`airlines.json`, `aircraft_models.json` and `code_blocks.json` are generated,
-not edited. They turn the codes an aircraft broadcasts into names, and they are
+`airlines.json`, `aircraft_models.json`, `code_blocks.json` and `airports.json`
+are generated, not edited. They turn the codes an aircraft broadcasts into
+names, or put the airports on the card, and they are
 committed rather than fetched at runtime, because asking a service for
 something that never changes would be a request per aircraft for data that fits
 in a file.
@@ -125,7 +126,8 @@ python scripts/build_reference.py
 
 That reads the [standing data of Virtual Radar
 Server](https://github.com/vradarserver/standing-data), which is CC0-1.0, and
-rewrites all three files sorted so a regeneration makes a readable diff.
+the airports of [OurAirports](https://github.com/davidmegginson/ourairports-data),
+which is in the public domain under the Unlicense, and rewrites all four files sorted so a regeneration makes a readable diff.
 Refreshing them is a commit of its own; the script's docstring explains how it
 picks one row out of the several that share a type code, and why the address
 blocks are flattened before they are written rather than searched as they come.

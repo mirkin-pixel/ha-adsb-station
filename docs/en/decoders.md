@@ -82,3 +82,5 @@ A type code covers a family rather than a single aircraft: an A20N is an A320neo
 That same table says which ranges a country keeps for its own military, which is where the **military marker** comes from when the decoder has no aircraft database. It is the coarser of the two answers: it knows the range and not the aircraft, so a civil aircraft flying inside a military range would be marked along with the rest. So a decoder that does have a database has the last word, in both directions. If `dbFlags` says an aircraft is civil, it is civil, even inside a military range; the address is only asked when nothing else can answer.
 
 Both tables come from the [standing data of Virtual Radar Server](https://github.com/vradarserver/standing-data), which is in the public domain under CC0-1.0. Like the aircraft database above they are a snapshot; `scripts/build_reference.py` regenerates them from the source.
+
+The airports on the [card](dashboards.md) ship the same way, from [OurAirports](https://github.com/davidmegginson/ourairports-data), also in the public domain: the large and medium ones with scheduled flights, as the standing data does not say how big an airport is.

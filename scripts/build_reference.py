@@ -1,4 +1,4 @@
-"""Rebuild the three reference tables the integration ships.
+"""Rebuild the four reference tables the integration ships.
 
 None of these can come off your own network. An aircraft broadcasts a
 callsign, an ICAO type code and a 24 bit address and nothing else, so turning
@@ -14,6 +14,11 @@ into the public domain under CC0-1.0:
     https://github.com/vradarserver/standing-data
 
 Run it from the repository root, and commit what it writes:
+
+The airports come from OurAirports instead, also in the public domain
+(Unlicense), as the standing data does not say how big an airport is:
+
+    https://github.com/davidmegginson/ourairports-data
 
     python scripts/build_reference.py
 """
@@ -40,6 +45,10 @@ MODEL_URLS = tuple(
 )
 
 SOURCE = "https://github.com/vradarserver/standing-data (CC0-1.0)"
+AIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
+AIRPORTS_SOURCE = "https://github.com/davidmegginson/ourairports-data (Unlicense)"
+# Where airliners come from and go to: no airstrips, heliports or closed ones.
+AIRPORT_TYPES = {"large_airport": "l", "medium_airport": "m"}
 
 # A military designation, as in the "P-72" of an ATR P-72. Only ever a hint,
 # and only used where it follows the model name rather than opening it.
@@ -61,6 +70,7 @@ PACKAGE = Path(__file__).resolve().parent.parent / "custom_components" / "adsb_s
 AIRLINES_FILE = PACKAGE / "airlines.json"
 MODELS_FILE = PACKAGE / "aircraft_models.json"
 CODE_BLOCKS_FILE = PACKAGE / "code_blocks.json"
+AIRPORTS_FILE = PACKAGE / "airports.json"
 
 
 def _fetch(url: str) -> list[dict[str, str]]:
@@ -305,10 +315,32 @@ def build_code_blocks() -> dict[str, list[Any]]:
     }
 
 
-def _write(path: Path, key: str, table: dict[str, Any]) -> None:
+def build_airports() -> dict[str, list[Any]]:
+    """Return the airports with scheduled flights, by their ICAO code.
+
+    Each as the code a traveller knows, IATA where it has one, its position
+    to about a hundred metres, and l or m for large or medium.
+    """
+    airports: dict[str, list[Any]] = {}
+    for row in _fetch(AIRPORTS_URL):
+        size = AIRPORT_TYPES.get(row.get("type") or "")
+        if size is None or row.get("scheduled_service") != "yes":
+            continue
+        ident = (row.get("ident") or "").strip().upper()
+        shown = (row.get("iata_code") or row.get("icao_code") or ident).strip().upper()
+        try:
+            latitude = round(float(row["latitude_deg"]), 3)
+            longitude = round(float(row["longitude_deg"]), 3)
+        except (KeyError, ValueError):
+            continue
+        airports[ident] = [shown, latitude, longitude, size]
+    return airports
+
+
+def _write(path: Path, key: str, table: dict[str, Any], source: str = SOURCE) -> None:
     """Write one table, sorted, so a regeneration makes a readable diff."""
     payload: dict[str, Any] = {
-        "source": SOURCE,
+        "source": source,
         key: dict(sorted(table.items())),
     }
     path.write_text(json.dumps(payload, indent=1, ensure_ascii=False) + "\n", "utf-8")
@@ -319,3 +351,4 @@ if __name__ == "__main__":
     _write(AIRLINES_FILE, "airlines", build_airlines())
     _write(MODELS_FILE, "models", build_models())
     _write(CODE_BLOCKS_FILE, "blocks", build_code_blocks())
+    _write(AIRPORTS_FILE, "airports", build_airports(), AIRPORTS_SOURCE)
