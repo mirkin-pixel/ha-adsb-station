@@ -96,6 +96,7 @@ const STRINGS = {
     route_pending: "Looking up the route…",
     route_unknown: "No route known",
     route_failed: "Could not look up the route",
+    passes: "Passes {distance} away in {time}",
   },
   nl: {
     name: "ADS-B Station",
@@ -178,6 +179,7 @@ const STRINGS = {
     route_pending: "Route opzoeken…",
     route_unknown: "Geen route bekend",
     route_failed: "Route opzoeken mislukt",
+    passes: "Komt op {distance} langs, over {time}",
   },
 };
 
@@ -192,6 +194,8 @@ const TRAIL_SECONDS = 300;
 // Between polls each aircraft flies on along its track, redrawn every second,
 // but no further than this past the last sky, in case no more come.
 const FLY_ON_SECONDS = 30;
+// As far ahead as the integration foresees an approach.
+const HEADING_SECONDS = 300;
 // After "no route", a later tap asks again; the integration caches the miss.
 const ROUTE_RETRY_SECONDS = 60;
 // The integration answers within forty seconds; after this the answer is lost.
@@ -331,6 +335,24 @@ function flownOn(plane, seconds) {
     latitude: latitude + (km * Math.cos(way)) / 111.32,
     longitude: longitude + (km * Math.sin(way)) / (111.32 * Math.cos((latitude * Math.PI) / 180)),
   };
+}
+
+// The picked aircraft's line some minutes on, and the point on it nearest the
+// station while it still comes: the integration's own straight line.
+function headingOf(plane, origin, elapsed) {
+  const { speed, track, latitude, longitude } = plane;
+  if (plane.on_ground || !(speed > 0) || typeof track !== "number") return null;
+  const way = (track * Math.PI) / 180;
+  const perLon = 111.32 * Math.cos((origin[0] * Math.PI) / 180);
+  const at = (km) => [latitude + (km * Math.cos(way)) / 110.574, longitude + (km * Math.sin(way)) / perLon];
+  const left = plane.seconds_to_closest - elapsed;
+  let closest = null;
+  if (plane.approaching && left > 0) {
+    const east = lonDelta(longitude, origin[1]) * perLon;
+    const north = (latitude - origin[0]) * 110.574;
+    closest = at(-(east * Math.sin(way) + north * Math.cos(way)));
+  }
+  return { end: at((speed * 1.852 * HEADING_SECONDS) / 3600), closest };
 }
 
 // Distress first, then the watchlist: what makes an aircraft stand out.
@@ -1189,6 +1211,21 @@ class AdsbStationCard extends HTMLElement {
       );
     }
 
+    const heading = chosen && headingOf(chosen, origin, (Date.now() - this._receivedAt) / 1000);
+    if (heading) {
+      const [x1, y1] = project(chosen.latitude, chosen.longitude);
+      const [x2, y2] = project(...heading.end);
+      const point = heading.closest && project(...heading.closest);
+      scope.append(
+        svg(
+          "g",
+          { class: "heading", "clip-path": "url(#scope)" },
+          svg("line", { x1, y1, x2, y2 }),
+          point ? svg("circle", { class: "closest", cx: point[0], cy: point[1], r: 4 }) : null,
+        ),
+      );
+    }
+
     const planes = ((sky && sky.aircraft) || [])
       .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
       .filter(({ at }) => inView(at));
@@ -1566,8 +1603,19 @@ class AdsbStationCard extends HTMLElement {
           .filter(Boolean)
           .join("   "),
       ),
+      this._passing(plane, text),
       this._flightLine(plane, text),
     );
+  }
+
+  // How close the picked aircraft comes, and in how long, while it still comes.
+  _passing(plane, text) {
+    const left = Math.round(plane.seconds_to_closest - (Date.now() - this._receivedAt) / 1000);
+    if (!plane.approaching || !(left > 0) || typeof plane.closest_passing_distance !== "number") return null;
+    const words = text.passes
+      .replace("{distance}", this._distance(plane.closest_passing_distance))
+      .replace("{time}", minutes(left));
+    return el("div", { class: "secondary passing" }, words);
   }
 
   // What else the aircraft says of its flight, where the decoder passes it on.
@@ -2132,6 +2180,17 @@ const STYLE = css`
   .radar .route .ahead {
     stroke-dasharray: 5 4;
     opacity: 0.85;
+  }
+  .radar .heading line {
+    stroke: var(--primary-text-color);
+    stroke-width: 1.4;
+    stroke-dasharray: 2 3;
+    opacity: 0.8;
+  }
+  .radar .heading .closest {
+    fill: var(--card-background-color, #fff);
+    stroke: var(--primary-color);
+    stroke-width: 2;
   }
   .radar .airport circle {
     fill: var(--card-background-color, #fff);

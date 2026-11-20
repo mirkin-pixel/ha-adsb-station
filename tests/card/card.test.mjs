@@ -1284,6 +1284,42 @@ const tests = {
     assert.ok(last[0] < 200 && last[1] < 200, String(last));
   },
 
+  "draws where a tapped aircraft heads, and where it passes closest"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    // West of the station, flying east: closest straight north of it.
+    const coming = {
+      ...LOW,
+      longitude: 4.9,
+      speed: 240,
+      approaching: true,
+      closest_passing_distance: 2.2,
+      seconds_to_closest: 120,
+    };
+    link.send(SKY([coming, HIGH]));
+    assert.equal(card.shadowRoot.querySelector(".radar .heading"), null);
+    card.shadowRoot.querySelector('.plane[data-hex="484506"]').dispatchEvent(new w.Event("click"));
+    const heading = card.shadowRoot.querySelector(".radar .heading");
+    const line = heading.querySelector("line");
+    assert.ok(Number(line.getAttribute("x2")) > Number(line.getAttribute("x1")));
+    const point = heading.querySelector(".closest");
+    assert.ok(Math.abs(Number(point.getAttribute("cx")) - 200) < 0.5, point.getAttribute("cx"));
+    assert.ok(Number(point.getAttribute("cy")) < 200);
+    assert.equal(card.shadowRoot.querySelector(".picked .passing").textContent, "Passes 2.2 km away in 2 min");
+
+    // Going away: the line, but no point and no count down.
+    link.send(SKY([{ ...coming, approaching: undefined, closest_passing_distance: undefined }, HIGH]));
+    assert.ok(card.shadowRoot.querySelector(".radar .heading line"));
+    assert.equal(card.shadowRoot.querySelector(".radar .heading .closest"), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .passing"), null);
+
+    // On the ground it heads nowhere.
+    link.send(SKY([{ ...coming, on_ground: true }, HIGH]));
+    assert.equal(card.shadowRoot.querySelector(".radar .heading"), null);
+  },
+
   async "asks for the route of a tapped aircraft further out"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
