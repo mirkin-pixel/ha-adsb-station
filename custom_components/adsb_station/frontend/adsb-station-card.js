@@ -1620,17 +1620,21 @@ class AdsbStationCard extends HTMLElement {
       { class: "kinds" },
       KINDS.map((kind) => {
         const count = planes.filter((plane) => plane.kind === kind).length;
+        const shown = !this._hidden.has(kind);
+        // Home Assistant's own filter chip: a tick when on, an outline when off.
         return el(
           "button",
           {
             class: count ? "kind" : "kind none",
-            "aria-pressed": String(!this._hidden.has(kind)),
+            "aria-pressed": String(shown),
             onclick: () => {
               if (!this._hidden.delete(kind)) this._hidden.add(kind);
               this._drawSky();
             },
           },
-          `${text[`kind_${kind}`]} ${count}`,
+          shown ? el("ha-icon", { icon: "mdi:check" }) : null,
+          `${text[`kind_${kind}`]} `,
+          el("span", { class: "count" }, count),
         );
       }),
       // So the five add up to the aircraft received. Plain text, as it is no
@@ -2446,36 +2450,41 @@ const STYLE = css`
   .kinds {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    margin: 4px 0 8px;
+    align-items: center;
+    gap: var(--ha-space-2, 8px);
+    margin: var(--ha-space-3, 12px) 0 var(--ha-space-2, 8px);
   }
   .kind {
     font: inherit;
-    font-size: 12px;
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 15px;
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 var(--ha-space-3, 12px);
+    border-radius: var(--ha-border-radius-md, 8px);
     border: 1px solid var(--divider-color);
     background: none;
-    color: var(--secondary-text-color);
+    color: var(--primary-text-color);
     cursor: pointer;
+    --mdc-icon-size: 18px;
   }
   .kind[aria-pressed="true"] {
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    padding-inline-start: var(--ha-space-2, 8px);
     border-color: transparent;
-    color: var(--primary-text-color);
+    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.15);
   }
-  .kind[aria-pressed="false"] {
-    text-decoration: line-through;
+  .kind .count {
+    font-weight: var(--ha-font-weight-normal, 400);
+    color: var(--secondary-text-color);
   }
   .kind.none {
-    opacity: 0.55;
+    opacity: 0.5;
   }
   .unplaced {
-    align-self: center;
-    font-size: 12px;
-    padding: 0 4px;
+    font-size: var(--ha-font-size-m, 14px);
+    padding: 0 var(--ha-space-1, 4px);
     color: var(--secondary-text-color);
   }
   .legend {

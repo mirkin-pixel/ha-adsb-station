@@ -1068,6 +1068,11 @@ const tests = {
     const kind = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((k) => k.textContent.includes(name));
     assert.equal(kind("Lijnvlucht").className, "kind");
     assert.equal(kind("Militair").className, "kind none");
+    // A tick while shown, as Home Assistant's filter chips have; none once taken off.
+    assert.equal(kind("Militair").querySelector("ha-icon").getAttribute("icon"), "mdi:check");
+    kind("Militair").click();
+    assert.equal(kind("Militair").querySelector("ha-icon"), null);
+    assert.equal(kind("Militair").getAttribute("aria-pressed"), "false");
   },
 
   "flies the aircraft on between polls, but not far"() {
