@@ -35,7 +35,7 @@ Hoogtes, snelheden en afstanden staan in de [eenheden](configuration.md#eenheden
 
 Op een breed dashboard staat de lucht links en de rest ernaast; op een telefoon staan ze onder elkaar.
 
-Het deel **Vlucht overhead** is het toestel nu boven je, of het laatste, als zodanig gemarkeerd, als de lucht leeg is. Met [foto's](photos.md) aan staat zijn foto erbij met de naam van de fotograaf eronder, en allebei leiden ze naar de pagina van de foto, zoals Planespotters vraagt. Klik op het toestel, een regel van de lijst of een cijfer van het station voor de details van de entiteit erachter.
+Het deel **Vlucht overhead** is het toestel nu boven je, of het laatste, als zodanig gemarkeerd, als de lucht leeg is. Met [foto's](photos.md) aan staat er een kleine foto naast met de naam van de fotograaf eronder, en allebei leiden ze naar de pagina van de foto, zoals Planespotters vraagt. Tik op het toestel voor een eigen venster met de foto groot, zoals een passage op het bord dat heeft, en daar op **Meer info** voor de details van de entiteit erachter. Klik op een regel van de lijst of een cijfer van het station voor de details van de entiteit daarachter.
 
 ### De lucht
 

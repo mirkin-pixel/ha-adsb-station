@@ -35,7 +35,7 @@ Heights, speeds and distances are in the station's [units](configuration.md#unit
 
 On a wide dashboard the sky sits on the left and the rest beside it; on a phone they are one above the other.
 
-The **Overhead flight** part is the aircraft above you now, or the last one, marked as such, once the sky is empty. With [photos](photos.md) switched on, its photo is shown with the photographer's name under it, and both lead to the photo's page, which is how Planespotters asks for them to be shown. Click the aircraft, a row of the list or a figure of the station for the details of the entity behind it.
+The **Overhead flight** part is the aircraft above you now, or the last one, marked as such, once the sky is empty. With [photos](photos.md) switched on, a small photo is shown beside it with the photographer's name under it, and both lead to the photo's page, which is how Planespotters asks for them to be shown. Tap the aircraft for a window of its own with the photo large, as a passage on the board has, and **More info** there for the details of the entity behind it. Click a row of the list or a figure of the station for the details of the entity behind that.
 
 ### The sky
 

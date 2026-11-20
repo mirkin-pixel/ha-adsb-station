@@ -58,6 +58,7 @@ const STRINGS = {
     closest: "Closest",
     strongest: "Strongest signal",
     close: "Close",
+    more_info: "More info",
     watched: "On your watchlist",
     emergency: "Emergency",
     hijack: "Hijack",
@@ -150,6 +151,7 @@ const STRINGS = {
     closest: "Dichtstbij",
     strongest: "Sterkste signaal",
     close: "Sluiten",
+    more_info: "Meer info",
     watched: "Op je watchlist",
     emergency: "Noodgeval",
     hijack: "Kaping",
@@ -1912,7 +1914,21 @@ class AdsbStationCard extends HTMLElement {
     const tint = altitudeColor(plane.altitude, plane.on_ground, this._config.palette);
     const details = el(
       "div",
-      { class: "details", role: "button", tabindex: "0", onclick: this._moreInfo(found.overhead) },
+      {
+        class: "details",
+        role: "button",
+        tabindex: "0",
+        onclick: () =>
+          this._showPassage(
+            {
+              ...plane,
+              flight: name,
+              route: plane.origin && plane.destination && `${plane.origin} → ${plane.destination}`,
+            },
+            text,
+            found.overhead,
+          ),
+      },
       credited
         ? el(
             "a",
@@ -2220,7 +2236,9 @@ class AdsbStationCard extends HTMLElement {
 
   // A passage on its own: on a dashboard without the radar there is nowhere
   // else to show it. Its photo is asked for when the station looks them up.
-  _showPassage(p, text) {
+  // A passage in a window of its own, or the aircraft overhead with its photo
+  // large and a way on to its entity.
+  _showPassage(p, text, overhead = null) {
     if (!this._dialog) {
       this._dialog = el("dialog", {
         class: "passage",
@@ -2228,22 +2246,34 @@ class AdsbStationCard extends HTMLElement {
         // The dialog itself is only what lies around its content.
         onclick: (event) => event.target === this._dialog && this._dialog.close(),
         onclose: () => {
-          const row = this._rows.querySelector(`tr[data-hex="${this._shown}"]`);
+          const back = this._back && this._back();
           this._shown = null;
-          if (row) row.focus({ preventScroll: true });
+          this._back = null;
+          if (back) back.focus({ preventScroll: true });
         },
       });
       this.shadowRoot.append(this._dialog);
     }
     this._shown = p.hex;
+    this._back = overhead
+      ? () => this.shadowRoot.querySelector(".overhead .details")
+      : () => this._rows.querySelector(`tr[data-hex="${p.hex}"]`);
     const language = this._hass.locale && this._hass.locale.language;
-    const facts = [
-      [text.col_at, p.at && new Date(p.at).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" })],
-      [text.col_duration, typeof p.duration === "number" && minutes(p.duration)],
-      [text.closest, this._distance(p.distance)],
-      [text.col_altitude, this._height(p, text)],
-      [text.strongest, typeof p.peak_rssi === "number" && `${this._number(p.peak_rssi, 1)} dBFS`],
-    ].filter(([, value]) => value);
+    const facts = (
+      overhead
+        ? [
+            [text.col_distance, this._distance(p.distance)],
+            [text.col_altitude, this._height(p, text)],
+            [text.col_speed, this._speed(p.speed)],
+          ]
+        : [
+            [text.col_at, p.at && new Date(p.at).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" })],
+            [text.col_duration, typeof p.duration === "number" && minutes(p.duration)],
+            [text.closest, this._distance(p.distance)],
+            [text.col_altitude, this._height(p, text)],
+            [text.strongest, typeof p.peak_rssi === "number" && `${this._number(p.peak_rssi, 1)} dBFS`],
+          ]
+    ).filter(([, value]) => value);
     const photo = el("div", { class: "passage-photo" });
     this._dialog.replaceChildren(
       el(
@@ -2260,7 +2290,7 @@ class AdsbStationCard extends HTMLElement {
         el(
           "div",
           { class: "secondary" },
-          [p.description || p.aircraft_type, p.registration, p.hex.toUpperCase()].filter(Boolean).join(" · "),
+          [p.description || p.aircraft_type, p.registration, p.hex && p.hex.toUpperCase()].filter(Boolean).join(" · "),
         ),
         p.route ? el("div", { class: "secondary" }, p.route) : null,
         el(
@@ -2268,31 +2298,49 @@ class AdsbStationCard extends HTMLElement {
           {},
           facts.flatMap(([name, value]) => [el("dt", {}, name), el("dd", {}, value)]),
         ),
+        overhead
+          ? el(
+              "button",
+              {
+                class: "more",
+                onclick: () => {
+                  this._dialog.close();
+                  this._moreInfo(overhead)();
+                },
+              },
+              text.more_info,
+            )
+          : null,
       ),
     );
     if (!this._dialog.open) this._dialog.showModal();
+    const credited = (answer) => {
+      const src = safeUrl(answer.photo);
+      const link = safeUrl(answer.photo_link);
+      if (!src || !link || !answer.photographer) return;
+      // Credited and linked, as Planespotters asks, like the overhead one.
+      photo.replaceChildren(
+        el(
+          "a",
+          { class: "photo", href: link, target: "_blank", rel: "noopener" },
+          el("img", { src, alt: p.flight || p.hex }),
+        ),
+        el(
+          "div",
+          { class: "credit" },
+          `${text.photo}: ${answer.photographer} / `,
+          el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
+        ),
+      );
+    };
+    // The one overhead brings its photo along; a passage asks for it.
+    if (overhead) return credited(p);
     // Not under a borrowed address: the photo would be of another airframe.
     if (p.pia || !this._found || !this._hass.callWS) return;
     this._hass
       .callWS({ type: LOOK_UP_PHOTO, device_id: this._found.device, hex: p.hex })
       .then((answer) => {
-        const src = safeUrl(answer.photo);
-        const link = safeUrl(answer.photo_link);
-        if (this._shown !== p.hex || !src || !link || !answer.photographer) return;
-        // Credited and linked, as Planespotters asks, like the overhead one.
-        photo.replaceChildren(
-          el(
-            "a",
-            { class: "photo", href: link, target: "_blank", rel: "noopener" },
-            el("img", { src, alt: p.flight || p.hex }),
-          ),
-          el(
-            "div",
-            { class: "credit" },
-            `${text.photo}: ${answer.photographer} / `,
-            el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
-          ),
-        );
+        if (this._shown === p.hex) credited(answer);
       })
       .catch(() => {});
   }
@@ -3057,6 +3105,33 @@ const STYLE = css`
   }
   .passage-photo:empty {
     display: none;
+  }
+  /* Large here, not the thumbnail of the overhead tile. */
+  .passage-photo .photo img {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    border-radius: var(--ha-border-radius-lg, 12px);
+  }
+  .passage-photo .credit {
+    margin-bottom: var(--ha-space-2, 8px);
+  }
+  .passage .more {
+    display: block;
+    margin: var(--ha-space-3, 12px) 0 0 auto;
+    padding: 0 var(--ha-space-3, 12px);
+    height: 36px;
+    border: none;
+    border-radius: var(--ha-border-radius-md, 8px);
+    background: none;
+    color: var(--primary-color);
+    font: inherit;
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    cursor: pointer;
+  }
+  .passage .more:hover {
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   }
   .passage dl {
     display: grid;

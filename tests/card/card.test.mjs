@@ -785,12 +785,32 @@ const tests = {
     assert.match(card.shadowRoot.textContent, /470 received/);
   },
 
-  "opens the details of what is clicked"() {
+  "opens the aircraft overhead large, and the details of what is clicked"() {
     const w = browser();
+    // jsdom has no modal dialogs.
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    w.HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new w.Event("close"));
+    };
     const card = render(w, hassWith({ overhead: overheadState(KLM) }));
     const opened = [];
     card.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
+    // The tile opens a window with the photo large, linked and credited as
+    // Planespotters asks, and the way on to the entity.
     card.shadowRoot.querySelector(".details").click();
+    const dialog = card.shadowRoot.querySelector("dialog.passage");
+    assert.ok(dialog.open);
+    assert.equal(dialog.querySelector(".photo").getAttribute("href"), KLM.photo_link);
+    assert.equal(dialog.querySelector(".photo img").getAttribute("src"), KLM.photo);
+    assert.match(dialog.querySelector(".credit").textContent, /Jan Seler/);
+    assert.match(dialog.textContent, /AMS → LHR/);
+    dialog.querySelector("button.more").click();
+    assert.ok(!dialog.open);
+    // The small photo still leads to its page, not to the window.
+    assert.equal(card.shadowRoot.querySelector(".details a.photo").getAttribute("href"), KLM.photo_link);
     card.shadowRoot.querySelector(".feed").click();
     assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
   },
@@ -803,10 +823,10 @@ const tests = {
     const opened = [];
     card.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
     const press = (node, key) => node.dispatchEvent(new w.KeyboardEvent("keydown", { key, cancelable: true }));
-    press(card.shadowRoot.querySelector(".details"), " ");
+    press(card.shadowRoot.querySelector(".figures"), " ");
     press(card.shadowRoot.querySelector(".feed"), "Enter");
     press(card.shadowRoot.querySelector(".feed"), "a");
-    assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
+    assert.deepEqual(opened, ["sensor.t_etur47_vliegtuigen_ontvangen", "binary_sensor.t_etur47_feed"]);
 
     link.send(SKY([LOW, HIGH]));
     // A group, not an image, so a screen reader reaches the aircraft in it.
