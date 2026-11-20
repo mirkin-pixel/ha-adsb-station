@@ -1498,10 +1498,9 @@ class AdsbStationCard extends HTMLElement {
           `${text[`kind_${kind}`]} ${planes.filter((plane) => plane.kind === kind).length}`,
         ),
       ),
-      // So the five add up to the aircraft received.
-      this._sky.unplaced > 0
-        ? el("span", { class: "kind", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced}`)
-        : null,
+      // So the five add up to the aircraft received. Kept at 0, as the others
+      // are, so the row does not change width.
+      el("span", { class: "kind", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced ?? 0}`),
     );
   }
 
