@@ -990,8 +990,9 @@ const tests = {
     // Not a button: there is nothing on the radar to take off
     assert.equal(label().tagName, "SPAN");
     assert.match(label().title, /zonder positie/);
+    // Still there at 0, like the kinds
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 0 });
-    assert.equal(label(), undefined);
+    assert.equal(label().textContent, "Zonder positie 0");
   },
 
   "flies the aircraft on between polls, but not far"() {
