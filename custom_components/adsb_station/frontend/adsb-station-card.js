@@ -336,6 +336,14 @@ function fill(node, attributes, children) {
     else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
     else node.setAttribute(key, value === true ? "" : value);
   }
+  // A clickable element that is not a real button answers Enter and Space too.
+  if (attributes?.role === "button" && attributes.onclick && !attributes.onkeydown) {
+    node.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      attributes.onclick(event);
+    });
+  }
   for (const child of children.flat()) {
     if (child === undefined || child === null || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
@@ -1154,7 +1162,7 @@ class AdsbStationCard extends HTMLElement {
     const scope = svg("svg", {
       class: streets ? "radar streets" : "radar",
       viewBox: `0 0 ${size} ${size}`,
-      role: "img",
+      role: "group",
       "aria-label": text.sky,
     });
     const shape = streets

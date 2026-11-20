@@ -789,6 +789,26 @@ const tests = {
     assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
   },
 
+  "answers Enter and Space where it answers a tap"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    const opened = [];
+    card.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
+    const press = (node, key) => node.dispatchEvent(new w.KeyboardEvent("keydown", { key, cancelable: true }));
+    press(card.shadowRoot.querySelector(".details"), " ");
+    press(card.shadowRoot.querySelector(".feed"), "Enter");
+    press(card.shadowRoot.querySelector(".feed"), "a");
+    assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
+
+    link.send(SKY([LOW, HIGH]));
+    // A group, not an image, so a screen reader reaches the aircraft in it.
+    assert.equal(card.shadowRoot.querySelector("svg.radar").getAttribute("role"), "group");
+    press(card.shadowRoot.querySelector('.plane[data-hex="484506"]'), "Enter");
+    assert.match(card.shadowRoot.querySelector(".picked").textContent, /KLM1234/);
+  },
+
   "has a form to set it up without YAML"() {
     const w = browser();
     const Card = w.customElements.get("adsb-station-card");
