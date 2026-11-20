@@ -71,6 +71,9 @@ const STRINGS = {
     scale_fixed: "Fixed",
     map_range: "Fixed range, in the station's units",
     max_altitude: "Highest altitude shown, in the station's units",
+    palette: "Height colours",
+    palette_default: "Rainbow, as tar1090",
+    palette_colorblind: "Yellow to blue, for colour blindness",
     kind_airline: "Airline",
     kind_other: "Other",
     kind_helicopter: "Helicopter",
@@ -157,6 +160,9 @@ const STRINGS = {
     scale_fixed: "Vast",
     map_range: "Vast bereik, in de eenheden van het station",
     max_altitude: "Hoogste getoonde hoogte, in de eenheden van het station",
+    palette: "Kleuren voor de hoogte",
+    palette_default: "Regenboog, zoals tar1090",
+    palette_colorblind: "Geel naar blauw, voor kleurenblindheid",
     kind_airline: "Lijnvlucht",
     kind_other: "Overig",
     kind_helicopter: "Helikopter",
@@ -255,6 +261,21 @@ const ALTITUDE_HUES = [
   [45000, 305],
 ];
 const GROUND_COLOR = "#8c8c8c";
+const PALETTES = ["default", "colorblind"];
+// Yellow low to blue high, every 5,000 ft: the one axis red and green blind
+// eyes still tell apart. Mixed in OKLab, so its steps look even.
+const COLORBLIND = [
+  [255, 210, 63],
+  [234, 203, 101],
+  [212, 195, 127],
+  [191, 187, 147],
+  [170, 178, 163],
+  [149, 169, 178],
+  [127, 159, 191],
+  [106, 148, 203],
+  [84, 136, 214],
+  [61, 123, 224],
+];
 
 // Pointing north in a 24 box around the origin, turned to the track.
 const SHAPES = {
@@ -368,8 +389,14 @@ function headingOf(plane, origin, elapsed) {
 const minutes = (seconds) => (seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`);
 const mark = (plane) => (plane.emergency ? "distress" : plane.watched ? "watch" : null);
 
-function altitudeColor(altitude, onGround) {
+function altitudeColor(altitude, onGround, palette) {
   if (onGround || typeof altitude !== "number") return GROUND_COLOR;
+  if (palette === "colorblind") {
+    const at = (Math.min(Math.max(altitude, 0), ALTITUDE_TOP) / ALTITUDE_TOP) * (COLORBLIND.length - 1);
+    const i = Math.min(Math.floor(at), COLORBLIND.length - 2);
+    const [low, high] = [COLORBLIND[i], COLORBLIND[i + 1]];
+    return `rgb(${low.map((value, j) => Math.round(value + (at - i) * (high[j] - value))).join(", ")})`;
+  }
   let hue = ALTITUDE_HUES[ALTITUDE_HUES.length - 1][1];
   for (let i = 1; i < ALTITUDE_HUES.length; i++) {
     const [top, topHue] = ALTITUDE_HUES[i];
@@ -731,6 +758,15 @@ class AdsbStationCard extends HTMLElement {
           name: "max_altitude",
           selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
         },
+        {
+          name: "palette",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: PALETTES.map((value) => ({ value, label: text[`palette_${value}`] })),
+            },
+          },
+        },
         { name: "show_airports", selector: { boolean: {} } },
         { name: "show_nearby", selector: { boolean: {} } },
         {
@@ -768,6 +804,7 @@ class AdsbStationCard extends HTMLElement {
   setConfig(config) {
     this._config = {
       map: "radar",
+      palette: "default",
       show_airports: true,
       show_nearby: true,
       show_status: true,
@@ -995,7 +1032,7 @@ class AdsbStationCard extends HTMLElement {
         if (!here.has(hex)) continue;
         this._trails.set(
           hex,
-          points.map(([lat, lon, altitude, t]) => ({ lat, lon, color: altitudeColor(altitude, altitude === null), t })),
+          points.map(([lat, lon, altitude, t]) => ({ lat, lon, altitude, ground: altitude === null, t })),
         );
       }
     }
@@ -1006,7 +1043,8 @@ class AdsbStationCard extends HTMLElement {
         trail.push({
           lat: plane.latitude,
           lon: plane.longitude,
-          color: altitudeColor(plane.altitude, plane.on_ground),
+          altitude: plane.altitude,
+          ground: plane.on_ground,
           t: now,
         });
       }
@@ -1213,11 +1251,12 @@ class AdsbStationCard extends HTMLElement {
         if (!plane) continue;
         const last = trail.at(-1);
         const moved = plane && last && (plane.latitude !== last.lat || plane.longitude !== last.lon);
-        const points = moved ? [...trail, { lat: plane.latitude, lon: plane.longitude, color: last.color }] : trail;
+        const points = moved ? [...trail, { ...last, lat: plane.latitude, lon: plane.longitude }] : trail;
         for (let i = 1; i < points.length; i++) {
           const [x1, y1] = project(points[i - 1].lat, points[i - 1].lon);
           const [x2, y2] = project(points[i].lat, points[i].lon);
-          trails.append(svg("line", { x1, y1, x2, y2, stroke: points[i].color }));
+          const { altitude, ground } = points[i];
+          trails.append(svg("line", { x1, y1, x2, y2, stroke: altitudeColor(altitude, ground, this._config.palette) }));
         }
       }
       scope.append(trails);
@@ -1333,7 +1372,7 @@ class AdsbStationCard extends HTMLElement {
         mark(plane) ? svg("circle", { class: mark(plane), r: 11 }) : null,
         svg("path", {
           d: path,
-          fill: altitudeColor(plane.altitude, plane.on_ground),
+          fill: altitudeColor(plane.altitude, plane.on_ground, this._config.palette),
           transform: `rotate(${Math.round(plane.track || 0)}) scale(${scale})`,
         }),
         labelled.has(plane.hex) ? svg("text", { class: "callsign", x: 12, y: -8 }, plane.flight || plane.hex) : null,
@@ -1592,7 +1631,11 @@ class AdsbStationCard extends HTMLElement {
   }
 
   _legend(text) {
-    const stops = ALTITUDE_HUES.map(([feet]) => `${altitudeColor(feet)} ${((feet / ALTITUDE_TOP) * 100).toFixed(1)}%`);
+    const feet =
+      this._config.palette === "colorblind" ? COLORBLIND.map((_, i) => i * 5000) : ALTITUDE_HUES.map(([at]) => at);
+    const stops = feet.map(
+      (at) => `${altitudeColor(at, false, this._config.palette)} ${((at / ALTITUDE_TOP) * 100).toFixed(1)}%`,
+    );
     return el(
       "div",
       { class: "legend" },
@@ -1637,7 +1680,10 @@ class AdsbStationCard extends HTMLElement {
       el(
         "div",
         { class: "primary" },
-        el("span", { class: "swatch", style: `background: ${altitudeColor(plane.altitude, plane.on_ground)}` }),
+        el("span", {
+          class: "swatch",
+          style: `background: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
+        }),
         plane.flight || plane.hex,
         plane.airline ? ` · ${plane.airline}` : "",
       ),
@@ -1784,7 +1830,7 @@ class AdsbStationCard extends HTMLElement {
       { class: "details", role: "button", tabindex: "0", onclick: this._moreInfo(found.overhead) },
       el("ha-icon", {
         icon: aircraftIcon(plane),
-        style: `color: ${altitudeColor(plane.altitude, plane.on_ground)}`,
+        style: `color: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
       }),
       el(
         "div",
@@ -1903,7 +1949,7 @@ class AdsbStationCard extends HTMLElement {
           { class: "row", role: "button", tabindex: "0", onclick: this._moreInfo(found.nearby) },
           el("ha-icon", {
             icon: aircraftIcon(plane),
-            style: `color: ${altitudeColor(plane.altitude, plane.on_ground)}`,
+            style: `color: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
           }),
           el("span", { class: "flight" }, plane.flight || plane.hex),
           el("span", { class: "what" }, plane.airline || plane.description || ""),
@@ -2755,7 +2801,10 @@ class AdsbStationTableCard extends AdsbStationCard {
         select: { mode: "dropdown", options: LISTS.map((value) => ({ value, label: text[`list_${value}`] })) },
       },
     };
-    return { ...form, schema: [...form.schema.filter((field) => ["device_id", "title"].includes(field.name)), list] };
+    return {
+      ...form,
+      schema: [...form.schema.filter((field) => ["device_id", "title", "palette"].includes(field.name)), list],
+    };
   }
 
   setConfig(config) {
