@@ -41,6 +41,7 @@ const STRINGS = {
     table_description: "Every aircraft the station has a position for, to sort and search.",
     search: "Search flight, registration or type",
     col_flight: "Flight",
+    col_speed: "Speed",
     col_altitude: "Height",
     col_distance: "Distance",
     col_bearing: "Direction",
@@ -130,6 +131,7 @@ const STRINGS = {
     table_description: "Elk toestel waarvan het station een positie heeft, om te sorteren en te doorzoeken.",
     search: "Zoek vlucht, registratie of type",
     col_flight: "Vlucht",
+    col_speed: "Snelheid",
     col_altitude: "Hoogte",
     col_distance: "Afstand",
     col_bearing: "Richting",
@@ -206,6 +208,14 @@ const TRAIL_SECONDS = 300;
 // Between polls each aircraft flies on along its track, redrawn every second,
 // but no further than this past the last sky, in case no more come.
 const FLY_ON_SECONDS = 30;
+// Where a callsign may go, in turn: right above an aircraft, right below,
+// left above, left below; true where it ends at the aircraft.
+const LABEL_SPOTS = [
+  [12, -8, false],
+  [12, 16, false],
+  [-12, -8, true],
+  [-12, 16, true],
+];
 // As far ahead as the integration foresees an approach.
 const HEADING_SECONDS = 300;
 // Wider than this, only the large airports, or the radar is all dots.
@@ -1075,10 +1085,14 @@ class AdsbStationCard extends HTMLElement {
     const focused = this.shadowRoot.activeElement && this.shadowRoot.activeElement.dataset.hex;
     this._skyBox.replaceChildren(
       ...[
-        this._radar(text, streets),
+        el(
+          "div",
+          { class: "scope-box" },
+          this._radar(text, streets),
+          this._legend(text),
+          streets ? this._attribution() : null,
+        ),
         this._kinds(text),
-        streets ? this._attribution() : null,
-        this._legend(text),
         this._picked(text),
       ].filter(Boolean),
     );
@@ -1327,9 +1341,13 @@ class AdsbStationCard extends HTMLElement {
       .map((plane) => ({ plane, at: project(plane.latitude, plane.longitude) }))
       .filter(({ at }) => inView(at));
 
-    // Picked first, then nearest; a label that would overlap one is left off.
-    const labelled = new Set();
+    // Picked first, then nearest. A label goes to the first corner of its
+    // aircraft where it covers no other label, aircraft or ring distance, and
+    // is left off where there is none.
+    const labelled = new Map();
     const placed = [];
+    const others = planes.map(({ plane, at: [x, y] }) => [plane.hex, [x - 10, y - 10, x + 10, y + 10]]);
+    const ringLabels = distances.map(({ x, y, text }) => [x - 2, y - 11, x + 2 + 6.4 * text.length, y + 3]);
     const ranked = [...planes].sort(
       (a, b) =>
         (b.plane.hex === this._selected) - (a.plane.hex === this._selected) ||
@@ -1339,11 +1357,17 @@ class AdsbStationCard extends HTMLElement {
       plane,
       at: [x, y],
     } of ranked) {
-      const box = [x + 11, y - 18, x + 13 + 6.4 * String(plane.flight || plane.hex).length, y - 5];
-      const covers = (other) => box[0] < other[2] && other[0] < box[2] && box[1] < other[3] && other[1] < box[3];
-      if (placed.some(covers)) continue;
-      placed.push(box);
-      labelled.add(plane.hex);
+      const width = 2 + 6.4 * String(plane.flight || plane.hex).length;
+      for (const [dx, dy, end] of LABEL_SPOTS) {
+        const left = x + dx + (end ? -width + 1 : -1);
+        const box = [left, y + dy - 10, left + width, y + dy + 3];
+        const covers = (other) => box[0] < other[2] && other[0] < box[2] && box[1] < other[3] && other[1] < box[3];
+        if (placed.some(covers) || ringLabels.some(covers)) continue;
+        if (others.some(([hex, other]) => hex !== plane.hex && covers(other))) continue;
+        placed.push(box);
+        labelled.set(plane.hex, { x: dx, y: dy, "text-anchor": end ? "end" : undefined });
+        break;
+      }
     }
 
     // Place names go where the aircraft, their callsigns and the ring
@@ -1383,7 +1407,9 @@ class AdsbStationCard extends HTMLElement {
           fill: altitudeColor(plane.altitude, plane.on_ground, this._config.palette),
           transform: `rotate(${Math.round(plane.track || 0)}) scale(${scale})`,
         }),
-        labelled.has(plane.hex) ? svg("text", { class: "callsign", x: 12, y: -8 }, plane.flight || plane.hex) : null,
+        labelled.has(plane.hex)
+          ? svg("text", { class: "callsign", ...labelled.get(plane.hex) }, plane.flight || plane.hex)
+          : null,
       );
       scope.append(marker);
     }
@@ -1632,7 +1658,7 @@ class AdsbStationCard extends HTMLElement {
               this._drawSky();
             },
           },
-          shown ? el("ha-icon", { icon: "mdi:check" }) : null,
+          shown ? this._icon(`kind ${kind}`, "mdi:check") : null,
           `${text[`kind_${kind}`]} `,
           el("span", { class: "count" }, count),
         );
@@ -1682,60 +1708,94 @@ class AdsbStationCard extends HTMLElement {
     );
   }
 
+  // An icon kept across the redraws of every second: a new ha-icon loads
+  // its picture anew, and would not get the time to show it.
+  _icon(slot, icon) {
+    this._icons ||= new Map();
+    let node = this._icons.get(slot);
+    if (!node) {
+      node = el("ha-icon", {});
+      this._icons.set(slot, node);
+    }
+    if (node.getAttribute("icon") !== icon) node.setAttribute("icon", icon);
+    return node;
+  }
+
   _picked(text) {
     const found = this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
     if (!found) return null;
     // Just put on the watchlist: said so now, not after the next read.
     const plane = this._watching.get(found.hex) === "added" ? { ...found, watched: true } : found;
+    const tint = altitudeColor(plane.altitude, plane.on_ground, this._config.palette);
     return el(
       "div",
       { class: "picked" },
       el(
         "div",
-        { class: "primary" },
-        el("span", {
-          class: "swatch",
-          style: `background: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
-        }),
-        plane.flight || plane.hex,
-        plane.airline ? ` · ${plane.airline}` : "",
+        { class: "head" },
+        el("span", { class: "badge-icon", style: `--tint: ${tint}` }, this._icon("picked", aircraftIcon(plane))),
+        el(
+          "div",
+          { class: "names" },
+          el("div", { class: "title" }, plane.flight || plane.hex, plane.airline ? ` · ${plane.airline}` : ""),
+          el(
+            "div",
+            { class: "sub" },
+            [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
+          ),
+        ),
+        this._watchButton(plane, text),
       ),
-      el(
-        "div",
-        { class: "secondary" },
-        [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
-      ),
+      mark(plane) ? el("div", { class: `mark ${mark(plane)}` }, text[plane.emergency || "watched"]) : null,
+      this._watching.get(plane.hex) === "failed" ? el("div", { class: "failed" }, text.watch_failed) : null,
       this._routeLine(plane, text),
-      mark(plane) ? el("div", { class: `secondary ${mark(plane)}` }, text[plane.emergency || "watched"]) : null,
-      el(
-        "div",
-        { class: "secondary" },
-        [this._height(plane, text), this._speed(plane.speed), this._distance(plane.distance)]
-          .filter(Boolean)
-          .join("   "),
-      ),
+      this._figures(plane, text),
       this._passing(plane, text),
       this._flightLine(plane, text),
-      this._watchLine(plane, text),
+    );
+  }
+
+  // Height, speed and distance, each a figure of its own with its unit small.
+  _figures(plane, text) {
+    const cells = [
+      [text.col_altitude, this._height(plane, text)],
+      [text.col_speed, this._speed(plane.speed)],
+      [text.col_distance, this._distance(plane.distance)],
+    ].filter(([, value]) => value);
+    if (!cells.length) return null;
+    return el(
+      "div",
+      { class: "stats" },
+      cells.map(([label, value]) => {
+        const at = value.lastIndexOf(" ");
+        const unit = at > 0 && /\d/.test(value.slice(0, at)) ? value.slice(at + 1) : "";
+        return el(
+          "div",
+          { class: "stat" },
+          el("span", { class: "caption" }, label),
+          el("b", {}, unit ? value.slice(0, at) : value),
+          unit ? el("small", {}, ` ${unit}`) : null,
+        );
+      }),
     );
   }
 
   // One tap puts the picked aircraft on the watchlist, through the box anyone
   // may fill rather than the action only an administrator may call.
-  _watchLine(plane, text) {
+  _watchButton(plane, text) {
     const box = this._found && this._found.watch;
     const line = plane.registration || plane.hex;
     if (plane.watched || !box || !line || line.startsWith("~")) return null;
-    const state = this._watching.get(plane.hex);
     return el(
-      "div",
-      { class: "watch-line" },
-      el(
-        "button",
-        { class: "watch-button", disabled: state === "busy", onclick: () => this._watch(plane.hex, line, box) },
-        text.watch,
-      ),
-      state === "failed" ? el("span", { class: "failed" }, text.watch_failed) : null,
+      "button",
+      {
+        class: "watch-button",
+        "aria-label": text.watch,
+        title: text.watch,
+        disabled: this._watching.get(plane.hex) === "busy",
+        onclick: () => this._watch(plane.hex, line, box),
+      },
+      this._icon("watch", "mdi:eye-plus-outline"),
     );
   }
 
@@ -1758,7 +1818,7 @@ class AdsbStationCard extends HTMLElement {
     const words = text.passes
       .replace("{distance}", this._distance(plane.closest_passing_distance))
       .replace("{time}", minutes(left));
-    return el("div", { class: "secondary passing" }, words);
+    return el("div", { class: "tip passing" }, this._icon("passing", "mdi:crosshairs-gps"), el("span", {}, words));
   }
 
   // What else the aircraft says of its flight, where the decoder passes it on.
@@ -1785,7 +1845,7 @@ class AdsbStationCard extends HTMLElement {
     if (!parts.length) return null;
     // Each part kept whole, so a line breaks between them, not inside one.
     const kept = parts.flatMap((part, i) => [i ? " · " : null, el("span", { class: "whole" }, part)]);
-    return el("div", { class: "secondary" }, kept.filter(Boolean));
+    return el("div", { class: "fine" }, kept.filter(Boolean));
   }
 
   // Where it comes from and goes to, under the aircraft's name. Without a
@@ -1801,7 +1861,20 @@ class AdsbStationCard extends HTMLElement {
       return words ? el("div", { class: `secondary route-line ${status}` }, words) : null;
     }
     const end = (airport) => [airport.code, airport.location].filter(Boolean).join(" ");
-    return el("div", { class: "secondary route-line" }, `${end(route.origin)} → ${end(route.destination)}`);
+    const airport = (where, side) =>
+      el(
+        "div",
+        { class: `airport ${side}` },
+        el("b", {}, where.code || where.location),
+        where.code ? el("span", {}, where.location) : null,
+      );
+    return el(
+      "div",
+      { class: "route", role: "img", "aria-label": `${end(route.origin)} → ${end(route.destination)}` },
+      airport(route.origin, "from"),
+      el("div", { class: "line" }, this._icon("route", "mdi:airplane")),
+      airport(route.destination, "to"),
+    );
   }
 
   // --- Overhead and nearby -------------------------------------------------
@@ -2431,11 +2504,20 @@ const STYLE = css`
     opacity: 0.85;
     stroke-width: 2.5;
   }
+  .scope-box {
+    position: relative;
+    max-width: 440px;
+    margin: 0 auto;
+  }
   .attribution {
-    text-align: right;
-    font-size: 0.7em;
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 0 4px;
+    border-radius: var(--ha-border-radius-sm, 4px);
+    font-size: var(--ha-font-size-xs, 10px);
     color: var(--secondary-text-color);
-    margin-top: 2px;
+    background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color, #fff)) 85%, transparent);
   }
   .attribution a {
     color: inherit;
@@ -2488,22 +2570,27 @@ const STYLE = css`
     color: var(--secondary-text-color);
   }
   .legend {
-    display: flex;
-    align-items: flex-end;
-    gap: 16px;
-    margin-top: 8px;
-    font-size: 0.75em;
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    width: min(50%, 230px);
+    padding: 6px var(--ha-space-2, 8px) 2px;
+    border-radius: var(--ha-border-radius-md, 8px);
+    font-size: var(--ha-font-size-xs, 10px);
     color: var(--secondary-text-color);
+    background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color, #fff)) 90%, transparent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   }
   .legend .keys {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-wrap: wrap;
+    gap: 2px var(--ha-space-2, 8px);
+    margin-bottom: 4px;
   }
   .legend .key {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     white-space: nowrap;
   }
   .legend .dot.ground {
@@ -2516,13 +2603,9 @@ const STYLE = css`
     background: color-mix(in srgb, var(--adsb-coverage) 7%, transparent);
     border-radius: 2px;
   }
-  .legend .scale {
-    flex: 1;
-    min-width: 0;
-  }
   .legend .bar {
-    height: 6px;
-    border-radius: 3px;
+    height: 4px;
+    border-radius: 2px;
   }
   .legend .ticks {
     position: relative;
@@ -2538,17 +2621,127 @@ const STYLE = css`
     white-space: nowrap;
   }
   .picked {
-    margin-top: 10px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
+    padding: var(--ha-space-2, 8px) 0 var(--ha-space-3, 12px);
   }
-  .swatch {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
+  .picked .head {
+    display: flex;
+    align-items: center;
+    gap: var(--ha-space-3, 12px);
+  }
+  .badge-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    margin-right: 8px;
+    color: var(--tint);
+    background: color-mix(in srgb, var(--tint) 20%, transparent);
+    --mdc-icon-size: 24px;
+  }
+  .picked .names {
+    flex: 1;
+    min-width: 0;
+  }
+  .picked .title {
+    font-size: var(--ha-font-size-l, 16px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.25;
+  }
+  .picked .sub,
+  .picked .mark,
+  .picked .failed,
+  .picked .fine,
+  .picked .route-line {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+  }
+  .picked .sub {
+    margin-top: 2px;
+  }
+  .picked .mark,
+  .picked .failed,
+  .picked .route-line {
+    margin-top: var(--ha-space-2, 8px);
+  }
+  .picked .route {
+    display: flex;
+    align-items: center;
+    gap: var(--ha-space-3, 12px);
+    margin-top: var(--ha-space-4, 16px);
+  }
+  .picked .airport b {
+    display: block;
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.2;
+  }
+  .picked .airport span {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+  }
+  .picked .airport.to {
+    text-align: end;
+  }
+  .picked .route .line {
+    flex: 1;
+    position: relative;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--divider-color) 0 6px, transparent 6px 10px);
+  }
+  .picked .route .line ha-icon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    padding: 0 var(--ha-space-1, 4px);
+    transform: translate(-50%, -50%) rotate(45deg);
+    color: var(--secondary-text-color);
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    --mdc-icon-size: 18px;
+  }
+  .picked .stats {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--ha-space-2, 8px);
+    margin-top: var(--ha-space-4, 16px);
+  }
+  .picked .stat,
+  .picked .tip {
+    border-radius: var(--ha-border-radius-lg, 12px);
+    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.05);
+  }
+  .picked .stat {
+    padding: 10px var(--ha-space-3, 12px);
+  }
+  .picked .stat .caption {
+    display: block;
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+  }
+  .picked .stat b {
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    white-space: nowrap;
+  }
+  .picked .stat small {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+  }
+  .picked .tip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: var(--ha-space-2, 8px);
+    padding: 10px var(--ha-space-3, 12px);
+    font-size: var(--ha-font-size-m, 14px);
+    --mdc-icon-size: 20px;
+  }
+  .picked .tip ha-icon {
+    color: var(--primary-color);
+  }
+  .picked .fine {
+    margin-top: 10px;
   }
   .empty {
     display: flex;
@@ -2698,20 +2891,25 @@ const STYLE = css`
     color: var(--primary-color);
   }
   .watch-button {
-    margin-top: 6px;
-    padding: 4px 12px;
-    border: 1px solid var(--primary-color);
-    border-radius: 16px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
     background: none;
-    color: var(--primary-color);
-    font: inherit;
+    color: var(--secondary-text-color);
     cursor: pointer;
+    --mdc-icon-size: 24px;
+  }
+  .watch-button:hover {
+    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
   }
   .watch-button[disabled] {
     opacity: 0.5;
   }
   .picked .failed {
-    margin-left: 8px;
     color: var(--error-color, #db4437);
   }
   .table tr.distress td:first-child {

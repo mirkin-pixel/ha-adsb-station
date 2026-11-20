@@ -837,6 +837,18 @@ const tests = {
     assert.equal(JSON.stringify(styles.map((o) => o.label)), JSON.stringify(["Radar", "Landkaart", "Geen kaart"]));
   },
 
+  "moves a callsign to a free corner rather than over another"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    // Two at one spot: the nearer keeps the corner above, the other goes below.
+    link.send(SKY([LOW, { ...LOW, hex: "aaaaaa", flight: "TWIN1", distance: LOW.distance + 0.1 }]));
+    const label = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"] .callsign`);
+    assert.equal(label(LOW.hex).getAttribute("y"), "-8");
+    assert.equal(label("aaaaaa").getAttribute("y"), "16");
+  },
+
   "draws every aircraft the integration sends on the radar"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
@@ -1169,13 +1181,15 @@ const tests = {
     };
     link.send(SKY([flying]));
     card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
-    const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
     // Mach over IAS, and no roll for a wing that is nearly level.
-    assert.equal(lines.at(-1), "Groot vliegtuig · Mach 0,78 · wind 270° 157 km/h · -56 °C");
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .fine").textContent,
+      "Groot vliegtuig · Mach 0,78 · wind 270° 157 km/h · -56 °C",
+    );
 
     // A decoder that passes none of it on adds no line at all.
     link.send(SKY([LOW]));
-    assert.equal(card.shadowRoot.querySelectorAll(".picked .secondary").length, lines.length - 1);
+    assert.equal(card.shadowRoot.querySelector(".picked .fine"), null);
   },
 
   "shows the station's units, or Home Assistant's own"() {
@@ -1188,12 +1202,16 @@ const tests = {
       const card = render(w, hass);
       link.send(SKY([flying]));
       card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
-      const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
+      // Each figure as it reads: the number, then its unit.
+      const figures = [...card.shadowRoot.querySelectorAll(".picked .stat")]
+        .map((stat) => stat.querySelector("b").textContent + stat.querySelector("small").textContent)
+        .join("   ");
+      const weather = card.shadowRoot.querySelector(".picked .fine").textContent;
       const ticks = [...card.shadowRoot.querySelectorAll(".legend .ticks span")].map((tick) => tick.textContent);
       const rings = [...card.shadowRoot.querySelectorAll(".radar text")]
         .map((label) => label.textContent)
         .filter((s) => /\d (km|NM|mi)$/.test(s));
-      return { figures: lines[1], weather: lines.at(-1), ticks, rings };
+      return { figures, weather, ticks, rings };
     };
 
     // Before 1.4 the sensors name no units: metric, as Home Assistant itself
@@ -1357,7 +1375,11 @@ const tests = {
     assert.ok(route.querySelector(".ahead"));
     const codes = [...route.querySelectorAll(".airport text")].map((t) => t.textContent);
     assert.equal(JSON.stringify(codes), JSON.stringify(["GOT", "AMS"]));
-    assert.match(card.shadowRoot.querySelector(".picked").textContent, /GOT Gothenburg → AMS Amsterdam/);
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .route").getAttribute("aria-label"),
+      "GOT Gothenburg → AMS Amsterdam",
+    );
+    assert.equal(card.shadowRoot.querySelector(".picked .route .from b").textContent, "GOT");
     // The way ahead ends on Schiphol: north-west of the station, so left of
     // and above the centre.
     const last = route.querySelector(".ahead").getAttribute("points").split(" ").pop().split(",").map(Number);
@@ -1423,7 +1445,9 @@ const tests = {
     // By its registration, which reads on the list.
     tap(HIGH.hex);
     tap(LOW.hex);
-    assert.equal(button().textContent, "Op watchlist zetten");
+    // An eye with a plus, named for a screen reader and on hover.
+    assert.equal(button().getAttribute("aria-label"), "Op watchlist zetten");
+    assert.equal(button().querySelector("ha-icon").getAttribute("icon"), "mdi:eye-plus-outline");
     button().dispatchEvent(new w.Event("click"));
     await new Promise((resolve) => setTimeout(resolve));
     assert.equal(
@@ -1469,7 +1493,10 @@ const tests = {
     await tick();
     await tick();
     assert.ok(card.shadowRoot.querySelector(".radar .route"));
-    assert.match(card.shadowRoot.querySelector(".picked").textContent, /DUB Dublin → BUD Budapest/);
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .route").getAttribute("aria-label"),
+      "DUB Dublin → BUD Budapest",
+    );
     // Asked once: tapped again, it is remembered.
     tap();
     tap();
