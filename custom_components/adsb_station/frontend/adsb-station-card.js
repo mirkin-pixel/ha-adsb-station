@@ -40,6 +40,8 @@ const STRINGS = {
     table_name: "ADS-B Station table",
     table_description: "Every aircraft the station has a position for, to sort and search.",
     search: "Search flight, registration or type",
+    title_passages: "Passages today",
+    title_aircraft: "Aircraft received",
     col_flight: "Flight",
     col_speed: "Speed",
     col_altitude: "Height",
@@ -130,6 +132,8 @@ const STRINGS = {
     table_name: "ADS-B Station tabel",
     table_description: "Elk toestel waarvan het station een positie heeft, om te sorteren en te doorzoeken.",
     search: "Zoek vlucht, registratie of type",
+    title_passages: "Passages vandaag",
+    title_aircraft: "Ontvangen toestellen",
     col_flight: "Vlucht",
     col_speed: "Snelheid",
     col_altitude: "Hoogte",
@@ -349,7 +353,7 @@ function fill(node, attributes, children) {
   // A clickable element that is not a real button answers Enter and Space too.
   if (attributes?.role === "button" && attributes.onclick && !attributes.onkeydown) {
     node.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== node || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
       attributes.onclick(event);
     });
@@ -933,9 +937,10 @@ class AdsbStationCard extends HTMLElement {
       this._card = el("ha-card");
       this._skyBox = el("div", { class: "sky" });
       this._body = el("div", { class: "body" });
+      this._statusBox = el("div", { class: "status-box" });
       // Built once and kept, so typing in the search box survives every push.
       this._tableBox = el("div", { class: "table" });
-      this._card.append(el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
+      this._card.append(this._statusBox, el("div", { class: "layout" }, this._skyBox, this._body), this._tableBox);
       this.shadowRoot.replaceChildren(el("style", {}, STYLE), this._card);
       // Measured, not a container query: WebKit scrolls a phone up when the
       // content of a query container changes.
@@ -960,9 +965,11 @@ class AdsbStationCard extends HTMLElement {
     } else if (!this._onlyTable) {
       body.push(this._overhead(found, text));
       if (this._config.show_nearby) body.push(this._nearby(found, text));
-      if (this._config.show_status) body.push(this._status(found, text));
     }
     this._body.replaceChildren(...body.filter(Boolean));
+    const status = found && !this._onlyTable && this._config.show_status ? this._status(found, text) : null;
+    this._statusBox.replaceChildren(...(status ? [status] : []));
+    this._statusBox.hidden = !status;
     if (showSky) this._drawSky();
     this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
@@ -1887,61 +1894,62 @@ class AdsbStationCard extends HTMLElement {
       return el("div", { class: "empty" }, el("ha-icon", { icon: "mdi:airplane-off" }), text.nothing);
     }
 
-    const section = el("div", { class: "overhead" });
-    section.append(el("div", { class: "label" }, plane.overhead === false ? text.last_overhead : text.overhead));
-
+    // One tile: the photo or the aircraft's icon, what it is, and where.
     // The photo leads to its page and names who took it, as Planespotters asks
     // of anyone showing one. Without all three it is not shown at all.
     const photo = safeUrl(plane.photo);
     const link = safeUrl(plane.photo_link);
-    if (photo && link && plane.photographer) {
-      section.append(
-        el(
-          "a",
-          { class: "photo", href: link, target: "_blank", rel: "noopener" },
-          this._photoOf(photo, plane.flight || plane.hex),
-        ),
-        el(
-          "div",
-          { class: "credit" },
-          `${text.photo}: ${plane.photographer} / `,
-          el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
-        ),
-      );
-    }
-
+    const credited = photo && link && plane.photographer;
     const name = plane.flight || state.state;
+    const tint = altitudeColor(plane.altitude, plane.on_ground, this._config.palette);
     const details = el(
       "div",
       { class: "details", role: "button", tabindex: "0", onclick: this._moreInfo(found.overhead) },
-      el("ha-icon", {
-        icon: aircraftIcon(plane),
-        style: `color: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
-      }),
+      credited
+        ? el(
+            "a",
+            {
+              class: "photo",
+              href: link,
+              target: "_blank",
+              rel: "noopener",
+              // The photo opens its page, not the aircraft's details.
+              onclick: (event) => event.stopPropagation(),
+            },
+            this._photoOf(photo, name),
+          )
+        : el("span", { class: "badge-icon", style: `--tint: ${tint}` }, el("ha-icon", { icon: aircraftIcon(plane) })),
       el(
         "div",
         { class: "lines" },
+        el("div", { class: "label" }, plane.overhead === false ? text.last_overhead : text.overhead),
         el("div", { class: "primary" }, name, plane.airline ? ` · ${plane.airline}` : ""),
         el(
           "div",
           { class: "secondary" },
           [plane.description || plane.aircraft_type, plane.registration].filter(Boolean).join(" · "),
         ),
-        el(
-          "div",
-          { class: "secondary" },
-          [
-            plane.origin && plane.destination ? `${plane.origin} → ${plane.destination}` : null,
-            this._height(plane, text),
-            this._distance(plane.distance),
-          ]
-            .filter(Boolean)
-            .join("   "),
-        ),
+      ),
+      el(
+        "div",
+        { class: "aside" },
+        plane.origin && plane.destination ? el("div", {}, `${plane.origin} → ${plane.destination}`) : null,
+        el("div", {}, [this._height(plane, text), this._distance(plane.distance)].filter(Boolean).join(" · ")),
       ),
     );
-    section.append(details);
-    return section;
+    return el(
+      "div",
+      { class: "overhead" },
+      details,
+      credited
+        ? el(
+            "div",
+            { class: "credit" },
+            `${text.photo}: ${plane.photographer} / `,
+            el("a", { href: link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
+          )
+        : null,
+    );
   }
 
   _height(plane, text) {
@@ -2096,10 +2104,14 @@ class AdsbStationCard extends HTMLElement {
       this._search.value = this._query;
       this._head = el("tr");
       this._rows = el("tbody");
-      this._tableBox.replaceChildren(
-        this._search,
-        el("div", { class: "scroll" }, el("table", {}, el("thead", {}, this._head), this._rows)),
+      this._tableTitle = el("div", { class: "table-title" });
+      // Faded at the bottom while there is more to scroll to.
+      this._scroll = el(
+        "div",
+        { class: "scroll", onscroll: () => this._fadeTable() },
+        el("table", {}, el("thead", {}, this._head), this._rows),
       );
+      this._tableBox.replaceChildren(this._tableTitle, this._search, this._scroll);
     }
 
     const { key, descending } = this._sort;
@@ -2171,6 +2183,18 @@ class AdsbStationCard extends HTMLElement {
       const none = this._passages() ? text.no_passages : text.no_positions;
       this._rows.append(el("tr", {}, el("td", { colspan: columns.length, class: "none" }, none)));
     }
+    // A title of its own, unless the dashboard gave the card one.
+    this._tableTitle.hidden = Boolean(this._config.title);
+    this._tableTitle.replaceChildren(
+      el("span", {}, board ? text.title_passages : text.title_aircraft),
+      el("span", { class: "count" }, this._number(source.length, 0)),
+    );
+    this._fadeTable();
+  }
+
+  _fadeTable() {
+    const box = this._scroll;
+    if (box) box.classList.toggle("more", box.scrollHeight - box.scrollTop - box.clientHeight > 1);
   }
 
   // A passage on its own: on a dashboard without the radar there is nowhere
@@ -2262,19 +2286,27 @@ class AdsbStationCard extends HTMLElement {
     };
     const line = el("div", { class: "status" });
     const figures = [
-      [found.received, found.received && shown(found.received) && `${shown(found.received)} ${text.received}`],
-      [found.rate, shown(found.rate)],
-      [found.range, shown(found.range)],
+      [
+        found.received,
+        found.received && shown(found.received) && `${shown(found.received)} ${text.received}`,
+        "mdi:airplane",
+      ],
+      [found.rate, shown(found.rate), "mdi:message-flash-outline"],
+      [found.range, shown(found.range), "mdi:radar"],
       // How far the aircraft stand above the noise, in one figure: what a
       // change to the gain or the antenna is judged by.
-      [found.snr, found.snr && shown(found.snr) && `S/N ${shown(found.snr)}`],
+      [found.snr, found.snr && shown(found.snr) && `S/N ${shown(found.snr)}`, "mdi:signal"],
     ].filter(([, value]) => value);
-    figures.forEach(([entry, value], i) => {
-      if (i) line.append(el("span", { class: "sep" }, "·"));
+    for (const [entry, value, icon] of figures) {
       line.append(
-        el("span", { class: "figures", role: "button", tabindex: "0", onclick: this._moreInfo(entry) }, value),
+        el(
+          "span",
+          { class: "figures badge", role: "button", tabindex: "0", onclick: this._moreInfo(entry) },
+          el("ha-icon", { icon }),
+          value,
+        ),
       );
-    });
+    }
     for (const entry of found.feeds) {
       const state = this._state(entry);
       if (!state) continue;
@@ -2285,13 +2317,15 @@ class AdsbStationCard extends HTMLElement {
         el(
           "span",
           {
-            class: `feed ${good ? "good" : warn ? "warn" : "bad"}`,
+            class: `feed badge ${good ? "good" : warn ? "warn" : "bad"}`,
             role: "button",
             tabindex: "0",
             title: this._hass.formatEntityState ? this._hass.formatEntityState(state) : state.state,
             onclick: this._moreInfo(entry),
           },
-          el("span", { class: "dot" }),
+          el("ha-icon", {
+            icon: good ? "mdi:check-circle" : warn ? "mdi:alert-circle" : "mdi:close-circle",
+          }),
           network,
         ),
       );
@@ -2751,49 +2785,70 @@ const STYLE = css`
     color: var(--secondary-text-color);
   }
   .overhead {
-    padding: 16px 16px 8px;
+    padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px);
   }
   .label {
-    font-size: 0.8em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
-    margin-bottom: 8px;
-  }
-  .photo img {
-    display: block;
-    width: 100%;
-    max-height: 240px;
-    object-fit: cover;
-    border-radius: var(--ha-card-border-radius, 12px);
-  }
-  .credit {
-    font-size: 0.8em;
-    color: var(--secondary-text-color);
-    margin: 4px 0 12px;
-  }
-  .credit a {
-    color: inherit;
   }
   .details {
     display: flex;
-    gap: 12px;
-    align-items: flex-start;
+    align-items: center;
+    gap: var(--ha-space-3, 12px);
     cursor: pointer;
   }
-  .details ha-icon {
-    margin-top: 2px;
+  .details .photo,
+  .details .badge-icon {
+    flex: none;
+  }
+  .photo img {
+    display: block;
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: var(--ha-border-radius-md, 8px);
+  }
+  .details .badge-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--ha-border-radius-md, 8px);
+    --mdc-icon-size: 28px;
   }
   .lines {
+    flex: 1;
     min-width: 0;
   }
   .primary {
-    font-size: 1.1em;
-    font-weight: 500;
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.4;
   }
   .secondary {
+    font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     white-space: pre-wrap;
+  }
+  .lines .primary,
+  .lines .secondary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aside {
+    flex: none;
+    text-align: end;
+    font-size: var(--ha-font-size-s, 12px);
+    line-height: 1.6;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .credit {
+    margin-top: var(--ha-space-1, 4px);
+    font-size: var(--ha-font-size-xs, 10px);
+    color: var(--secondary-text-color);
+  }
+  .credit a {
+    color: inherit;
   }
   .nearby {
     padding: 8px 16px;
@@ -2825,47 +2880,71 @@ const STYLE = css`
     font-variant-numeric: tabular-nums;
   }
   .table {
-    padding: 8px 16px 12px;
-    border-top: 1px solid var(--divider-color);
+    padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px);
   }
-  .table[hidden] {
+  .table[hidden],
+  .table-title[hidden] {
     display: none;
+  }
+  .table-title {
+    display: flex;
+    align-items: baseline;
+    padding: var(--ha-space-1, 4px) 0 var(--ha-space-3, 12px);
+    font-size: var(--ha-font-size-l, 16px);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+  .table-title .count {
+    margin-inline-start: auto;
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-normal, 400);
+    color: var(--secondary-text-color);
   }
   .table input {
     box-sizing: border-box;
     width: 100%;
-    margin-bottom: 8px;
-    padding: 8px 10px;
+    height: 40px;
+    margin-bottom: var(--ha-space-2, 8px);
+    padding: 0 var(--ha-space-3, 12px);
     border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-md, 8px);
+    background: var(--ha-card-background, var(--card-background-color));
     color: var(--primary-text-color);
     font: inherit;
+    font-size: var(--ha-font-size-m, 14px);
   }
+  /* The header and eight whole rows; faded at the foot while more follow. */
   .scroll {
-    max-height: 360px;
+    max-height: calc(33px + 8 * 41px);
     overflow-y: auto;
+  }
+  .scroll.more {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
   }
   .table table {
     width: 100%;
     border-collapse: collapse;
+    font-size: var(--ha-font-size-m, 14px);
   }
   .table th {
     position: sticky;
     top: 0;
-    background: var(--card-background-color);
+    height: 32px;
+    background: var(--ha-card-background, var(--card-background-color));
     color: var(--secondary-text-color);
-    font-weight: 500;
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 500);
     text-align: left;
     white-space: nowrap;
     cursor: pointer;
   }
   .table th,
   .table td {
-    padding: 4px 6px;
+    padding: 0 var(--ha-space-2, 8px);
     white-space: nowrap;
   }
   .table td {
+    height: 40px;
     border-top: 1px solid var(--divider-color);
   }
   .table .number {
@@ -2912,11 +2991,11 @@ const STYLE = css`
   .picked .failed {
     color: var(--error-color, #db4437);
   }
-  .table tr.distress td:first-child {
-    box-shadow: inset 3px 0 var(--error-color, #db4437);
+  .table tr.distress td {
+    background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
   }
-  .table tr.watch td:first-child {
-    box-shadow: inset 3px 0 var(--primary-color);
+  .table tr.watch td {
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   }
   .table tbody tr:focus-visible {
     outline: 2px solid var(--primary-color);
@@ -2981,39 +3060,70 @@ const STYLE = css`
   .narrow .table .wide {
     display: none;
   }
+  .status-box[hidden] {
+    display: none;
+  }
+  /* Wrapped and centred; on a phone one row that scrolls sideways rather
+     than taking three lines. */
   .status {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 6px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--divider-color);
-    color: var(--secondary-text-color);
-    font-size: 0.9em;
+    justify-content: center;
+    gap: var(--ha-space-2, 8px);
+    padding: var(--ha-space-3, 12px) var(--ha-space-3, 12px) 0;
   }
-  .figures {
-    cursor: pointer;
-    font-variant-numeric: tabular-nums;
+  .narrow .status {
+    flex-wrap: nowrap;
+    justify-content: normal;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .feed {
-    margin-left: 10px;
+  .status::-webkit-scrollbar {
+    display: none;
+  }
+  /* Centred while it fits, without hiding the start once it does not. */
+  .narrow .status > :first-child {
+    margin-inline-start: auto;
+  }
+  .narrow .status > :last-child {
+    margin-inline-end: auto;
+  }
+  /* Home Assistant's badge: a pill with an icon, its text medium and small. */
+  .badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--ha-space-2, 8px);
+    height: 36px;
+    padding: 0 var(--ha-space-3, 12px);
+    border-radius: 18px;
+    flex: none;
+    white-space: nowrap;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
+    --mdc-icon-size: 18px;
+  }
+  .badge ha-icon {
+    color: var(--secondary-text-color);
+  }
+  .feed.good ha-icon {
+    color: var(--success-color, #43a047);
+  }
+  .feed.warn ha-icon {
+    color: var(--warning-color, #ffa600);
+  }
+  .feed.bad ha-icon {
+    color: var(--error-color, #db4437);
   }
   .dot {
     display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--error-color, #db4437);
-  }
-  .good .dot {
-    background: var(--success-color, #43a047);
-  }
-  .warn .dot {
-    background: var(--warning-color, #ffa600);
   }
 `;
 

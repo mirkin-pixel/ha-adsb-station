@@ -289,6 +289,12 @@ const tests = {
     const link = connect(hass);
     const card = renderTable(w, hass, { list: "passages" });
     assert.equal(link.subscriptions.length, 0, "the board needs no sky");
+    // Its own title with how many came over, unless the dashboard named it.
+    assert.equal(card.shadowRoot.querySelector(".table-title").textContent, "Passages today3");
+    assert.equal(
+      renderTable(w, hass, { list: "passages", title: "Overhead" }).shadowRoot.querySelector(".table-title").hidden,
+      true,
+    );
 
     const rows = () =>
       [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) =>
@@ -672,8 +678,8 @@ const tests = {
     assert.equal(JSON.stringify(figures), JSON.stringify(["468 received", "75.0 msg/s", "67.9 km", "S/N 18.7 dB"]));
     const feeds = [...root.querySelectorAll(".feed")].map((f) => [f.textContent, f.className]);
     assert.deepEqual(feeds, [
-      ["Flightradar24", "feed good"],
-      ["FlightAware", "feed warn"],
+      ["Flightradar24", "feed badge good"],
+      ["FlightAware", "feed badge warn"],
     ]);
   },
 
