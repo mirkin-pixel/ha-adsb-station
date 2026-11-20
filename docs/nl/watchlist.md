@@ -73,6 +73,8 @@ entities:
 
 De lijst zelf staat in het attribuut `watching` van **Watchlist in bereik**.
 
+Op de [stationskaart](dashboards.md) tik je een toestel aan en dan **Op watchlist zetten**. Dat vult hetzelfde vak **Watchlist: toevoegen**, dus het werkt voor elke gebruiker, niet alleen voor een beheerder. Een regel eraf halen gaat via het vak en **Configureren**: een toestel kan op de lijst staan door een regel als `KLM*` of `military`, en die kan een knop bij dat ene toestel er niet af halen.
+
 Hetzelfde kan als actie, voor een script of een automatisering: `adsb_station.watch` en `adsb_station.unwatch`, elk met de regel als `aircraft`:
 
 ```yaml

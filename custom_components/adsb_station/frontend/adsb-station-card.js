@@ -98,6 +98,8 @@ const STRINGS = {
     route_unknown: "No route known",
     route_failed: "Could not look up the route",
     passes: "Passes {distance} away in {time}",
+    watch: "Add to watchlist",
+    watch_failed: "Could not add it",
   },
   nl: {
     name: "ADS-B Station",
@@ -182,6 +184,8 @@ const STRINGS = {
     route_unknown: "Geen route bekend",
     route_failed: "Route opzoeken mislukt",
     passes: "Komt op {distance} langs, over {time}",
+    watch: "Op watchlist zetten",
+    watch_failed: "Toevoegen mislukt",
   },
 };
 
@@ -754,6 +758,8 @@ class AdsbStationCard extends HTMLElement {
     this._hidden = new Set();
     // hex → { status, points, at }: pending, found, unknown, failed or off.
     this._routes = new Map();
+    // hex → busy, added or failed, for the watchlist button.
+    this._watching = new Map();
     this._onlyTable = false;
     this._sort = { key: "distance", descending: false };
     this._query = "";
@@ -822,6 +828,7 @@ class AdsbStationCard extends HTMLElement {
       overhead: overhead[0],
       nearby: on("aircraft_nearby"),
       passages: on("passages_today"),
+      watch: on("watch"),
       received: on("aircraft_received"),
       rate: on("message_rate"),
       range: on("max_range"),
@@ -1620,8 +1627,10 @@ class AdsbStationCard extends HTMLElement {
   }
 
   _picked(text) {
-    const plane = this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
-    if (!plane) return null;
+    const found = this._selected && this._sky && (this._sky.aircraft || []).find((p) => p.hex === this._selected);
+    if (!found) return null;
+    // Just put on the watchlist: said so now, not after the next read.
+    const plane = this._watching.get(found.hex) === "added" ? { ...found, watched: true } : found;
     return el(
       "div",
       { class: "picked" },
@@ -1648,7 +1657,39 @@ class AdsbStationCard extends HTMLElement {
       ),
       this._passing(plane, text),
       this._flightLine(plane, text),
+      this._watchLine(plane, text),
     );
+  }
+
+  // One tap puts the picked aircraft on the watchlist, through the box anyone
+  // may fill rather than the action only an administrator may call.
+  _watchLine(plane, text) {
+    const box = this._found && this._found.watch;
+    const line = plane.registration || plane.hex;
+    if (plane.watched || !box || !line || line.startsWith("~")) return null;
+    const state = this._watching.get(plane.hex);
+    return el(
+      "div",
+      { class: "watch-line" },
+      el(
+        "button",
+        { class: "watch-button", disabled: state === "busy", onclick: () => this._watch(plane.hex, line, box) },
+        text.watch,
+      ),
+      state === "failed" ? el("span", { class: "failed" }, text.watch_failed) : null,
+    );
+  }
+
+  async _watch(hex, line, box) {
+    this._watching.set(hex, "busy");
+    this._drawSky();
+    try {
+      await this._hass.callService("text", "set_value", { value: line }, { entity_id: box.entity_id });
+      this._watching.set(hex, "added");
+    } catch {
+      this._watching.set(hex, "failed");
+    }
+    if (this._skyBox && !this._skyBox.hidden) this._drawSky();
   }
 
   // How close the picked aircraft comes, and in how long, while it still comes.
@@ -2575,6 +2616,23 @@ const STYLE = css`
   .picked .watch {
     stroke: var(--primary-color);
     color: var(--primary-color);
+  }
+  .watch-button {
+    margin-top: 6px;
+    padding: 4px 12px;
+    border: 1px solid var(--primary-color);
+    border-radius: 16px;
+    background: none;
+    color: var(--primary-color);
+    font: inherit;
+    cursor: pointer;
+  }
+  .watch-button[disabled] {
+    opacity: 0.5;
+  }
+  .picked .failed {
+    margin-left: 8px;
+    color: var(--error-color, #db4437);
   }
   .table tr.distress td:first-child {
     box-shadow: inset 3px 0 var(--error-color, #db4437);
