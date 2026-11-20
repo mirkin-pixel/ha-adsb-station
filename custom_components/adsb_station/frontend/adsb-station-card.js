@@ -1042,8 +1042,17 @@ class AdsbStationCard extends HTMLElement {
     if (subscription) subscription.then((unsubscribe) => unsubscribe()).catch(() => {});
   }
 
+  // What is received but cannot be drawn, beside the aircraft received.
+  _noteUnplaced(text = strings(this._hass)) {
+    const note = this._unplacedNote;
+    if (!note) return;
+    const count = (this._sky && this._sky.unplaced) || 0;
+    note.textContent = count ? ` · ${this._number(count, 0)} ${text.no_position.toLocaleLowerCase()}` : "";
+  }
+
   _receive(sky) {
     this._sky = sky;
+    this._noteUnplaced();
     this._receivedAt = Date.now();
     this._flying ||= setInterval(() => this._skyBox && !this._skyBox.hidden && this._drawSky(), 1000);
     const now = Date.now() / 1000;
@@ -1670,9 +1679,6 @@ class AdsbStationCard extends HTMLElement {
           el("span", { class: "count" }, count),
         );
       }),
-      // So the five add up to the aircraft received. Plain text, as it is no
-      // filter; kept at 0 so the row does not change width.
-      el("span", { class: "unplaced", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced ?? 0}`),
     );
   }
 
@@ -1685,16 +1691,6 @@ class AdsbStationCard extends HTMLElement {
     return el(
       "div",
       { class: "legend" },
-      el(
-        "div",
-        { class: "keys" },
-        el("span", { class: "key" }, el("span", { class: "dot ground" }), text.on_ground),
-        this._outlineKm(this._sky)
-          ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage_day)
-          : this._coverage()
-            ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage)
-            : null,
-      ),
       el(
         "div",
         { class: "scale" },
@@ -1711,6 +1707,18 @@ class AdsbStationCard extends HTMLElement {
             return el("span", { style: `left: ${share.toFixed(1)}%; transform: translateX(${shift})` }, label);
           }),
         ),
+      ),
+      el(
+        "div",
+        { class: "keys" },
+        ((this._sky && this._sky.aircraft) || []).some((plane) => plane.on_ground)
+          ? el("span", { class: "key" }, el("span", { class: "dot ground" }), text.on_ground)
+          : null,
+        this._outlineKm(this._sky)
+          ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage_day)
+          : this._coverage()
+            ? el("span", { class: "key" }, el("span", { class: "area" }), text.coverage)
+            : null,
       ),
     );
   }
@@ -2290,6 +2298,8 @@ class AdsbStationCard extends HTMLElement {
         found.received,
         found.received && shown(found.received) && `${shown(found.received)} ${text.received}`,
         "mdi:airplane",
+        // So the kinds and these add up to the aircraft received.
+        (this._unplacedNote = el("span", { class: "unplaced", title: text.no_position_hint })),
       ],
       [found.rate, shown(found.rate), "mdi:message-flash-outline"],
       [found.range, shown(found.range), "mdi:radar"],
@@ -2297,16 +2307,17 @@ class AdsbStationCard extends HTMLElement {
       // change to the gain or the antenna is judged by.
       [found.snr, found.snr && shown(found.snr) && `S/N ${shown(found.snr)}`, "mdi:signal"],
     ].filter(([, value]) => value);
-    for (const [entry, value, icon] of figures) {
+    for (const [entry, value, icon, note] of figures) {
       line.append(
         el(
           "span",
           { class: "figures badge", role: "button", tabindex: "0", onclick: this._moreInfo(entry) },
           el("ha-icon", { icon }),
-          value,
+          el("span", {}, value, note),
         ),
       );
     }
+    this._noteUnplaced(text);
     for (const entry of found.feeds) {
       const state = this._state(entry);
       if (!state) continue;
@@ -2352,13 +2363,8 @@ const STYLE = css`
   .side-by-side .layout.with-sky {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   }
-  .side-by-side .layout.with-sky .sky {
-    border-right: 1px solid var(--divider-color);
-    border-bottom: none;
-  }
   .sky {
-    padding: 12px 12px 8px;
-    border-bottom: 1px solid var(--divider-color);
+    padding: var(--ha-space-3, 12px) var(--ha-space-3, 12px) 0;
   }
   .sky[hidden] {
     display: none;
@@ -2598,17 +2604,12 @@ const STYLE = css`
   .kind.none {
     opacity: 0.5;
   }
-  .unplaced {
-    font-size: var(--ha-font-size-m, 14px);
-    padding: 0 var(--ha-space-1, 4px);
-    color: var(--secondary-text-color);
-  }
   .legend {
     position: absolute;
     left: 8px;
     bottom: 8px;
     width: min(50%, 230px);
-    padding: 6px var(--ha-space-2, 8px) 2px;
+    padding: 6px var(--ha-space-2, 8px) 4px;
     border-radius: var(--ha-border-radius-md, 8px);
     font-size: var(--ha-font-size-xs, 10px);
     color: var(--secondary-text-color);
@@ -2619,7 +2620,10 @@ const STYLE = css`
     display: flex;
     flex-wrap: wrap;
     gap: 2px var(--ha-space-2, 8px);
-    margin-bottom: 4px;
+    margin-top: 2px;
+  }
+  .legend .keys:empty {
+    display: none;
   }
   .legend .key {
     display: inline-flex;
@@ -2851,8 +2855,7 @@ const STYLE = css`
     color: inherit;
   }
   .nearby {
-    padding: 8px 16px;
-    border-top: 1px solid var(--divider-color);
+    padding: var(--ha-space-2, 8px) var(--ha-space-4, 16px);
   }
   .row {
     display: grid;

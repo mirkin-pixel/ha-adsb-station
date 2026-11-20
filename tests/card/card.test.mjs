@@ -884,6 +884,9 @@ const tests = {
     // The outer ring fits the furthest aircraft; the nearby radius is dashed.
     assert.match(root.querySelector(".radar").textContent, /50 km/);
     assert.ok(root.querySelector(".radar .near"));
+    // The grey of the ground is explained only while an aircraft is on it.
+    assert.doesNotMatch(root.querySelector(".legend").textContent, /on the ground/);
+    link.send(SKY([LOW, HIGH, { ...ROTOR, on_ground: true }]));
     assert.match(root.querySelector(".legend").textContent, /on the ground/);
   },
 
@@ -1068,20 +1071,20 @@ const tests = {
     assert.ok([...high.shadowRoot.querySelectorAll(".kind")].some((b) => b.textContent === "Overig 0"));
   },
 
-  "counts what is received but not on the radar, beside the kinds"() {
+  "counts what is received but not on the radar, beside the aircraft received"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
     const card = render(w, hass);
-    const label = () => card.shadowRoot.querySelector(".kinds .unplaced");
+    const note = () => card.shadowRoot.querySelector(".status .figures .unplaced");
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 5 });
-    assert.equal(label().textContent, "Zonder positie 5");
-    // Not a button: there is nothing on the radar to take off
-    assert.equal(label().tagName, "SPAN");
-    assert.match(label().title, /zonder positie/);
-    // Still there at 0, like the kinds
+    assert.equal(note().parentElement.textContent, "468 ontvangen · 5 zonder positie");
+    assert.match(note().title, /zonder positie/);
+    // Nothing to add when everything is on the radar.
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 0 });
-    assert.equal(label().textContent, "Zonder positie 0");
+    assert.equal(note().parentElement.textContent, "468 ontvangen");
+    // No longer among the kinds, which are switches.
+    assert.equal(card.shadowRoot.querySelector(".kinds .unplaced"), null);
     // A kind with none is dimmed, one with aircraft is not.
     const kind = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((k) => k.textContent.includes(name));
     assert.equal(kind("Lijnvlucht").className, "kind");
