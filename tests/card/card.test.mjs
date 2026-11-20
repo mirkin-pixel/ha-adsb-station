@@ -88,6 +88,9 @@ const overheadState = (attributes, state = attributes.flight) => ({ state, attri
 
 // A websocket that hands the card's subscription to the test, which then
 // plays the integration and sends it the sky.
+// A tap asks for the photo as well; the route tests leave that unanswered.
+const noPhoto = (message) => message.type === "adsb_station/look_up_photo" && Promise.resolve({ status: "none" });
+
 function renderTable(window, hass, config = {}) {
   const card = window.document.createElement("adsb-station-table-card");
   window.document.body.append(card);
@@ -289,6 +292,12 @@ const tests = {
     const link = connect(hass);
     const card = renderTable(w, hass, { list: "passages" });
     assert.equal(link.subscriptions.length, 0, "the board needs no sky");
+    // Its own title with how many came over, unless the dashboard named it.
+    assert.equal(card.shadowRoot.querySelector(".table-title").textContent, "Passages today3");
+    assert.equal(
+      renderTable(w, hass, { list: "passages", title: "Overhead" }).shadowRoot.querySelector(".table-title").hidden,
+      true,
+    );
 
     const rows = () =>
       [...card.shadowRoot.querySelectorAll(".table tbody tr")].map((row) =>
@@ -672,8 +681,8 @@ const tests = {
     assert.equal(JSON.stringify(figures), JSON.stringify(["468 received", "75.0 msg/s", "67.9 km", "S/N 18.7 dB"]));
     const feeds = [...root.querySelectorAll(".feed")].map((f) => [f.textContent, f.className]);
     assert.deepEqual(feeds, [
-      ["Flightradar24", "feed good"],
-      ["FlightAware", "feed warn"],
+      ["Flightradar24", "feed badge good"],
+      ["FlightAware", "feed badge warn"],
     ]);
   },
 
@@ -779,12 +788,32 @@ const tests = {
     assert.match(card.shadowRoot.textContent, /470 received/);
   },
 
-  "opens the details of what is clicked"() {
+  "opens the aircraft overhead large, and the details of what is clicked"() {
     const w = browser();
+    // jsdom has no modal dialogs.
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    w.HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new w.Event("close"));
+    };
     const card = render(w, hassWith({ overhead: overheadState(KLM) }));
     const opened = [];
     card.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
+    // The tile opens a window with the photo large, linked and credited as
+    // Planespotters asks, and the way on to the entity.
     card.shadowRoot.querySelector(".details").click();
+    const dialog = card.shadowRoot.querySelector("dialog.passage");
+    assert.ok(dialog.open);
+    assert.equal(dialog.querySelector(".photo").getAttribute("href"), KLM.photo_link);
+    assert.equal(dialog.querySelector(".photo img").getAttribute("src"), KLM.photo);
+    assert.match(dialog.querySelector(".credit").textContent, /Jan Seler/);
+    assert.match(dialog.textContent, /AMS → LHR/);
+    dialog.querySelector("button.more").click();
+    assert.ok(!dialog.open);
+    // The small photo still leads to its page, not to the window.
+    assert.equal(card.shadowRoot.querySelector(".details a.photo").getAttribute("href"), KLM.photo_link);
     card.shadowRoot.querySelector(".feed").click();
     assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
   },
@@ -797,10 +826,10 @@ const tests = {
     const opened = [];
     card.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
     const press = (node, key) => node.dispatchEvent(new w.KeyboardEvent("keydown", { key, cancelable: true }));
-    press(card.shadowRoot.querySelector(".details"), " ");
+    press(card.shadowRoot.querySelector(".figures"), " ");
     press(card.shadowRoot.querySelector(".feed"), "Enter");
     press(card.shadowRoot.querySelector(".feed"), "a");
-    assert.deepEqual(opened, ["sensor.t_etur47_vlucht_overhead", "binary_sensor.t_etur47_feed"]);
+    assert.deepEqual(opened, ["sensor.t_etur47_vliegtuigen_ontvangen", "binary_sensor.t_etur47_feed"]);
 
     link.send(SKY([LOW, HIGH]));
     // A group, not an image, so a screen reader reaches the aircraft in it.
@@ -837,6 +866,18 @@ const tests = {
     assert.equal(JSON.stringify(styles.map((o) => o.label)), JSON.stringify(["Radar", "Landkaart", "Geen kaart"]));
   },
 
+  "moves a callsign to a free corner rather than over another"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const card = render(w, hass);
+    // Two at one spot: the nearer keeps the corner above, the other goes below.
+    link.send(SKY([LOW, { ...LOW, hex: "aaaaaa", flight: "TWIN1", distance: LOW.distance + 0.1 }]));
+    const label = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"] .callsign`);
+    assert.equal(label(LOW.hex).getAttribute("y"), "-8");
+    assert.equal(label("aaaaaa").getAttribute("y"), "16");
+  },
+
   "draws every aircraft the integration sends on the radar"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
@@ -866,6 +907,9 @@ const tests = {
     // The outer ring fits the furthest aircraft; the nearby radius is dashed.
     assert.match(root.querySelector(".radar").textContent, /50 km/);
     assert.ok(root.querySelector(".radar .near"));
+    // The grey of the ground is explained only while an aircraft is on it.
+    assert.doesNotMatch(root.querySelector(".legend").textContent, /on the ground/);
+    link.send(SKY([LOW, HIGH, { ...ROTOR, on_ground: true }]));
     assert.match(root.querySelector(".legend").textContent, /on the ground/);
   },
 
@@ -1050,21 +1094,29 @@ const tests = {
     assert.ok([...high.shadowRoot.querySelectorAll(".kind")].some((b) => b.textContent === "Overig 0"));
   },
 
-  "counts what is received but not on the radar, beside the kinds"() {
+  "counts what is received but not on the radar, beside the aircraft received"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
     const card = render(w, hass);
-    const label = () =>
-      [...card.shadowRoot.querySelectorAll(".kind")].find((item) => item.textContent.startsWith("Zonder positie"));
+    const note = () => card.shadowRoot.querySelector(".status .figures .unplaced");
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 5 });
-    assert.equal(label().textContent, "Zonder positie 5");
-    // Not a button: there is nothing on the radar to take off
-    assert.equal(label().tagName, "SPAN");
-    assert.match(label().title, /zonder positie/);
-    // Still there at 0, like the kinds
+    assert.equal(note().parentElement.textContent, "468 ontvangen · 5 zonder positie");
+    assert.match(note().title, /zonder positie/);
+    // Nothing to add when everything is on the radar.
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 0 });
-    assert.equal(label().textContent, "Zonder positie 0");
+    assert.equal(note().parentElement.textContent, "468 ontvangen");
+    // No longer among the kinds, which are switches.
+    assert.equal(card.shadowRoot.querySelector(".kinds .unplaced"), null);
+    // A kind with none is dimmed, one with aircraft is not.
+    const kind = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((k) => k.textContent.includes(name));
+    assert.equal(kind("Lijnvlucht").className, "kind");
+    assert.equal(kind("Militair").className, "kind none");
+    // A tick while shown, as Home Assistant's filter chips have; none once taken off.
+    assert.equal(kind("Militair").querySelector("ha-icon").getAttribute("icon"), "mdi:check");
+    kind("Militair").click();
+    assert.equal(kind("Militair").querySelector("ha-icon"), null);
+    assert.equal(kind("Militair").getAttribute("aria-pressed"), "false");
   },
 
   "flies the aircraft on between polls, but not far"() {
@@ -1161,13 +1213,15 @@ const tests = {
     };
     link.send(SKY([flying]));
     card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
-    const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
     // Mach over IAS, and no roll for a wing that is nearly level.
-    assert.equal(lines.at(-1), "Groot vliegtuig · Mach 0,78 · wind 270° 157 km/h · -56 °C");
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .fine").textContent,
+      "Groot vliegtuig · Mach 0,78 · wind 270° 157 km/h · -56 °C",
+    );
 
     // A decoder that passes none of it on adds no line at all.
     link.send(SKY([LOW]));
-    assert.equal(card.shadowRoot.querySelectorAll(".picked .secondary").length, lines.length - 1);
+    assert.equal(card.shadowRoot.querySelector(".picked .fine"), null);
   },
 
   "shows the station's units, or Home Assistant's own"() {
@@ -1180,12 +1234,16 @@ const tests = {
       const card = render(w, hass);
       link.send(SKY([flying]));
       card.shadowRoot.querySelector(`.plane[data-hex="${LOW.hex}"]`).dispatchEvent(new w.Event("click"));
-      const lines = [...card.shadowRoot.querySelectorAll(".picked .secondary")].map((line) => line.textContent);
+      // Each figure as it reads: the number, then its unit.
+      const figures = [...card.shadowRoot.querySelectorAll(".picked .stat")]
+        .map((stat) => stat.querySelector("b").textContent + stat.querySelector("small").textContent)
+        .join("   ");
+      const weather = card.shadowRoot.querySelector(".picked .fine").textContent;
       const ticks = [...card.shadowRoot.querySelectorAll(".legend .ticks span")].map((tick) => tick.textContent);
       const rings = [...card.shadowRoot.querySelectorAll(".radar text")]
         .map((label) => label.textContent)
         .filter((s) => /\d (km|NM|mi)$/.test(s));
-      return { figures: lines[1], weather: lines.at(-1), ticks, rings };
+      return { figures, weather, ticks, rings };
     };
 
     // Before 1.4 the sensors name no units: metric, as Home Assistant itself
@@ -1334,7 +1392,7 @@ const tests = {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    hass.callWS = () => assert.fail("a route that came with the sky is not asked for");
+    hass.callWS = (message) => noPhoto(message) || assert.fail("a route that came with the sky is not asked for");
     const card = render(w, hass);
     const route_points = {
       origin: { code: "GOT", location: "Gothenburg", latitude: 57.66, longitude: 12.28 },
@@ -1349,7 +1407,11 @@ const tests = {
     assert.ok(route.querySelector(".ahead"));
     const codes = [...route.querySelectorAll(".airport text")].map((t) => t.textContent);
     assert.equal(JSON.stringify(codes), JSON.stringify(["GOT", "AMS"]));
-    assert.match(card.shadowRoot.querySelector(".picked").textContent, /GOT Gothenburg → AMS Amsterdam/);
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .route").getAttribute("aria-label"),
+      "GOT Gothenburg → AMS Amsterdam",
+    );
+    assert.equal(card.shadowRoot.querySelector(".picked .route .from b").textContent, "GOT");
     // The way ahead ends on Schiphol: north-west of the station, so left of
     // and above the centre.
     const last = route.querySelector(".ahead").getAttribute("points").split(" ").pop().split(",").map(Number);
@@ -1415,7 +1477,9 @@ const tests = {
     // By its registration, which reads on the list.
     tap(HIGH.hex);
     tap(LOW.hex);
-    assert.equal(button().textContent, "Op watchlist zetten");
+    // An eye with a plus, named for a screen reader and on hover.
+    assert.equal(button().getAttribute("aria-label"), "Op watchlist zetten");
+    assert.equal(button().querySelector("ha-icon").getAttribute("icon"), "mdi:eye-plus-outline");
     button().dispatchEvent(new w.Event("click"));
     await new Promise((resolve) => setTimeout(resolve));
     assert.equal(
@@ -1436,12 +1500,59 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".picked .failed").textContent, "Toevoegen mislukt");
   },
 
+  async "shows the photo of a tapped aircraft, and opens it large"() {
+    const w = browser();
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    w.HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new w.Event("close"));
+    };
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const asked = [];
+    hass.callWS = (message) => {
+      asked.push(message.type);
+      return message.type === "adsb_station/look_up_photo"
+        ? Promise.resolve({
+            status: "found",
+            photo: "https://t.plnspttrs.net/9_280.jpg",
+            photo_link: "https://www.planespotters.net/photo/9",
+            photographer: "Piet",
+          })
+        : new Promise(() => {});
+    };
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH, { ...ROTOR, pia: true }]));
+    const tap = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).dispatchEvent(new w.Event("click"));
+    tap(HIGH.hex);
+    await new Promise((resolve) => setTimeout(resolve));
+    // Small in place of the icon, leading to its page, with who took it.
+    const small = card.shadowRoot.querySelector(".picked .head a.photo");
+    assert.equal(small.getAttribute("href"), "https://www.planespotters.net/photo/9");
+    assert.equal(small.querySelector("img").getAttribute("src"), "https://t.plnspttrs.net/9_280.jpg");
+    assert.match(card.shadowRoot.querySelector(".picked .credit").textContent, /Piet \/ Planespotters\.net/);
+    // Its name opens it large.
+    card.shadowRoot.querySelector(".picked .names").click();
+    const dialog = card.shadowRoot.querySelector("dialog.passage");
+    assert.ok(dialog.open);
+    assert.equal(dialog.querySelector(".photo img").getAttribute("src"), "https://t.plnspttrs.net/9_280.jpg");
+    assert.equal(dialog.querySelector("button.more"), null);
+    // Asked once, and never for a borrowed address.
+    tap(HIGH.hex);
+    tap(HIGH.hex);
+    tap(ROTOR.hex);
+    assert.equal(asked.filter((type) => type === "adsb_station/look_up_photo").length, 1);
+  },
+
   async "asks for the route of a tapped aircraft further out"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
     const asked = [];
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return Promise.resolve({
         route_points: {
@@ -1461,7 +1572,10 @@ const tests = {
     await tick();
     await tick();
     assert.ok(card.shadowRoot.querySelector(".radar .route"));
-    assert.match(card.shadowRoot.querySelector(".picked").textContent, /DUB Dublin → BUD Budapest/);
+    assert.equal(
+      card.shadowRoot.querySelector(".picked .route").getAttribute("aria-label"),
+      "DUB Dublin → BUD Budapest",
+    );
     // Asked once: tapped again, it is remembered.
     tap();
     tap();
@@ -1514,6 +1628,7 @@ const tests = {
     const link = connect(hass);
     const asked = [];
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return new Promise(() => {});
     };
@@ -1543,7 +1658,7 @@ const tests = {
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
     let answer;
-    hass.callWS = () => new Promise((resolve) => (answer = resolve));
+    hass.callWS = (message) => noPhoto(message) || new Promise((resolve) => (answer = resolve));
     const card = render(w, hass);
     link.send(SKY([LOW, HIGH]));
     card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
@@ -1561,6 +1676,7 @@ const tests = {
     const asked = [];
     let reply = () => Promise.reject(new Error("connection lost"));
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return reply();
     };
