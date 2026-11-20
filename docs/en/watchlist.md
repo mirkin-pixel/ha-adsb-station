@@ -73,6 +73,8 @@ entities:
 
 The list itself is in the `watching` attribute of **Watchlist in range**.
 
+On the [station card](dashboards.md), tap an aircraft and then **Add to watchlist**. That fills the same **Watchlist: add** box, so it works for every user, not only an administrator. Taking a line off is left to the box and **Configure**: an aircraft can be on the list through a line such as `KLM*` or `military`, which a button on that one aircraft cannot take off.
+
 The same two things are actions, for a script or an automation: `adsb_station.watch` and `adsb_station.unwatch`, each with the line as `aircraft`:
 
 ```yaml

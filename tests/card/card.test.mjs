@@ -35,6 +35,7 @@ function hassWith({ overhead, nearby = [], language = "en", extraStates = {} } =
     "binary_sensor.t_etur47_feed": entity("binary_sensor.t_etur47_feed", "feed"),
     "sensor.piaware_feeder_feed": entity("sensor.piaware_feeder_feed", "piaware_feed", PIAWARE),
     "sensor.t_etur47_passages_vandaag": entity("sensor.t_etur47_passages_vandaag", "passages_today"),
+    "text.t_etur47_watchlist_add": entity("text.t_etur47_watchlist_add", "watch"),
     "sensor.unrelated": { entity_id: "sensor.unrelated", platform: "other" },
   };
   const st = (state, attributes = {}) => ({ state, attributes, last_updated: "t" });
@@ -1345,6 +1346,50 @@ const tests = {
     // On the ground it heads nowhere.
     link.send(SKY([{ ...coming, on_ground: true }, HIGH]));
     assert.equal(card.shadowRoot.querySelector(".radar .heading"), null);
+  },
+
+  async "puts a tapped aircraft on the watchlist through the box anyone may fill"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
+    const calls = [];
+    let answer = () => Promise.resolve();
+    hass.callService = (...args) => {
+      calls.push(args);
+      return answer();
+    };
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW, { ...HIGH, watched: true }]));
+    const tap = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).dispatchEvent(new w.Event("click"));
+    const button = () => card.shadowRoot.querySelector(".picked .watch-button");
+
+    // Already on it: said so, no button.
+    tap(HIGH.hex);
+    assert.equal(button(), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .watch").textContent, "Op je watchlist");
+
+    // By its registration, which reads on the list.
+    tap(HIGH.hex);
+    tap(LOW.hex);
+    assert.equal(button().textContent, "Op watchlist zetten");
+    button().dispatchEvent(new w.Event("click"));
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(
+      JSON.stringify(calls[0]),
+      JSON.stringify(["text", "set_value", { value: "PH-BXA" }, { entity_id: "text.t_etur47_watchlist_add" }]),
+    );
+    assert.equal(button(), null);
+    assert.equal(card.shadowRoot.querySelector(".picked .watch").textContent, "Op je watchlist");
+
+    // Without a registration by its hex; a refusal says so and keeps the button.
+    answer = () => Promise.reject(new Error("refused"));
+    link.send(SKY([{ ...LOW, hex: "4ca999", registration: undefined }]));
+    tap("4ca999");
+    button().dispatchEvent(new w.Event("click"));
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(calls[1][2].value, "4ca999");
+    assert.ok(button());
+    assert.equal(card.shadowRoot.querySelector(".picked .failed").textContent, "Toevoegen mislukt");
   },
 
   async "asks for the route of a tapped aircraft further out"() {
