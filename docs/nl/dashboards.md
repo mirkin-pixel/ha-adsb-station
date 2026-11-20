@@ -51,6 +51,26 @@ Bovenaan de kaart, als de eigen badges van Home Assistant: vliegtuigen ontvangen
 
 Plane Finder geeft zelf geen feedstatus, dus die heeft geen badge in plaats van een badge die niets betekent.
 
+De cijfers kunnen ook los staan, als de badges bovenaan het dashboard die Home Assistant zelf heeft, met de kaart eronder zonder die van zichzelf: één rij voor de hele weergave, die op een telefoon afbreekt in plaats van te scrollen. Voeg ze toe met **Badge toevoegen** in de dashboard-editor, of in YAML. De entiteit-ID's hier zijn voorbeelden: die van jou volgen de naam van je station en de taal die Home Assistant had toen het werd toegevoegd.
+
+```yaml
+badges:
+  - type: entity
+    entity: sensor.your_station_aircraft_received
+  - type: entity
+    entity: sensor.your_station_message_rate
+  - type: entity
+    entity: sensor.your_station_maximum_range
+  - type: entity
+    entity: sensor.your_station_signal_to_noise_ratio
+  - type: entity
+    entity: binary_sensor.your_station_feed
+sections:
+  - cards:
+      - type: custom:adsb-station-card
+        show_status: false
+```
+
 ## De tabelkaart
 
 Elk toestel waarvan het station een positie heeft, als tabel om te sorteren en te doorzoeken. Het is een eigen kaart, dus hij kan staan waar er ruimte is: onder de stationskaart, over de volle breedte, of op een eigen pagina. In de kaartkiezer heet hij **ADS-B Station tabel**.

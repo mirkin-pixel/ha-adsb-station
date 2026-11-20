@@ -51,6 +51,26 @@ On top of the card, as Home Assistant's own badges: aircraft received, messages 
 
 Plane Finder reports no feed status of its own, so it has no badge rather than one that means nothing.
 
+The figures can also stand on their own, as the badges on top of the dashboard that Home Assistant has itself, with the card under them without its own: one row for the whole view, which on a phone wraps rather than scrolls. Add them with **Add badge** in the dashboard editor, or in YAML. The entity IDs here are examples: yours follow the name of your station and the language Home Assistant had when it was added.
+
+```yaml
+badges:
+  - type: entity
+    entity: sensor.your_station_aircraft_received
+  - type: entity
+    entity: sensor.your_station_message_rate
+  - type: entity
+    entity: sensor.your_station_maximum_range
+  - type: entity
+    entity: sensor.your_station_signal_to_noise_ratio
+  - type: entity
+    entity: binary_sensor.your_station_feed
+sections:
+  - cards:
+      - type: custom:adsb-station-card
+        show_status: false
+```
+
 ## The table card
 
 Every aircraft the station has a position for, as a table you can sort and search. It is a card of its own, so it can go wherever there is room: under the station card, full width, or on a page of its own. In the card picker it is **ADS-B Station table**.
