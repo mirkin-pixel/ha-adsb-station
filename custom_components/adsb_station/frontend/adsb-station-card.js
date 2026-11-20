@@ -2046,17 +2046,30 @@ class AdsbStationCard extends HTMLElement {
       { class: "nearby" },
       el("div", { class: "label" }, text.nearby),
       others.map((plane) =>
+        // A row as the overhead tile, smaller: icon, what it is, how far.
         el(
           "div",
           { class: "row", role: "button", tabindex: "0", onclick: this._moreInfo(found.nearby) },
-          el("ha-icon", {
-            icon: aircraftIcon(plane),
-            style: `color: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
-          }),
-          el("span", { class: "flight" }, plane.flight || plane.hex),
-          el("span", { class: "what" }, plane.airline || plane.description || ""),
-          el("span", { class: "figure" }, this._distance(plane.distance) || ""),
-          el("span", { class: "figure" }, this._height(plane, text) || ""),
+          el(
+            "span",
+            {
+              class: "badge-icon",
+              style: `--tint: ${altitudeColor(plane.altitude, plane.on_ground, this._config.palette)}`,
+            },
+            el("ha-icon", { icon: aircraftIcon(plane) }),
+          ),
+          el(
+            "div",
+            { class: "lines" },
+            el("div", { class: "flight" }, plane.flight || plane.hex),
+            el("div", { class: "what" }, plane.airline || plane.description || ""),
+          ),
+          el(
+            "div",
+            { class: "aside" },
+            el("div", { class: "figure" }, this._distance(plane.distance) || ""),
+            el("div", { class: "figure" }, this._height(plane, text) || ""),
+          ),
         ),
       ),
     );
@@ -2855,32 +2868,37 @@ const STYLE = css`
     color: inherit;
   }
   .nearby {
-    padding: var(--ha-space-2, 8px) var(--ha-space-4, 16px);
+    padding: 0 var(--ha-space-4, 16px) var(--ha-space-3, 12px);
+  }
+  .nearby > .label {
+    padding: var(--ha-space-1, 4px) 0;
   }
   .row {
-    display: grid;
-    grid-template-columns: 24px auto 1fr auto auto;
-    gap: 8px;
+    display: flex;
     align-items: center;
-    padding: 4px 0;
+    gap: var(--ha-space-3, 12px);
+    padding: var(--ha-space-2, 8px) 0;
     cursor: pointer;
   }
-  .row ha-icon {
+  .row .badge-icon {
+    width: 36px;
+    height: 36px;
     --mdc-icon-size: 20px;
   }
-  .flight {
-    font-weight: 500;
+  .row .flight {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
   }
-  .what {
+  .row .what {
+    font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .figure {
-    color: var(--secondary-text-color);
-    text-align: right;
-    font-variant-numeric: tabular-nums;
+  .row .aside .figure:first-child {
+    font-size: var(--ha-font-size-m, 14px);
+    color: var(--primary-text-color);
   }
   .table {
     padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px);
