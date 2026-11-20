@@ -283,7 +283,7 @@ const tests = {
         aircraft_type: "B738",
       },
       { at: "2026-11-13T09:05:00+00:00", hex: "4851a7", flight: "LIFE01", altitude: 900, distance: 0.4, duration: 600 },
-      { at: "2026-11-13T11:47:00+00:00", hex: "484124", altitude: 36000, distance: 6.1, duration: 40 },
+      { at: "2026-11-13T11:47:00+00:00", hex: "484124", altitude: 36000, distance: 6, duration: 40 },
     ];
     const hass = hassWith({
       overhead: overheadState(KLM),
@@ -306,6 +306,8 @@ const tests = {
     assert.deepEqual(JSON.stringify(rows().map((row) => row[1])), JSON.stringify(["KLM1234", "484124", "LIFE01"]));
     assert.equal(rows()[0][5], "2 min");
     assert.equal(rows()[1][5], "40 s");
+    // Every distance with its tenth, so the column lines up.
+    assert.equal(rows()[1][3], "6.0 km");
     assert.match(
       card.shadowRoot.querySelector(".table thead").textContent,
       /Time.*Flight.*Height.*Distance.*Type.*In view/,
@@ -338,7 +340,8 @@ const tests = {
         airline: "KLM",
         registration: "PH-BXA",
         aircraft_type: "B738",
-        route: "AMS → LHR",
+        // As Routeset labels it.
+        route: "AMS-LHR",
         altitude: 3200,
         distance: 1.8,
         duration: 95,

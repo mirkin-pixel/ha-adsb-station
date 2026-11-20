@@ -1006,8 +1006,9 @@ class AdsbStationCard extends HTMLElement {
     };
   }
 
-  _number(value, digits) {
+  _number(value, digits, least = 0) {
     return new Intl.NumberFormat(this._hass.locale ? this._hass.locale.language : undefined, {
+      minimumFractionDigits: least,
       maximumFractionDigits: digits,
     }).format(value);
   }
@@ -1195,7 +1196,7 @@ class AdsbStationCard extends HTMLElement {
     const distances = [
       { km: range / 2, y: centre - (range / 2) * perKm - 4 },
       { km: range, y: centre - range * perKm + 14 },
-    ].map(({ km, y }) => ({ x: centre + 4, y, text: this._distance(km) }));
+    ].map(({ km, y }) => ({ x: centre + 4, y, text: this._distance(km, true) }));
 
     const scope = svg("svg", {
       class: streets ? "radar streets" : "radar",
@@ -2061,10 +2062,12 @@ class AdsbStationCard extends HTMLElement {
     return `${arrow}${this._number(plane.altitude * per, 0)} ${unit}`;
   }
 
-  _distance(km) {
+  // An aircraft's distance always with its tenth, so a column lines up; a
+  // ring's as the round number it is.
+  _distance(km, round = false) {
     if (typeof km !== "number") return null;
     const [unit, per] = this._units().distance;
-    return `${this._number(km * per, 1)} ${unit}`;
+    return `${this._number(km * per, 1, round ? 0 : 1)} ${unit}`;
   }
 
   _speed(knots) {
@@ -2361,7 +2364,9 @@ class AdsbStationCard extends HTMLElement {
           { class: "secondary" },
           [p.description || p.aircraft_type, p.registration, p.hex && p.hex.toUpperCase()].filter(Boolean).join(" · "),
         ),
-        p.route ? el("div", { class: "secondary" }, p.route) : null,
+        // A passage keeps the route as Routeset labels it, "BER-BRU"; written as
+        // the rest of the card writes one. The others come written already.
+        p.route ? el("div", { class: "secondary" }, live ? p.route : p.route.split("-").join(" → ")) : null,
         el(
           "dl",
           {},
