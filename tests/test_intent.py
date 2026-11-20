@@ -24,7 +24,8 @@ from custom_components.adsb_station.const import (
 from custom_components.adsb_station.intent import (
     INTENT_CLOSEST,
     INTENT_COUNT,
-    INTENT_LAST_PASSAGE,
+    INTENT_EMERGENCY,
+    INTENT_HIGHEST,
     INTENT_OVERHEAD,
     INTENT_ROUTE,
     INTENT_TRAFFIC,
@@ -312,14 +313,8 @@ async def test_without_a_receiver(
 
 async def test_the_sentences_match_their_intents() -> None:
     """Test that every shipped sentence file names intents that exist."""
-    known = {
-        INTENT_OVERHEAD,
-        INTENT_COUNT,
-        INTENT_CLOSEST,
-        INTENT_TRAFFIC,
-        INTENT_ROUTE,
-        INTENT_LAST_PASSAGE,
-    }
+    # Every question Assist is taught, and nothing else.
+    known = {handler.intent_type for handler in QUESTIONS.values()}
     directory = (
         Path(__file__).parent.parent
         / "custom_components"
@@ -601,6 +596,80 @@ async def test_speak_about_a_named_aircraft_with_its_route(
 async def test_a_named_aircraft_is_no_assist_question(hass: HomeAssistant) -> None:
     """Test that the named question stays out of what Assist is taught."""
     assert "aircraft" not in QUESTIONS
+
+
+async def test_highest_fastest_furthest(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the figures every poll has anyway, asked out loud."""
+    await _setup(hass, mock_config_entry, aioclient_mock)
+
+    north = ", 0.6 kilometres to the north."
+    noorden = ", 0,6 kilometer naar het noorden."
+    expected = [
+        ("highest", "en", "KLM 123 is highest, 9,100 metres up" + north),
+        ("highest", "nl", "KLM 123 vliegt het hoogst, 9.100 meter hoog" + noorden),
+        ("fastest", "en", "KLM 123 is fastest, at 830 kilometres an hour" + north),
+        ("fastest", "nl", "KLM 123 is het snelst, 830 kilometer per uur" + noorden),
+        # How far the station hears right now.
+        (
+            "furthest",
+            "en",
+            "P H T R A is furthest away, 22.3 kilometres to the north, 400 metres up.",
+        ),
+        (
+            "furthest",
+            "nl",
+            "P H T R A is het verst weg, 22,3 kilometer naar het noorden, "
+            "400 meter hoog.",
+        ),
+    ]
+    for question, language, sentence in expected:
+        assert await _speak(hass, question=question, language=language) == sentence
+    # And through Assist, with the same words.
+    assert await _ask(hass, INTENT_HIGHEST) == expected[0][2]
+
+
+async def test_emergency(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test an aircraft in distress named, and the quiet answer without one."""
+    await _setup(hass, mock_config_entry, aioclient_mock)
+    assert await _speak(hass, question="emergency") == (
+        "No aircraft is reporting an emergency."
+    )
+    assert await _ask(hass, INTENT_EMERGENCY, language="nl") == (
+        "Geen enkel toestel meldt een noodgeval."
+    )
+
+
+async def test_emergency_squawked(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the one squawking 7700 named, with what it reports."""
+    sky = {
+        **MOCK_SKY,
+        "aircraft": [
+            {**MOCK_SKY["aircraft"][1], "squawk": "7700"},
+            {**MOCK_SKY["aircraft"][2], "squawk": "7600"},
+        ],
+    }
+    await _setup(hass, mock_config_entry, aioclient_mock, sky)
+    # The nearest named, the others counted.
+    assert await _speak(hass, question="emergency") == (
+        "Lufthansa 99 reports an emergency, 5.6 kilometres to the north, "
+        "3,700 metres up. And 1 more."
+    )
+    assert await _speak(hass, question="emergency", language="nl") == (
+        "Lufthansa 99 meldt een noodgeval, 5,6 kilometer naar het noorden, "
+        "3.700 meter hoog. En nog 1."
+    )
 
 
 async def test_speak_refuses_a_question_it_does_not_have(

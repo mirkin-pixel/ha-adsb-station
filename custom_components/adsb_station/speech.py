@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from homeassistant.const import UnitOfLength
+from homeassistant.const import UnitOfLength, UnitOfSpeed
 
 from .const import FEET_TO_METRES
 from .coordinator import AircraftSummary
@@ -56,6 +56,19 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
         "climbing": "{altitude} and climbing",
         "descending": "{altitude} and descending",
         "not_heard": "I do not hear {aircraft} right now.",
+        "where": ", {distance} to the {sector}",
+        "highest": "{aircraft} is highest, {altitude}{where}.",
+        "fastest": "{aircraft} is fastest, at {speed}{where}.",
+        "furthest": "{aircraft} is furthest away{where}, {altitude}.",
+        "no_emergency": "No aircraft is reporting an emergency.",
+        "emergency": "{aircraft} reports {reason}{where}, {altitude}.",
+        "reason_emergency": "an emergency",
+        "reason_hijack": "a hijacking",
+        "reason_radio_failure": "a radio failure",
+        "reason_downed": "a downed aircraft",
+        "knots": "{value} knots",
+        "kilometres_an_hour": "{value} kilometres an hour",
+        "miles_an_hour": "{value} miles an hour",
         "nothing_matching": "I hear nothing like that.",
         "matching": "{aircraft}, {distance} to the {sector}.",
         "and_more": "{first} And {count} more.",
@@ -101,6 +114,19 @@ PHRASES: Final[dict[str, dict[str, str]]] = {
         "climbing": "{altitude} en stijgend",
         "descending": "{altitude} en dalend",
         "not_heard": "Ik hoor {aircraft} nu niet.",
+        "where": ", {distance} naar het {sector}",
+        "highest": "{aircraft} vliegt het hoogst, {altitude}{where}.",
+        "fastest": "{aircraft} is het snelst, {speed}{where}.",
+        "furthest": "{aircraft} is het verst weg{where}, {altitude}.",
+        "no_emergency": "Geen enkel toestel meldt een noodgeval.",
+        "emergency": "{aircraft} meldt {reason}{where}, {altitude}.",
+        "reason_emergency": "een noodgeval",
+        "reason_hijack": "een kaping",
+        "reason_radio_failure": "een radiostoring",
+        "reason_downed": "een neergestort toestel",
+        "knots": "{value} knopen",
+        "kilometres_an_hour": "{value} kilometer per uur",
+        "miles_an_hour": "{value} mijl per uur",
         "nothing_matching": "Ik hoor niets van dat soort.",
         "matching": "{aircraft}, {distance} naar het {sector}.",
         "and_more": "{first} En nog {count}.",
@@ -209,6 +235,17 @@ def distance_of(metres: float, language: str, units: Units) -> str:
     if units.distance == UnitOfLength.NAUTICAL_MILES:
         return say(language, "nautical_miles", value=rounded(metres / 1852, language))
     return say(language, "kilometres", value=rounded(metres / 1000, language))
+
+
+def speed_of(knots: float, language: str, units: Units) -> str:
+    """Return how fast something goes, to the nearest ten of its unit."""
+    if units.speed == UnitOfSpeed.KNOTS:
+        return say(language, "knots", value=whole(round(knots, -1), language))
+    if units.speed == UnitOfSpeed.MILES_PER_HOUR:
+        mph = knots * 1.150779
+        return say(language, "miles_an_hour", value=whole(round(mph, -1), language))
+    kmh = knots * 1.852
+    return say(language, "kilometres_an_hour", value=whole(round(kmh, -1), language))
 
 
 def sector_word(sector: str | None, language: str) -> str | None:
