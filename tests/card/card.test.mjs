@@ -527,7 +527,7 @@ const tests = {
     const form = w.customElements.get("adsb-station-table-card").getConfigForm();
     assert.equal(
       JSON.stringify(form.schema.map((field) => field.name)),
-      JSON.stringify(["device_id", "title", "list"]),
+      JSON.stringify(["device_id", "title", "palette", "list"]),
     );
   },
 
@@ -802,6 +802,7 @@ const tests = {
         "map_scale",
         "map_range",
         "max_altitude",
+        "palette",
         "show_airports",
         "show_nearby",
         "max_nearby",
@@ -882,6 +883,29 @@ const tests = {
     // And carries on from there with the next poll.
     link.send(SKY([{ ...LOW, latitude: 52.03 }]));
     assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 3);
+  },
+
+  "colours the heights yellow to blue for colour blindness, when asked"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const now = Date.now() / 1000;
+    const fill = (card, hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"] path`).getAttribute("fill");
+    const card = render(w, hass, { palette: "colorblind" });
+    link.send({ ...SKY([LOW, HIGH]), trails: { [LOW.hex]: [[52.0, 5.0, 1200, now - 60]] } });
+    // 1,500 ft is near the yellow end, 37,000 ft near the blue one.
+    assert.equal(fill(card, LOW.hex), "rgb(249, 208, 74)");
+    assert.equal(fill(card, HIGH.hex), "rgb(97, 143, 207)");
+    // The trail and the legend follow the same colours.
+    assert.equal(card.shadowRoot.querySelector(".trails line").getAttribute("stroke"), "rgb(249, 208, 74)");
+    assert.match(
+      card.shadowRoot.querySelector(".legend .bar").getAttribute("style"),
+      /rgb\(255, 210, 63\) 0\.0%.*rgb\(61, 123, 224\) 100\.0%/,
+    );
+    // Without it, the rainbow as before.
+    const plain = render(w, hass);
+    link.send(SKY([LOW, HIGH]));
+    assert.match(fill(plain, LOW.hex), /^hsl\(/);
   },
 
   "draws the airports it was sent once, the small ones only close in"() {
