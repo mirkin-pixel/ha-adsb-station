@@ -1055,8 +1055,7 @@ const tests = {
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
     const card = render(w, hass);
-    const label = () =>
-      [...card.shadowRoot.querySelectorAll(".kind")].find((item) => item.textContent.startsWith("Zonder positie"));
+    const label = () => card.shadowRoot.querySelector(".kinds .unplaced");
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 5 });
     assert.equal(label().textContent, "Zonder positie 5");
     // Not a button: there is nothing on the radar to take off
@@ -1065,6 +1064,10 @@ const tests = {
     // Still there at 0, like the kinds
     link.send({ ...SKY([{ ...LOW, kind: "airline" }]), unplaced: 0 });
     assert.equal(label().textContent, "Zonder positie 0");
+    // A kind with none is dimmed, one with aircraft is not.
+    const kind = (name) => [...card.shadowRoot.querySelectorAll(".kind")].find((k) => k.textContent.includes(name));
+    assert.equal(kind("Lijnvlucht").className, "kind");
+    assert.equal(kind("Militair").className, "kind none");
   },
 
   "flies the aircraft on between polls, but not far"() {

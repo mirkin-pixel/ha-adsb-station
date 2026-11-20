@@ -1618,23 +1618,24 @@ class AdsbStationCard extends HTMLElement {
     return el(
       "div",
       { class: "kinds" },
-      KINDS.map((kind) =>
-        el(
+      KINDS.map((kind) => {
+        const count = planes.filter((plane) => plane.kind === kind).length;
+        return el(
           "button",
           {
-            class: "kind",
+            class: count ? "kind" : "kind none",
             "aria-pressed": String(!this._hidden.has(kind)),
             onclick: () => {
               if (!this._hidden.delete(kind)) this._hidden.add(kind);
               this._drawSky();
             },
           },
-          `${text[`kind_${kind}`]} ${planes.filter((plane) => plane.kind === kind).length}`,
-        ),
-      ),
-      // So the five add up to the aircraft received. Kept at 0, as the others
-      // are, so the row does not change width.
-      el("span", { class: "kind", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced ?? 0}`),
+          `${text[`kind_${kind}`]} ${count}`,
+        );
+      }),
+      // So the five add up to the aircraft received. Plain text, as it is no
+      // filter; kept at 0 so the row does not change width.
+      el("span", { class: "unplaced", title: text.no_position_hint }, `${text.no_position} ${this._sky.unplaced ?? 0}`),
     );
   }
 
@@ -2452,17 +2453,30 @@ const STYLE = css`
   .kind {
     font: inherit;
     font-size: 12px;
-    padding: 2px 10px;
-    border-radius: 12px;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 15px;
     border: 1px solid var(--divider-color);
     background: none;
     color: var(--secondary-text-color);
     cursor: pointer;
   }
   .kind[aria-pressed="true"] {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--text-primary-color, #fff);
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    border-color: transparent;
+    color: var(--primary-text-color);
+  }
+  .kind[aria-pressed="false"] {
+    text-decoration: line-through;
+  }
+  .kind.none {
+    opacity: 0.55;
+  }
+  .unplaced {
+    align-self: center;
+    font-size: 12px;
+    padding: 0 4px;
+    color: var(--secondary-text-color);
   }
   .legend {
     display: flex;
