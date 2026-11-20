@@ -40,7 +40,7 @@ from .coordinator import (
     aircraft_attributes,
     sector_from,
 )
-from .intent import QUESTIONS, TRAFFIC_KINDS, answer_question
+from .intent import QUESTIONS, SPEAK_ONLY, TRAFFIC_KINDS, answer_question
 from .speech import language_of
 from .units import Units, converted, feet_from, kilometres_from, unit_attributes
 from .watchlist import add_line, remove_line
@@ -115,8 +115,10 @@ LIST_PASSAGES_SCHEMA: Final = vol.Schema(
 SPEAK_SCHEMA: Final = vol.Schema(
     {
         **_STATION_FIELD,
-        vol.Required(ATTR_QUESTION): vol.In(sorted(QUESTIONS)),
+        vol.Required(ATTR_QUESTION): vol.In(sorted({**QUESTIONS, **SPEAK_ONLY})),
         vol.Optional(ATTR_KIND): vol.In(sorted(TRAFFIC_KINDS)),
+        # The one asked about with `aircraft`: hex code, callsign or registration.
+        vol.Optional(ATTR_AIRCRAFT): cv.string,
         vol.Optional(ATTR_LANGUAGE): cv.string,
     }
 )
@@ -411,6 +413,7 @@ async def _async_speak(call: ServiceCall) -> ServiceResponse:
             language,
             coordinator.units,
             call.data.get(ATTR_KIND),
+            call.data.get(ATTR_AIRCRAFT),
         )
     }
 

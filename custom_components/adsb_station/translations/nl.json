@@ -669,11 +669,15 @@
     },
     "speak": {
       "name": "Een antwoord uitspreken",
-      "description": "Geeft één van de zes gesproken antwoorden als tekst terug, klaar voor een zin-trigger om terug te zeggen. Heeft geen zinsbestanden nodig.",
+      "description": "Geeft één van de zeven gesproken antwoorden als tekst terug, klaar voor een zin-trigger of een omroepbericht. Heeft geen zinsbestanden nodig.",
       "fields": {
         "question": {
           "name": "Vraag",
-          "description": "Welke van de zes beantwoord wordt: wat er overvliegt, hoeveel er zijn, welk toestel het dichtstbij is, of een soort verkeer in bereik is, waar het toestel boven je heen gaat, of wat er het laatst overvloog."
+          "description": "Welke van de zeven beantwoord wordt: wat er overvliegt, hoeveel er zijn, welk toestel het dichtstbij is, of een soort verkeer in bereik is, waar het toestel boven je heen gaat, wat er het laatst overvloog, of één toestel dat je noemt."
+        },
+        "aircraft": {
+          "name": "Toestel",
+          "description": "Alleen voor de toestelvraag: zijn hexcode, roepnaam of registratie. Het antwoord zegt wat het is, waar het is, hoe hoog en waar het heen gaat."
         },
         "kind": {
           "name": "Soort",
