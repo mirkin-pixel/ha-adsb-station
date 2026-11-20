@@ -88,6 +88,9 @@ const overheadState = (attributes, state = attributes.flight) => ({ state, attri
 
 // A websocket that hands the card's subscription to the test, which then
 // plays the integration and sends it the sky.
+// A tap asks for the photo as well; the route tests leave that unanswered.
+const noPhoto = (message) => message.type === "adsb_station/look_up_photo" && Promise.resolve({ status: "none" });
+
 function renderTable(window, hass, config = {}) {
   const card = window.document.createElement("adsb-station-table-card");
   window.document.body.append(card);
@@ -1389,7 +1392,7 @@ const tests = {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
-    hass.callWS = () => assert.fail("a route that came with the sky is not asked for");
+    hass.callWS = (message) => noPhoto(message) || assert.fail("a route that came with the sky is not asked for");
     const card = render(w, hass);
     const route_points = {
       origin: { code: "GOT", location: "Gothenburg", latitude: 57.66, longitude: 12.28 },
@@ -1497,12 +1500,59 @@ const tests = {
     assert.equal(card.shadowRoot.querySelector(".picked .failed").textContent, "Toevoegen mislukt");
   },
 
+  async "shows the photo of a tapped aircraft, and opens it large"() {
+    const w = browser();
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    w.HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new w.Event("close"));
+    };
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const asked = [];
+    hass.callWS = (message) => {
+      asked.push(message.type);
+      return message.type === "adsb_station/look_up_photo"
+        ? Promise.resolve({
+            status: "found",
+            photo: "https://t.plnspttrs.net/9_280.jpg",
+            photo_link: "https://www.planespotters.net/photo/9",
+            photographer: "Piet",
+          })
+        : new Promise(() => {});
+    };
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send(SKY([LOW, HIGH, { ...ROTOR, pia: true }]));
+    const tap = (hex) => card.shadowRoot.querySelector(`.plane[data-hex="${hex}"]`).dispatchEvent(new w.Event("click"));
+    tap(HIGH.hex);
+    await new Promise((resolve) => setTimeout(resolve));
+    // Small in place of the icon, leading to its page, with who took it.
+    const small = card.shadowRoot.querySelector(".picked .head a.photo");
+    assert.equal(small.getAttribute("href"), "https://www.planespotters.net/photo/9");
+    assert.equal(small.querySelector("img").getAttribute("src"), "https://t.plnspttrs.net/9_280.jpg");
+    assert.match(card.shadowRoot.querySelector(".picked .credit").textContent, /Piet \/ Planespotters\.net/);
+    // Its name opens it large.
+    card.shadowRoot.querySelector(".picked .names").click();
+    const dialog = card.shadowRoot.querySelector("dialog.passage");
+    assert.ok(dialog.open);
+    assert.equal(dialog.querySelector(".photo img").getAttribute("src"), "https://t.plnspttrs.net/9_280.jpg");
+    assert.equal(dialog.querySelector("button.more"), null);
+    // Asked once, and never for a borrowed address.
+    tap(HIGH.hex);
+    tap(HIGH.hex);
+    tap(ROTOR.hex);
+    assert.equal(asked.filter((type) => type === "adsb_station/look_up_photo").length, 1);
+  },
+
   async "asks for the route of a tapped aircraft further out"() {
     const w = browser();
     const hass = hassWith({ overhead: overheadState(KLM) });
     const link = connect(hass);
     const asked = [];
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return Promise.resolve({
         route_points: {
@@ -1578,6 +1628,7 @@ const tests = {
     const link = connect(hass);
     const asked = [];
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return new Promise(() => {});
     };
@@ -1607,7 +1658,7 @@ const tests = {
     const hass = hassWith({ overhead: overheadState(KLM), language: "nl" });
     const link = connect(hass);
     let answer;
-    hass.callWS = () => new Promise((resolve) => (answer = resolve));
+    hass.callWS = (message) => noPhoto(message) || new Promise((resolve) => (answer = resolve));
     const card = render(w, hass);
     link.send(SKY([LOW, HIGH]));
     card.shadowRoot.querySelector('.plane[data-hex="4ca123"]').dispatchEvent(new w.Event("click"));
@@ -1625,6 +1676,7 @@ const tests = {
     const asked = [];
     let reply = () => Promise.reject(new Error("connection lost"));
     hass.callWS = (message) => {
+      if (noPhoto(message)) return noPhoto(message);
       asked.push(message);
       return reply();
     };

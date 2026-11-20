@@ -987,6 +987,12 @@ class AdsbStationCard extends HTMLElement {
     return this._photo;
   }
 
+  // The same picture of the tapped aircraft through the redraws of every second.
+  _thumbOf(src, alt) {
+    if (!this._thumb || this._thumb.getAttribute("src") !== src) this._thumb = el("img", { src, alt });
+    return this._thumb;
+  }
+
   _moreInfo(entry) {
     return () => {
       if (!entry) return;
@@ -1612,8 +1618,29 @@ class AdsbStationCard extends HTMLElement {
     this._selected = this._selected === hex ? null : hex;
     // A route is only asked for where it can be drawn.
     if (this._selected && !this._skyBox.hidden) this._lookUpRoute(this._selected);
+    if (this._selected && !this._skyBox.hidden) this._lookUpPhoto(this._selected);
     if (!this._skyBox.hidden) this._drawSky();
     if (!this._tableBox.hidden) this._drawTable();
+  }
+
+  // The photo of a tapped aircraft, asked for once; held while the card is open.
+  _lookUpPhoto(hex) {
+    const plane = this._sky && (this._sky.aircraft || []).find((p) => p.hex === hex);
+    this._photos ||= new Map();
+    // Not under a borrowed address: the photo would be of another airframe.
+    if (!plane || plane.pia || this._photos.has(hex) || !this._found || !this._hass.callWS) return;
+    this._photos.set(hex, null);
+    this._hass
+      .callWS({ type: LOOK_UP_PHOTO, device_id: this._found.device, hex })
+      .then((answer) => {
+        const photo = safeUrl(answer.photo);
+        const link = safeUrl(answer.photo_link);
+        if (!photo || !link || !answer.photographer) return;
+        this._photos.set(hex, { photo, photo_link: link, photographer: answer.photographer });
+        if (this._selected === hex && !this._skyBox.hidden) this._drawSky();
+      })
+      // Asked again on the next tap.
+      .catch(() => this._photos.delete(hex));
   }
 
   // Both ends of an aircraft's route with where they are, if known: sent
@@ -1744,16 +1771,42 @@ class AdsbStationCard extends HTMLElement {
     // Just put on the watchlist: said so now, not after the next read.
     const plane = this._watching.get(found.hex) === "added" ? { ...found, watched: true } : found;
     const tint = altitudeColor(plane.altitude, plane.on_ground, this._config.palette);
+    const shot = this._photos && this._photos.get(plane.hex);
+    const route = this._routeOf(plane);
+    const where = (airport) => [airport.code, airport.location].filter(Boolean).join(" ");
+    const large = () =>
+      this._showPassage(
+        { ...plane, ...shot, route: route && `${where(route.origin)} → ${where(route.destination)}` },
+        text,
+        { live: true, back: () => this.shadowRoot.querySelector(".picked .names") },
+      );
     return el(
       "div",
       { class: "picked" },
       el(
         "div",
         { class: "head" },
-        el("span", { class: "badge-icon", style: `--tint: ${tint}` }, this._icon("picked", aircraftIcon(plane))),
+        shot
+          ? el(
+              "a",
+              {
+                class: "photo",
+                href: shot.photo_link,
+                target: "_blank",
+                rel: "noopener",
+                title: `${text.photo}: ${shot.photographer}`,
+              },
+              this._thumbOf(shot.photo, plane.flight || plane.hex),
+            )
+          : el("span", { class: "badge-icon", style: `--tint: ${tint}` }, this._icon("picked", aircraftIcon(plane))),
         el(
           "div",
-          { class: "names" },
+          {
+            class: "names",
+            role: shot ? "button" : undefined,
+            tabindex: shot ? "0" : undefined,
+            onclick: shot && large,
+          },
           el("div", { class: "title" }, plane.flight || plane.hex, plane.airline ? ` · ${plane.airline}` : ""),
           el(
             "div",
@@ -1763,6 +1816,14 @@ class AdsbStationCard extends HTMLElement {
         ),
         this._watchButton(plane, text),
       ),
+      shot
+        ? el(
+            "div",
+            { class: "credit" },
+            `${text.photo}: ${shot.photographer} / `,
+            el("a", { href: shot.photo_link, target: "_blank", rel: "noopener" }, "Planespotters.net"),
+          )
+        : null,
       mark(plane) ? el("div", { class: `mark ${mark(plane)}` }, text[plane.emergency || "watched"]) : null,
       this._watching.get(plane.hex) === "failed" ? el("div", { class: "failed" }, text.watch_failed) : null,
       this._routeLine(plane, text),
@@ -1926,7 +1987,7 @@ class AdsbStationCard extends HTMLElement {
               route: plane.origin && plane.destination && `${plane.origin} → ${plane.destination}`,
             },
             text,
-            found.overhead,
+            { entry: found.overhead, live: true, back: () => this.shadowRoot.querySelector(".overhead .details") },
           ),
       },
       credited
@@ -2238,7 +2299,7 @@ class AdsbStationCard extends HTMLElement {
   // else to show it. Its photo is asked for when the station looks them up.
   // A passage in a window of its own, or the aircraft overhead with its photo
   // large and a way on to its entity.
-  _showPassage(p, text, overhead = null) {
+  _showPassage(p, text, { entry = null, live = false, back = null } = {}) {
     if (!this._dialog) {
       this._dialog = el("dialog", {
         class: "passage",
@@ -2255,12 +2316,10 @@ class AdsbStationCard extends HTMLElement {
       this.shadowRoot.append(this._dialog);
     }
     this._shown = p.hex;
-    this._back = overhead
-      ? () => this.shadowRoot.querySelector(".overhead .details")
-      : () => this._rows.querySelector(`tr[data-hex="${p.hex}"]`);
+    this._back = back || (() => this._rows.querySelector(`tr[data-hex="${p.hex}"]`));
     const language = this._hass.locale && this._hass.locale.language;
     const facts = (
-      overhead
+      live
         ? [
             [text.col_distance, this._distance(p.distance)],
             [text.col_altitude, this._height(p, text)],
@@ -2298,14 +2357,14 @@ class AdsbStationCard extends HTMLElement {
           {},
           facts.flatMap(([name, value]) => [el("dt", {}, name), el("dd", {}, value)]),
         ),
-        overhead
+        entry
           ? el(
               "button",
               {
                 class: "more",
                 onclick: () => {
                   this._dialog.close();
-                  this._moreInfo(overhead)();
+                  this._moreInfo(entry)();
                 },
               },
               text.more_info,
@@ -2333,8 +2392,8 @@ class AdsbStationCard extends HTMLElement {
         ),
       );
     };
-    // The one overhead brings its photo along; a passage asks for it.
-    if (overhead) return credited(p);
+    // The one overhead and the tapped one bring their photo along; a passage asks.
+    if (live) return credited(p);
     // Not under a borrowed address: the photo would be of another airframe.
     if (p.pia || !this._found || !this._hass.callWS) return;
     this._hass
@@ -2741,6 +2800,22 @@ const STYLE = css`
   .picked .names {
     flex: 1;
     min-width: 0;
+  }
+  .picked .names[role="button"] {
+    cursor: pointer;
+  }
+  .picked .head .photo {
+    flex: none;
+  }
+  .picked .head .photo img {
+    display: block;
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: var(--ha-border-radius-md, 8px);
+  }
+  .picked .credit {
+    margin-top: var(--ha-space-1, 4px);
   }
   .picked .title {
     font-size: var(--ha-font-size-l, 16px);
