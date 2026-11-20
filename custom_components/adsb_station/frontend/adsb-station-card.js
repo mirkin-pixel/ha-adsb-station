@@ -65,6 +65,8 @@ const STRINGS = {
     radio_failure: "Emergency: radio failure",
     downed: "Emergency: downed",
     title: "Title",
+    section_map: "Radar and map",
+    section_below: "Aircraft and station",
     map: "Map",
     map_radar: "Radar",
     map_streets: "Map with streets",
@@ -158,6 +160,8 @@ const STRINGS = {
     radio_failure: "Noodgeval: radiostoring",
     downed: "Noodgeval: neergestort",
     title: "Titel",
+    section_map: "Radar en kaart",
+    section_below: "Toestellen en station",
     map: "Kaart",
     map_radar: "Radar",
     map_streets: "Landkaart",
@@ -765,39 +769,56 @@ class AdsbStationCard extends HTMLElement {
             },
           },
         },
+        // Grouped as Home Assistant's own editors group theirs, folded away.
         {
-          name: "map_scale",
-          selector: {
-            select: {
-              mode: "dropdown",
-              options: SCALES.map((value) => ({ value, label: text[`scale_${value}`] })),
+          type: "expandable",
+          name: "section_map",
+          icon: "mdi:radar",
+          flatten: true,
+          schema: [
+            {
+              name: "map_scale",
+              selector: {
+                select: {
+                  mode: "dropdown",
+                  options: SCALES.map((value) => ({ value, label: text[`scale_${value}`] })),
+                },
+              },
             },
-          },
-        },
-        {
-          name: "map_range",
-          selector: { number: { min: 5, max: 700, mode: "box" } },
-        },
-        {
-          name: "max_altitude",
-          selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
-        },
-        {
-          name: "palette",
-          selector: {
-            select: {
-              mode: "dropdown",
-              options: PALETTES.map((value) => ({ value, label: text[`palette_${value}`] })),
+            {
+              name: "map_range",
+              selector: { number: { min: 5, max: 700, mode: "box" } },
             },
-          },
+            {
+              name: "max_altitude",
+              selector: { number: { min: 100, max: 60000, step: 100, mode: "box" } },
+            },
+            {
+              name: "palette",
+              selector: {
+                select: {
+                  mode: "dropdown",
+                  options: PALETTES.map((value) => ({ value, label: text[`palette_${value}`] })),
+                },
+              },
+            },
+            { name: "show_airports", selector: { boolean: {} } },
+          ],
         },
-        { name: "show_airports", selector: { boolean: {} } },
-        { name: "show_nearby", selector: { boolean: {} } },
         {
-          name: "max_nearby",
-          selector: { number: { min: 1, max: 20, mode: "box" } },
+          type: "expandable",
+          name: "section_below",
+          icon: "mdi:airplane",
+          flatten: true,
+          schema: [
+            { name: "show_nearby", selector: { boolean: {} } },
+            {
+              name: "max_nearby",
+              selector: { number: { min: 1, max: 20, mode: "box" } },
+            },
+            { name: "show_status", selector: { boolean: {} } },
+          ],
         },
-        { name: "show_status", selector: { boolean: {} } },
       ],
       computeLabel: (schema) => {
         const text = strings(window.__adsbStationHass);
@@ -1112,7 +1133,7 @@ class AdsbStationCard extends HTMLElement {
       ...[
         el(
           "div",
-          { class: "scope-box" },
+          { class: streets ? "scope-box on-map" : "scope-box" },
           this._radar(text, streets),
           this._legend(text),
           streets ? this._attribution() : null,
@@ -1707,7 +1728,7 @@ class AdsbStationCard extends HTMLElement {
         return el(
           "button",
           {
-            class: count ? "kind" : "kind none",
+            class: "kind",
             "aria-pressed": String(shown),
             onclick: () => {
               if (!this._hidden.delete(kind)) this._hidden.add(kind);
@@ -2356,7 +2377,11 @@ class AdsbStationCard extends HTMLElement {
           "div",
           { class: "passage-head" },
           el("div", { class: "primary", id: "passage-name" }, p.flight || p.hex, p.airline ? ` · ${p.airline}` : ""),
-          el("button", { class: "close", "aria-label": text.close, onclick: () => this._dialog.close() }, "×"),
+          el(
+            "button",
+            { class: "close", "aria-label": text.close, title: text.close, onclick: () => this._dialog.close() },
+            el("ha-icon", { icon: "mdi:close" }),
+          ),
         ),
         photo,
         el(
@@ -2732,12 +2757,10 @@ const STYLE = css`
     border-color: transparent;
     background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.15);
   }
+  /* The count lighter by weight, not by colour: grey on the tint, or a
+     button at half strength, falls short of the contrast text needs. */
   .kind .count {
     font-weight: var(--ha-font-weight-normal, 400);
-    color: var(--secondary-text-color);
-  }
-  .kind.none {
-    opacity: 0.5;
   }
   .legend {
     position: absolute;
@@ -2758,6 +2781,20 @@ const STYLE = css`
     margin-top: 2px;
   }
   .legend .keys:empty {
+    display: none;
+  }
+  /* On the radar the key goes under the scope, which it would cover; on a
+     map it sits in the corner. */
+  .scope-box:not(.on-map) .legend {
+    position: static;
+    width: auto;
+    margin-top: var(--ha-space-2, 8px);
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+  /* On a phone only the ends of the scale: feet need more room than there is. */
+  .narrow .legend .ticks span:not(:first-child):not(:last-child) {
     display: none;
   }
   .legend .key {
@@ -2895,10 +2932,12 @@ const STYLE = css`
     gap: var(--ha-space-2, 8px);
     margin-top: var(--ha-space-4, 16px);
   }
+  /* Outlined, as Home Assistant's badges: grey text on a grey fill falls
+     short of the contrast text needs in a light theme. */
   .picked .stat,
   .picked .tip {
     border-radius: var(--ha-border-radius-lg, 12px);
-    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.05);
+    border: 1px solid var(--divider-color);
   }
   .picked .stat {
     padding: 10px var(--ha-space-3, 12px);
@@ -3184,14 +3223,26 @@ const STYLE = css`
     gap: 8px;
     margin-bottom: 8px;
   }
+  .passage-head .primary {
+    font-size: var(--ha-font-size-l, 16px);
+  }
+  /* Home Assistant's icon button: a round 40 pixels with the icon in it. */
   .passage .close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-inline-end: -8px;
     border: none;
+    border-radius: 50%;
     background: none;
     color: var(--secondary-text-color);
-    font-size: 1.6em;
-    line-height: 1;
-    padding: 4px 8px;
     cursor: pointer;
+    --mdc-icon-size: 24px;
+  }
+  .passage .close:hover {
+    background: rgba(var(--rgb-primary-text-color, 33, 33, 33), 0.08);
   }
   .passage-photo:empty {
     display: none;
@@ -3226,8 +3277,9 @@ const STYLE = css`
   .passage dl {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 4px 16px;
-    margin: 12px 0 0;
+    gap: var(--ha-space-1, 4px) var(--ha-space-4, 16px);
+    margin: var(--ha-space-3, 12px) 0 0;
+    font-size: var(--ha-font-size-m, 14px);
   }
   .passage dt {
     color: var(--secondary-text-color);
@@ -3331,7 +3383,12 @@ class AdsbStationTableCard extends AdsbStationCard {
     };
     return {
       ...form,
-      schema: [...form.schema.filter((field) => ["device_id", "title", "palette"].includes(field.name)), list],
+      schema: [
+        ...form.schema
+          .flatMap((field) => field.schema || [field])
+          .filter((field) => ["device_id", "title", "palette"].includes(field.name)),
+        list,
+      ],
     };
   }
 
