@@ -38,7 +38,9 @@ automation:
     - set_conversation_response: "{{ spoken.speech }}"
 ```
 
-Er wordt niets in je configuratiemap geschreven, er hoeft niets herstart, en je kunt de zinnen in de interface aanpassen. `question` is `overhead`, `count`, `closest`, `traffic`, `route` of `last_passage`; `traffic` neemt ook `kind`, en dat is `military`, `helicopter` of `drone`.
+Er wordt niets in je configuratiemap geschreven, er hoeft niets herstart, en je kunt de zinnen in de interface aanpassen. `question` is `overhead`, `count`, `closest`, `traffic`, `route`, `last_passage` of `aircraft`; `traffic` neemt ook `kind`, en dat is `military`, `helicopter` of `drone`.
+
+`aircraft` gaat over één toestel dat je noemt in het veld met die naam, op hexcode, roepnaam of registratie, zoals het toestel van een [watchlist](watchlist.md)-event: *"KLM 123, een Boeing 737-800, zit 22,3 kilometer naar het noorden, 3.700 meter hoog en stijgend."*, met waar het vandaan komt en heen gaat als de route bekend is. Het is alleen een actie: Assist heeft er geen zinnen voor, omdat een roepnaam niet iets is wat het betrouwbaar verstaat.
 
 De formulering blijft van ons. `adsb_station.speak` geeft een afgemaakte zin terug — callsign gespeld of maatschappij genoemd, hoogte afgerond, eenheden en decimaalteken passend bij de taal — zodat de automatisering drie regels is en geen template vol `round()`.
 

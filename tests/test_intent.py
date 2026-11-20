@@ -508,6 +508,101 @@ async def test_speak_takes_a_kind_and_a_language(
     assert spoken == {"speech": "P H T R A, 22,3 kilometer naar het noorden."}
 
 
+async def _speak(hass: HomeAssistant, **data: Any) -> str:
+    spoken = await hass.services.async_call(
+        DOMAIN, SERVICE_SPEAK, data, blocking=True, return_response=True
+    )
+    assert spoken is not None
+    return str(spoken["speech"])
+
+
+async def test_speak_about_one_named_aircraft(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test a finished sentence about an aircraft named by an automation."""
+    sky = {
+        "now": 1636387404.0,
+        "messages": 10,
+        "aircraft": [
+            {
+                "hex": "484123",
+                "flight": "KLM123",
+                "r": "PH-BXA",
+                "t": "B738",
+                "lat": 52.2,
+                "lon": 5.0,
+                "alt_baro": 12000,
+                "baro_rate": 1600,
+            },
+            # Heard over Mode S alone: no position to point at.
+            {"hex": "3c6444", "flight": "DLH99", "alt_baro": 30000},
+        ],
+    }
+    await _setup(hass, mock_config_entry, aioclient_mock, sky)
+
+    # By callsign, hex code or registration alike, in either case.
+    for named in ("KLM123", "484123", "ph-bxa"):
+        assert await _speak(hass, question="aircraft", aircraft=named) == (
+            "KLM 123, a Boeing 737-800, is 22.3 kilometres to the north, "
+            "3,700 metres up and climbing."
+        )
+    assert await _speak(
+        hass, question="aircraft", aircraft="KLM123", language="nl"
+    ) == (
+        "KLM 123, een Boeing 737-800, zit 22,3 kilometer naar het noorden, "
+        "3.700 meter hoog en stijgend."
+    )
+    # Heard, but not where.
+    assert await _speak(hass, question="aircraft", aircraft="DLH99") == (
+        "Lufthansa 99 is heard without a position, 9,100 metres up."
+    )
+    # Not heard at all, which is an answer rather than an error.
+    assert await _speak(hass, question="aircraft", aircraft="ryr1") == (
+        "I do not hear RYR1 right now."
+    )
+
+
+async def test_speak_about_a_named_aircraft_with_its_route(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the route added as a sentence of its own when there is one."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_LOOK_UP_ROUTES: True}
+    )
+    set_responses(
+        aioclient_mock,
+        aircraft={
+            "now": 1636387404.0,
+            "messages": 10,
+            "aircraft": [
+                {
+                    "hex": "484123",
+                    "flight": "KLM123",
+                    "lat": 52.005,
+                    "lon": 5.0,
+                    "alt_baro": 3000,
+                }
+            ],
+        },
+    )
+    aioclient_mock.post(ROUTESET_URL, json=ROUTESET_ANSWER)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    spoken = await _speak(hass, question="aircraft", aircraft="KLM123")
+    assert spoken.endswith(" It is flying from Gothenburg to Amsterdam.")
+
+
+async def test_a_named_aircraft_is_no_assist_question(hass: HomeAssistant) -> None:
+    """Test that the named question stays out of what Assist is taught."""
+    assert "aircraft" not in QUESTIONS
+
+
 async def test_speak_refuses_a_question_it_does_not_have(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,

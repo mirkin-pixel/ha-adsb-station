@@ -81,6 +81,11 @@ speak:
             - traffic
             - route
             - last_passage
+            - aircraft
+    aircraft:
+      example: KLM1234
+      selector:
+        text:
     kind:
       example: helicopter
       selector:

@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
 from homeassistant.util import dt as dt_util
 
-from .const import PASSAGE_GAP
+from .const import CLIMB_RATE_SHOWN, PASSAGE_GAP
 from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     AircraftStats,
@@ -309,6 +309,77 @@ class LastPassageIntent(_AdsbStationIntent):
         )
 
 
+class AircraftQuestion(_AdsbStationIntent):
+    """One aircraft, named by hex code, callsign or registration."""
+
+    intent_type = "AdsbStationAircraft"
+    description = "Says what one named aircraft is, where it is and where it is going"
+
+    def answer(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        aircraft: AircraftStats,
+        language: str,
+        units: Units,
+        slots: dict[str, Any],
+    ) -> str:
+        """Answer with what it is, where, how high, and its route if known."""
+        wanted = str(slots.get("aircraft", {}).get("value", "")).strip().upper()
+        # The nearby ones last, so they win: only they carry a route.
+        known = {summary.hex: summary for summary in aircraft.heard}
+        known.update({summary.hex: summary for summary in aircraft.nearby})
+        found = next(
+            (
+                summary
+                for summary in known.values()
+                if wanted
+                and wanted
+                in (
+                    summary.hex.upper(),
+                    (summary.flight or "").strip().upper(),
+                    (summary.registration or "").strip().upper(),
+                )
+            ),
+            None,
+        )
+        if found is None:
+            return say(language, "not_heard", aircraft=wanted or "?")
+
+        spoken = self.placed(coordinator, found, language, units)
+        rate = found.vertical_rate
+        if found.altitude is not None and rate is not None and not found.on_ground:
+            if rate >= CLIMB_RATE_SHOWN:
+                spoken["altitude"] = say(
+                    language, "climbing", altitude=spoken["altitude"]
+                )
+            elif rate <= -CLIMB_RATE_SHOWN:
+                spoken["altitude"] = say(
+                    language, "descending", altitude=spoken["altitude"]
+                )
+
+        what = found.description or found.aircraft_type
+        if not spoken["distance"] or not spoken["sector"]:
+            sentence = say(
+                language,
+                "unplaced",
+                aircraft=spoken["aircraft"],
+                altitude=spoken["altitude"],
+            )
+        elif what:
+            sentence = say(language, "typed", type=what, **spoken)
+        else:
+            sentence = say(language, "closest", **spoken)
+
+        route = found.route
+        origin = _place(route.origin) if route is not None else None
+        destination = _place(route.destination) if route is not None else None
+        if origin and destination:
+            sentence += " " + say(
+                language, "flying_from", origin=origin, destination=destination
+            )
+        return sentence
+
+
 def _place(airport: Any) -> str | None:
     """Return what to call one end of a route out loud: the city, not the code."""
     if airport is None:
@@ -327,6 +398,11 @@ QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
 }
 
 
+# Asked through `adsb_station.speak` only: a callsign is no slot Assist hears
+# reliably, so it has no sentences.
+SPEAK_ONLY: Final[dict[str, _AdsbStationIntent]] = {"aircraft": AircraftQuestion()}
+
+
 def answer_question(
     question: str,
     coordinator: AdsbStationDataUpdateCoordinator,
@@ -334,10 +410,16 @@ def answer_question(
     language: str,
     units: Units,
     kind: str | None = None,
+    named: str | None = None,
 ) -> str:
     """Return the spoken answer to one question, without an intent around it."""
-    slots = {} if kind is None else {"kind": {"value": kind}}
-    return QUESTIONS[question].answer(coordinator, aircraft, language, units, slots)
+    slots: dict[str, Any] = {}
+    if kind is not None:
+        slots["kind"] = {"value": kind}
+    if named is not None:
+        slots["aircraft"] = {"value": named}
+    handler = QUESTIONS.get(question) or SPEAK_ONLY[question]
+    return handler.answer(coordinator, aircraft, language, units, slots)
 
 
 async def async_setup_intents(hass: HomeAssistant) -> None:

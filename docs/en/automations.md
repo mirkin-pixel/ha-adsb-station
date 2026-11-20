@@ -161,14 +161,18 @@ automation:
       - trigger: event
         event_type: adsb_station_watchlist_match
     actions:
+      - action: adsb_station.speak
+        data:
+          question: aircraft
+          aircraft: "{{ trigger.event.data.hex }}"
+        response_variable: spoken
       - action: notify.mobile_app_phone
         data:
           title: "{{ trigger.event.data.watching }} is up"
-          message: >
-            {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} away{% endif %}
-            {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
+          message: "{{ spoken.speech }}"
 ```
+
+[`adsb_station.speak`](voice.md) writes the sentence, in your language and units: what it is, where, how high, and its route when known.
 
 Notification when the receiver stops hearing anything, which after a reboot usually means the dongle wants plugging back in:
 

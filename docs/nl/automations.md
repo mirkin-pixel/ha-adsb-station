@@ -161,14 +161,18 @@ automation:
       - trigger: event
         event_type: adsb_station_watchlist_match
     actions:
+      - action: adsb_station.speak
+        data:
+          question: aircraft
+          aircraft: "{{ trigger.event.data.hex }}"
+        response_variable: spoken
       - action: notify.mobile_app_telefoon
         data:
           title: "{{ trigger.event.data.watching }} is in de lucht"
-          message: >
-            {{ trigger.event.data.flight or trigger.event.data.hex }}
-            {%- if trigger.event.data.distance is not none %}, {{ trigger.event.data.distance }} {{ trigger.event.data.distance_unit }} ver{% endif %}
-            {%- if trigger.event.data.altitude %} op {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
+          message: "{{ spoken.speech }}"
 ```
+
+[`adsb_station.speak`](voice.md) schrijft de zin, in jouw taal en eenheden: wat het is, waar, hoe hoog, en de route als die bekend is.
 
 Melding wanneer de ontvanger niets meer hoort, wat na een herstart meestal betekent dat de dongle er even uit en weer in moet:
 

@@ -38,7 +38,9 @@ automation:
     - set_conversation_response: "{{ spoken.speech }}"
 ```
 
-Nothing is written to your configuration directory, nothing needs a restart, and you can edit the sentences in the interface. `question` is one of `overhead`, `count`, `closest`, `traffic`, `route` or `last_passage`; the traffic one also takes `kind`, which is `military`, `helicopter` or `drone`.
+Nothing is written to your configuration directory, nothing needs a restart, and you can edit the sentences in the interface. `question` is one of `overhead`, `count`, `closest`, `traffic`, `route`, `last_passage` or `aircraft`; the traffic one also takes `kind`, which is `military`, `helicopter` or `drone`.
+
+`aircraft` is about one aircraft you name in the field of that name, by hex code, callsign or registration, such as the one a [watchlist](watchlist.md) event is about: *"KLM 123, a Boeing 737-800, is 22.3 kilometres to the north, 3,700 metres up and climbing."*, with where it is flying from and to when the route is known. It is an action only: Assist has no sentences for it, as a callsign is not something it hears reliably.
 
 The wording is still ours. `adsb_station.speak` hands back a finished sentence — the callsign spelled out or the airline named, the height rounded, the units and the decimal point right for the language — so the automation is three lines and not a template full of `round()`.
 
