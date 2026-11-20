@@ -97,6 +97,10 @@ async def test_the_sky_is_sent_and_follows_every_poll(
     assert planes["KLM123"]["kind"] == "airline"
     # The rest of what is received, so the buttons add up to it
     assert sky["unplaced"] == len(MOCK_AIRCRAFT["aircraft"]) - 2
+    # The airports as far out as a position is believed, and no further.
+    airports = {code: rest for code, *rest in sky["airports"]}
+    assert airports["AMS"] == [52.309, 4.764, True]
+    assert "AKL" not in airports
 
     moved = {
         **MOCK_AIRCRAFT,
@@ -110,8 +114,9 @@ async def test_the_sky_is_sent_and_follows_every_poll(
 
     sky = (await client.receive_json())["event"]
     assert [plane["latitude"] for plane in sky["aircraft"]] == [52.02]
-    # The trails go out with the first sky only.
+    # The trails and the airports go out with the first sky only.
     assert "trails" not in sky
+    assert "airports" not in sky
 
     # A card opened now gets where KLM123 has been, not just where it is.
     await client.send_json_auto_id(

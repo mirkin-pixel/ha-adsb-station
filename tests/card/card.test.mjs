@@ -801,6 +801,7 @@ const tests = {
         "map_scale",
         "map_range",
         "max_altitude",
+        "show_airports",
         "show_nearby",
         "max_nearby",
         "show_status",
@@ -880,6 +881,32 @@ const tests = {
     // And carries on from there with the next poll.
     link.send(SKY([{ ...LOW, latitude: 52.03 }]));
     assert.equal(card.shadowRoot.querySelectorAll(".trails line").length, 3);
+  },
+
+  "draws the airports it was sent once, the small ones only close in"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    const airports = [
+      ["AMS", 52.309, 4.764, true],
+      ["LEY", 52.46, 5.527, false],
+      ["AKL", -37.012, 174.786, true],
+    ];
+    const codes = (card) => [...card.shadowRoot.querySelectorAll(".fields text")].map((t) => t.textContent);
+    const card = render(w, hass, { map_scale: "fixed", map_range: 100 });
+    link.send({ ...SKY([LOW, HIGH]), airports });
+    assert.equal(JSON.stringify(codes(card)), JSON.stringify(["AMS", "LEY"]));
+    // Kept from the first sky, which is the only one that brings them.
+    link.send(SKY([LOW, HIGH]));
+    assert.equal(JSON.stringify(codes(card)), JSON.stringify(["AMS", "LEY"]));
+
+    const wide = render(w, hass, { map_scale: "fixed", map_range: 300 });
+    link.send({ ...SKY([LOW, HIGH]), airports });
+    assert.equal(JSON.stringify(codes(wide)), JSON.stringify(["AMS"]));
+
+    const off = render(w, hass, { show_airports: false });
+    link.send({ ...SKY([LOW, HIGH]), airports });
+    assert.equal(off.shadowRoot.querySelector(".fields"), null);
   },
 
   "draws no trail without the aircraft at the end of it"() {

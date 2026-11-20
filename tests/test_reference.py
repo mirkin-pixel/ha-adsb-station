@@ -1,4 +1,4 @@
-"""Tests for the airline, aircraft type and address block tables."""
+"""Tests for the airline, aircraft type, address block and airport tables."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from custom_components.adsb_station import reference
 from custom_components.adsb_station.reference import (
     ReferenceTables,
     _read,
+    _read_airports,
     _read_blocks,
     async_load_reference,
     designator_of,
@@ -116,6 +117,29 @@ def test_missing_table_is_not_fatal() -> None:
     """Test that a table that cannot be read costs a name and nothing more."""
     assert _read("not-a-file.json", "airlines") == {}
     assert _read_blocks("not-a-file.json") == ((), ())
+    assert _read_airports("not-a-file.json") == ()
+
+
+def test_unreadable_airports_are_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that one bad airport costs that airport rather than all of them."""
+    monkeypatch.setattr(reference, "_DIRECTORY", tmp_path)
+    (tmp_path / "airports.json").write_text(
+        json.dumps(
+            {
+                "airports": {
+                    "EHAM": ["AMS", 52.309, 4.764, "l"],
+                    "EHEH": ["EIN", "north", 5.375, "m"],
+                }
+            }
+        ),
+        "utf-8",
+    )
+    (tmp_path / "not-a-table.json").write_text(json.dumps({"airports": []}), "utf-8")
+
+    assert _read_airports("airports.json") == (("AMS", 52.309, 4.764, True),)
+    assert _read_airports("not-a-table.json") == ()
 
 
 def test_unreadable_blocks_are_skipped(
@@ -171,6 +195,15 @@ async def test_shipped_tables(hass: HomeAssistant) -> None:
     # nobody was ever given
     assert tables.country_of("F00123") is None
     assert tables.country_of("000001") is None
+
+    # Airports with scheduled flights, by the code a traveller knows; an
+    # airfield without them is left out.
+    airports = {
+        code: (latitude, longitude) for code, latitude, longitude, _ in tables.airports
+    }
+    assert airports["AMS"] == (52.309, 4.764)
+    assert "AKL" in airports
+    assert "LEY" not in airports
 
 
 @pytest.mark.parametrize(
