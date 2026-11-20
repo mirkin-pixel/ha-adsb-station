@@ -29,6 +29,7 @@ from .speech import (
     name_of,
     say,
     sector_word,
+    speed_of,
 )
 from .units import Units
 
@@ -38,6 +39,10 @@ INTENT_CLOSEST: Final = "AdsbStationClosest"
 INTENT_TRAFFIC: Final = "AdsbStationTraffic"
 INTENT_ROUTE: Final = "AdsbStationRoute"
 INTENT_LAST_PASSAGE: Final = "AdsbStationLastPassage"
+INTENT_HIGHEST: Final = "AdsbStationHighest"
+INTENT_FASTEST: Final = "AdsbStationFastest"
+INTENT_FURTHEST: Final = "AdsbStationFurthest"
+INTENT_EMERGENCY: Final = "AdsbStationEmergency"
 
 # Military is a marker; the others are broadcast emitter categories.
 TRAFFIC_KINDS: Final[dict[str, str | None]] = {
@@ -309,6 +314,123 @@ class LastPassageIntent(_AdsbStationIntent):
         )
 
 
+def _where(spoken: dict[str, str], language: str) -> str:
+    """Return ", 12 kilometres to the north", or nothing without a position."""
+    if not spoken["distance"] or not spoken["sector"]:
+        return ""
+    return say(language, "where", distance=spoken["distance"], sector=spoken["sector"])
+
+
+class _Superlative(_AdsbStationIntent):
+    """The one aircraft that stands out by one figure the poll already has."""
+
+    phrase: str
+
+    def pick(self, aircraft: AircraftStats) -> AircraftSummary | None:
+        """Return the aircraft to speak of."""
+        raise NotImplementedError
+
+    def answer(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        aircraft: AircraftStats,
+        language: str,
+        units: Units,
+        slots: dict[str, Any],
+    ) -> str:
+        """Answer with that aircraft, or that nothing is heard."""
+        if (found := self.pick(aircraft)) is None:
+            return say(language, "nothing_overhead")
+        spoken = self.placed(coordinator, found, language, units)
+        return say(
+            language,
+            self.phrase,
+            aircraft=spoken["aircraft"],
+            altitude=spoken["altitude"],
+            speed="" if found.speed is None else speed_of(found.speed, language, units),
+            where=_where(spoken, language),
+        )
+
+
+class HighestIntent(_Superlative):
+    """What flies highest."""
+
+    intent_type = INTENT_HIGHEST
+    description = "Says which aircraft flies highest, and where"
+    phrase = "highest"
+
+    def pick(self, aircraft: AircraftStats) -> AircraftSummary | None:
+        """Return the highest."""
+        return aircraft.highest
+
+
+class FastestIntent(_Superlative):
+    """What flies fastest."""
+
+    intent_type = INTENT_FASTEST
+    description = "Says which aircraft flies fastest, and where"
+    phrase = "fastest"
+
+    def pick(self, aircraft: AircraftStats) -> AircraftSummary | None:
+        """Return the fastest."""
+        return aircraft.fastest
+
+
+class FurthestIntent(_Superlative):
+    """What is furthest away: how far the antenna reaches right now."""
+
+    intent_type = INTENT_FURTHEST
+    description = (
+        "Says which aircraft is furthest away, which is how far the station hears"
+    )
+    phrase = "furthest"
+
+    def pick(self, aircraft: AircraftStats) -> AircraftSummary | None:
+        """Return the furthest."""
+        return aircraft.furthest
+
+
+class EmergencyIntent(_AdsbStationIntent):
+    """Whether anything up there reports an emergency."""
+
+    intent_type = INTENT_EMERGENCY
+    description = "Says whether any aircraft reports an emergency, and which"
+
+    def answer(
+        self,
+        coordinator: AdsbStationDataUpdateCoordinator,
+        aircraft: AircraftStats,
+        language: str,
+        units: Units,
+        slots: dict[str, Any],
+    ) -> str:
+        """Answer with the nearest in distress, and how many others."""
+        if not aircraft.emergencies:
+            return say(language, "no_emergency")
+        nearest = sorted(
+            aircraft.emergencies,
+            key=lambda item: (
+                item.summary.distance is None,
+                item.summary.distance or 0,
+            ),
+        )
+        first = nearest[0]
+        spoken = self.placed(coordinator, first.summary, language, units)
+        sentence = say(
+            language,
+            "emergency",
+            aircraft=spoken["aircraft"],
+            reason=say(language, f"reason_{first.reason}"),
+            altitude=spoken["altitude"],
+            where=_where(spoken, language),
+        )
+        if len(nearest) <= _SPOKEN_MATCHES:
+            return sentence
+        return say(
+            language, "and_more", first=sentence, count=len(nearest) - _SPOKEN_MATCHES
+        )
+
+
 class AircraftQuestion(_AdsbStationIntent):
     """One aircraft, named by hex code, callsign or registration."""
 
@@ -395,6 +517,10 @@ QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
     "traffic": TrafficIntent(),
     "route": RouteIntent(),
     "last_passage": LastPassageIntent(),
+    "highest": HighestIntent(),
+    "fastest": FastestIntent(),
+    "furthest": FurthestIntent(),
+    "emergency": EmergencyIntent(),
 }
 
 

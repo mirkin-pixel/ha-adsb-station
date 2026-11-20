@@ -41,6 +41,30 @@ intents:
           - "wat was dat[ net| zojuist| zonet| daarnet]"
           - "wat was dat [net |zojuist |zonet |daarnet ]voor [een ](vliegtuig|toestel)"
           - "(welk|wat voor|wat voor een) (vliegtuig|toestel) was dat[ net| zojuist| zonet| daarnet]"
+  AdsbStationHighest:
+    data:
+      - sentences:
+          - "wat is het hoogste (vliegtuig|toestel)[ nu]"
+          - "welk (vliegtuig|toestel) vliegt het hoogst[ nu]"
+          - "wat vliegt er het hoogst[ nu]"
+  AdsbStationFastest:
+    data:
+      - sentences:
+          - "wat is het snelste (vliegtuig|toestel)[ nu]"
+          - "welk (vliegtuig|toestel) (is|vliegt) het snelst[ nu]"
+          - "wat vliegt er het snelst[ nu]"
+  AdsbStationFurthest:
+    data:
+      - sentences:
+          - "wat is het verste (vliegtuig|toestel)[ dat je hoort][ nu]"
+          - "welk (vliegtuig|toestel) is het verst weg[ nu]"
+          - "hoe ver (hoor je|reikt de (antenne|ontvanger))[ nu]"
+  AdsbStationEmergency:
+    data:
+      - sentences:
+          - "is er een noodgeval[ in de lucht][ nu]"
+          - "(is|zijn) er (vliegtuigen|toestellen|een vliegtuig|een toestel) in nood[ nu]"
+          - "zijn er noodgevallen[ in de lucht]"
 lists:
   kind:
     values:

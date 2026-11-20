@@ -1,6 +1,6 @@
 # Hardop vragen
 
-"Wat vliegt daar over?" is een vraag die je eerder aan de kamer stelt dan opzoekt op een dashboard — je stelt hem terwijl je naar buiten kijkt. Assist beantwoordt er zes, uit je eigen ontvanger, zonder dat er één verzoek je netwerk verlaat.
+"Wat vliegt daar over?" is een vraag die je eerder aan de kamer stelt dan opzoekt op een dashboard — je stelt hem terwijl je naar buiten kijkt. Assist beantwoordt er tien, uit je eigen ontvanger, zonder dat er één verzoek je netwerk verlaat.
 
 | Vraag | En hij zegt |
 |---|---|
@@ -10,6 +10,10 @@
 | *Zijn er helikopters in de buurt?* | Militair verkeer, helikopters of drones in bereik |
 | *Waar gaat hij heen?* | Waar het toestel boven je vandaan komt en heen gaat |
 | *Wat vloog er net over?* | Welk toestel het laatst overkwam, hoe lang geleden en hoe hoog |
+| *Wat is het hoogste vliegtuig?* | Welk toestel het hoogst vliegt, en waar |
+| *Wat vliegt er het snelst?* | Welk toestel het snelst vliegt, en hoe snel |
+| *Hoe ver reikt de antenne?* | Welk toestel het verst weg is: hoe ver het station nu hoort |
+| *Is er een noodgeval?* | Of er een toestel een noodgeval meldt, en welk |
 
 De antwoorden gebruiken de namen uit de [meegeleverde tabellen](decoders.md#namen-bij-de-codes), dus hij zegt "KLM 123" en niet "kilo lima mike één twee drie", en ze volgen de [eenheden](configuration.md#eenheden) van het station en niet de taal: meters en kilometers, voet en zeemijl, of voet en mijl.
 
@@ -17,7 +21,7 @@ Engels en Nederlands worden gesproken; een vraag in een andere taal wordt in het
 
 *Wat vloog er net over?* is voor het toestel dat je hoorde en waar je pas naar vraagt als het weg is. Hij noemt het toestel waarvan het dichtste punt het laatst achter je ligt, en telt de tijd vanaf dat moment. Een toestel dat nog nadert is nog niet overgekomen; dan hoor je wat er nu boven je hangt. Het station onthoudt een toestel tot tien minuten nadat het voor het laatst gezien is, en niets over een herstart heen. Na tien stille minuten, of vlak na een herstart, zegt hij dat hij niets heeft horen overvliegen.
 
-Er zijn twee manieren om dit aan te sluiten, en ze komen bij dezelfde zes antwoorden uit.
+Er zijn twee manieren om dit aan te sluiten, en ze komen bij dezelfde tien antwoorden uit.
 
 ## Een automatisering, zonder enig bestand
 
@@ -38,7 +42,7 @@ automation:
     - set_conversation_response: "{{ spoken.speech }}"
 ```
 
-Er wordt niets in je configuratiemap geschreven, er hoeft niets herstart, en je kunt de zinnen in de interface aanpassen. `question` is `overhead`, `count`, `closest`, `traffic`, `route`, `last_passage` of `aircraft`; `traffic` neemt ook `kind`, en dat is `military`, `helicopter` of `drone`.
+Er wordt niets in je configuratiemap geschreven, er hoeft niets herstart, en je kunt de zinnen in de interface aanpassen. `question` is `overhead`, `count`, `closest`, `traffic`, `route`, `last_passage`, `highest`, `fastest`, `furthest`, `emergency` of `aircraft`; `traffic` neemt ook `kind`, en dat is `military`, `helicopter` of `drone`.
 
 `aircraft` gaat over één toestel dat je noemt in het veld met die naam, op hexcode, roepnaam of registratie, zoals het toestel van een [watchlist](watchlist.md)-event: *"KLM 123, een Boeing 737-800, zit 22,3 kilometer naar het noorden, 3.700 meter hoog en stijgend."*, met waar het vandaan komt en heen gaat als de route bekend is. Het is alleen een actie: Assist heeft er geen zinnen voor, omdat een roepnaam niet iets is wat het betrouwbaar verstaat.
 
@@ -46,7 +50,7 @@ De formulering blijft van ons. `adsb_station.speak` geeft een afgemaakte zin ter
 
 ## De zinsbestanden, zodat Assist de vragen zelf kent
 
-De andere weg heeft geen automatiseringen nodig: Assist herkent alle zes uit zichzelf, in beide talen, ook formuleringen die je zelf niet had bedacht.
+De andere weg heeft geen automatiseringen nodig: Assist herkent alle tien uit zichzelf, in beide talen, ook formuleringen die je zelf niet had bedacht.
 
 De adder zit in waar die zinnen moeten staan. Home Assistant leest ze **alleen uit je configuratiemap**, dus een integratie kan de zijne niet meeleveren; ze zitten erin en moeten één keer gekopieerd worden.
 

@@ -41,6 +41,30 @@ intents:
           - "(what has|what's) just (flown|gone|come) over[head| me| us| the house]"
           - "what was the last (plane|aircraft)[ over| overhead| to (fly|go|come) over| that (flew|went|came) over]"
           - "did (anything|something|a plane|an aircraft) just (fly|go|come) over[head| me| us| the house]"
+  AdsbStationHighest:
+    data:
+      - sentences:
+          - "(what|which) is the highest (plane|aircraft)[ up there| right now]"
+          - "(what|which) (plane|aircraft) is [flying ]highest[ up there| right now]"
+          - "what is flying highest[ up there| right now]"
+  AdsbStationFastest:
+    data:
+      - sentences:
+          - "(what|which) is the fastest (plane|aircraft)[ up there| right now]"
+          - "(what|which) (plane|aircraft) is [flying ]fastest[ up there| right now]"
+          - "what is flying fastest[ up there| right now]"
+  AdsbStationFurthest:
+    data:
+      - sentences:
+          - "(what|which) is the (furthest|farthest) (plane|aircraft)[ you can hear| you hear][ right now]"
+          - "(what|which) (plane|aircraft) is (furthest|farthest) away[ right now]"
+          - "how far (can you hear|does the (station|antenna|receiver) reach)[ right now]"
+  AdsbStationEmergency:
+    data:
+      - sentences:
+          - "is there an emergency[ up there| in the air][ right now]"
+          - "(is|are) (any|there any) (plane|aircraft|planes) (in distress|reporting an emergency)[ right now]"
+          - "any emergencies[ up there| in the air]"
 lists:
   kind:
     values:

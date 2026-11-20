@@ -81,6 +81,10 @@ speak:
             - traffic
             - route
             - last_passage
+            - highest
+            - fastest
+            - furthest
+            - emergency
             - aircraft
     aircraft:
       example: KLM1234

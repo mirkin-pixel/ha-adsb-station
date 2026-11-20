@@ -19,10 +19,15 @@ import yaml
 from custom_components.adsb_station.intent import (
     INTENT_CLOSEST,
     INTENT_COUNT,
+    INTENT_EMERGENCY,
+    INTENT_FASTEST,
+    INTENT_FURTHEST,
+    INTENT_HIGHEST,
     INTENT_LAST_PASSAGE,
     INTENT_OVERHEAD,
     INTENT_ROUTE,
     INTENT_TRAFFIC,
+    QUESTIONS,
     TRAFFIC_KINDS,
 )
 from custom_components.adsb_station.services import (
@@ -67,6 +72,13 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
         ("what's just gone over", INTENT_LAST_PASSAGE, None),
         ("what was the last plane to go over", INTENT_LAST_PASSAGE, None),
         ("did something just fly over", INTENT_LAST_PASSAGE, None),
+        ("what is the highest plane", INTENT_HIGHEST, None),
+        ("which aircraft is flying highest right now", INTENT_HIGHEST, None),
+        ("what is flying fastest", INTENT_FASTEST, None),
+        ("what is the farthest aircraft you can hear", INTENT_FURTHEST, None),
+        ("how far does the antenna reach", INTENT_FURTHEST, None),
+        ("is there an emergency up there", INTENT_EMERGENCY, None),
+        ("are any planes in distress", INTENT_EMERGENCY, None),
     ],
     "nl": [
         ("wat vliegt er over", INTENT_OVERHEAD, None),
@@ -93,6 +105,13 @@ SPOKEN: dict[str, list[tuple[str, str, str | None]]] = {
         ("wat was dat", INTENT_LAST_PASSAGE, None),
         ("wat was dat voor vliegtuig", INTENT_LAST_PASSAGE, None),
         ("welk toestel was dat net", INTENT_LAST_PASSAGE, None),
+        ("wat is het hoogste vliegtuig", INTENT_HIGHEST, None),
+        ("welk toestel vliegt het hoogst", INTENT_HIGHEST, None),
+        ("wat vliegt er het snelst", INTENT_FASTEST, None),
+        ("wat is het verste vliegtuig dat je hoort", INTENT_FURTHEST, None),
+        ("hoe ver reikt de antenne", INTENT_FURTHEST, None),
+        ("is er een noodgeval", INTENT_EMERGENCY, None),
+        ("zijn er vliegtuigen in nood", INTENT_EMERGENCY, None),
     ],
 }
 
@@ -108,13 +127,9 @@ def test_the_files_parse(language: str) -> None:
     """Test that the sentences are sentences, and name the intents we have."""
     intents = _intents(language)
 
+    # Every question Assist is taught, and nothing else.
     assert set(intents.intents) == {
-        INTENT_OVERHEAD,
-        INTENT_COUNT,
-        INTENT_CLOSEST,
-        INTENT_TRAFFIC,
-        INTENT_ROUTE,
-        INTENT_LAST_PASSAGE,
+        handler.intent_type for handler in QUESTIONS.values()
     }
 
 

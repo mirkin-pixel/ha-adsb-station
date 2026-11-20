@@ -669,11 +669,11 @@
     },
     "speak": {
       "name": "Speak an answer",
-      "description": "Returns one of the seven spoken answers as text, ready for a sentence trigger or an announcement to say. Needs no sentence files.",
+      "description": "Returns one of the eleven spoken answers as text, ready for a sentence trigger or an announcement to say. Needs no sentence files.",
       "fields": {
         "question": {
           "name": "Question",
-          "description": "Which of the seven to answer: what is overhead, how many are up there, which is closest, whether a kind of traffic is in range, where the aircraft overhead is going, what came over last, or one aircraft you name."
+          "description": "Which of the eleven to answer: what is overhead, how many are up there, which is closest, whether a kind of traffic is in range, where the aircraft overhead is going, what came over last, which flies highest or fastest, which is furthest away, whether any reports an emergency, or one aircraft you name."
         },
         "aircraft": {
           "name": "Aircraft",
