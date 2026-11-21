@@ -19,7 +19,7 @@
           "host": "Host"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device, for example 192.168.5.7."
+          "host": "The IP address or hostname of the device, for example 192.168.1.50."
         }
       },
       "found": {
@@ -47,7 +47,7 @@
           "port": "Port"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device running fr24feed, for example 192.168.5.7.",
+          "host": "The IP address or hostname of the device running fr24feed, for example 192.168.1.50.",
           "port": "The port of the fr24feed status page. The default is 8754."
         }
       },
@@ -59,7 +59,7 @@
           "port": "Port"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device running PiAware, for example 192.168.5.7.",
+          "host": "The IP address or hostname of the device running PiAware, for example 192.168.1.50.",
           "port": "The port serving status.json. FlightAware's own tooling uses 8080; a station whose web server was taken over by something else may serve it elsewhere."
         }
       },
@@ -71,7 +71,7 @@
           "port": "Port"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device running pfclient, for example 192.168.5.7.",
+          "host": "The IP address or hostname of the device running pfclient, for example 192.168.1.50.",
           "port": "The port of the pfclient web interface. The default is 30053."
         }
       },
@@ -82,7 +82,7 @@
           "host": "Host"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device running the decoder, for example 192.168.5.7."
+          "host": "The IP address or hostname of the device running the decoder, for example 192.168.1.50."
         }
       },
       "aircraft": {
@@ -93,7 +93,7 @@
           "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
           "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       },
@@ -105,14 +105,14 @@
           "units": "Units"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.5.7/tar1090/data/aircraft.json. Detected automatically when possible.",
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50/tar1090/data/aircraft.json. Detected automatically when possible.",
           "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the feeder",
-      "invalid_response": "This address does not serve an fr24feed status page",
+      "invalid_response": "This address answers, but not with the status page of this feeder. Check the port.",
       "cannot_connect_aircraft": "Failed to connect to the ADS-B receiver",
       "invalid_aircraft_response": "This URL does not serve an aircraft.json",
       "aircraft_url_required": "Without a feeder, an aircraft.json URL is required",

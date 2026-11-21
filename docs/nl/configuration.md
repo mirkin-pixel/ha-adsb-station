@@ -22,7 +22,23 @@ Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware
 
 Alle kandidaten worden tegelijk geprobeerd, en de eerste in die volgorde die antwoordt wint. Staat die van jou elders, vul dan zelf de volledige URL in.
 
-Er staan tien instellingen onder **Configureren** op de integratiepagina. De eerste zijn de [eenheden](#eenheden) waarin de getallen staan, en die worden ook gevraagd als je het station toevoegt. De ververstijd is hoe vaak de vliegtuigen uitgelezen worden, standaard 15 seconden; alles draait op je eigen netwerk, dus een korte tijd kan prima. De ververstijd voor statistieken, standaard 60 seconden, is hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus elke vijftien seconden uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen. De straal "dichtbij" is standaard 10 km, 5,4 NM of 6,2 mijl en bepaalt wat als overhead telt voor de entiteiten **Vliegtuigen dichtbij** en **Vliegtuig overhead**; tien kilometer is ongeveer wat je kunt zien en horen, terwijl een goede ontvanger een veelvoud daarvan haalt. Daarnaast staat de [hoogtegrens](#wat-overhead-precies-betekent), en die is leeg, en hoeveel dagen je [passages bewaart](services.md#passages-van-de-afgelopen-dagen) nadat het bord opnieuw begint, 30. Dan komen [vliegtuigen op de kaart](dashboards.md#vliegtuigen-op-de-kaart), [waar een vlucht heen gaat](routes.md) en [hoe hij eruitziet](photos.md), en die staan alle drie uit. De laatste is de [watchlist](watchlist.md), en die is leeg. Een decoder die zelf geen vliegtuigen benoemt krijgt er een elfde bij, [een vliegtuigdatabase om te downloaden](decoders.md#de-vliegtuigdatabase), en die staat uit. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
+Onder **Configureren** op de integratiepagina:
+
+| Optie | Standaard | Wat het doet |
+|---|---|---|
+| [Eenheden](#eenheden) | Zoals Home Assistant | Waarin hoogtes, snelheden en afstanden staan. Wordt ook gevraagd als je het station toevoegt |
+| Ververstijd | 15 s | Hoe vaak de vliegtuigen uitgelezen worden. Alles draait op je eigen netwerk, dus een korte tijd kan prima |
+| Ververstijd statistieken | 60 s | Hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus vaker uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen |
+| Straal dichtbij | 10 km, 5,4 NM of 6,2 mijl | Wat als dichtbij en overhead telt, voor **Vliegtuigen dichtbij**, **Vliegtuig overhead** en passages. Tien kilometer is ongeveer wat je kunt zien en horen; een goede ontvanger haalt een veelvoud daarvan |
+| [Hoogtegrens overhead](#wat-overhead-precies-betekent) | Leeg | Hoe hoog een vliegtuig mag zijn en nog als overhead telt |
+| [Passages bewaren](services.md#passages-van-de-afgelopen-dagen) | 30 dagen | Hoe lang passages bewaard blijven nadat het bord om middernacht opnieuw begint |
+| [Vliegtuigen op de kaart](dashboards.md#vliegtuigen-op-de-kaart) | Uit | Elk vliegtuig dichtbij als entiteit op de eigen kaart van Home Assistant |
+| [Vluchtroutes opzoeken](routes.md) | Uit | Waar een vlucht heen gaat, gevraagd aan een dienst op internet |
+| [Foto's van vliegtuigen opzoeken](photos.md) | Uit | Een foto van elk vliegtuig, van Planespotters.net |
+| [Watchlist](watchlist.md) | Leeg | Toestellen die je wilt weten zodra ze opduiken |
+| [Vliegtuigdatabase downloaden](decoders.md#de-vliegtuigdatabase) | Uit | Alleen als je decoder zelf geen vliegtuigen benoemt |
+
+Bovenaan het formulier staat vanaf welk punt afstanden gemeten worden: de antennepositie die de decoder in `receiver.json` publiceert, of de thuislocatie van Home Assistant als hij er geen publiceert. Station verhuisd naar een ander adres? Gebruik **Herconfigureren** in plaats van hem opnieuw toe te voegen.
 
 Wil je een feeder toevoegen aan een station dat je als alleen-ontvanger hebt ingericht, voeg dan een tweede entry toe, precies wat je later ook doet om een tweede of derde netwerk erbij te zetten.
 
