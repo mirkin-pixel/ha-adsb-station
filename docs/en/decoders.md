@@ -1,6 +1,6 @@
 # Which decoder
 
-Every decoder gives you the entities above that it has data for; what it reports is detected when you set it up, so no entity is created that could never have a value. That does mean the decoder you run decides how much you get, and **readsb gives you the most**:
+Every decoder gives you the entities above that it has data for; what it reports is detected when you set it up, and again whenever it starts reporting more, so no entity is created that could never have a value. That does mean the decoder you run decides how much you get, and **readsb gives you the most**:
 
 | | fr24feed's dump1090 fork | dump1090-fa / SkyAware | readsb + tar1090 |
 |---|---|---|---|
@@ -14,7 +14,7 @@ Every decoder gives you the entities above that it has data for; what it reports
 
 Two of those are worth spelling out. Without a gain figure you are tuning your dongle blind, and without an antenna position in `receiver.json` the range is measured from the home location of your Home Assistant installation instead of from your antenna, which is fine if they are the same place and wrong if your receiver sits elsewhere.
 
-If you already run `fr24feed` and nothing else, replacing its bundled dump1090 with readsb costs you nothing and adds the gain sensor, the aircraft details and a real antenna position. **Run Reconfigure after upgrading your decoder** to pick up what it can do now.
+If you already run `fr24feed` and nothing else, replacing its bundled dump1090 with readsb costs you nothing and adds the gain sensor, the aircraft details and a real antenna position. The new sensors appear by themselves within a minute or so of the upgrade; there is nothing to reconfigure.
 
 ## The aircraft database
 
