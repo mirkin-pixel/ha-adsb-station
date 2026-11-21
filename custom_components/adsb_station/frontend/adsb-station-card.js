@@ -979,6 +979,7 @@ class AdsbStationCard extends HTMLElement {
           const width = entry.contentRect.width;
           this._card.classList.toggle("side-by-side", width >= SIDE_BY_SIDE);
           this._card.classList.toggle("narrow", width <= NARROW);
+          this._markMore();
         }).observe(this._card);
       }
     }
@@ -1000,6 +1001,10 @@ class AdsbStationCard extends HTMLElement {
     const status = found && !this._onlyTable && this._config.show_status ? this._status(found, text) : null;
     this._statusBox.replaceChildren(...(status ? [status] : []));
     this._statusBox.hidden = !status;
+    if (status) {
+      status.addEventListener("scroll", () => this._markMore(), { passive: true });
+      requestAnimationFrame(() => this._markMore());
+    }
     if (showSky) this._drawSky();
     this._tableBox.hidden = !(found && this._onlyTable);
     if (!this._tableBox.hidden) this._drawTable(text);
@@ -1039,6 +1044,13 @@ class AdsbStationCard extends HTMLElement {
       minimumFractionDigits: least,
       maximumFractionDigits: digits,
     }).format(value);
+  }
+
+  // Fade the badges' right edge while more of them is out of sight.
+  _markMore() {
+    const line = this._statusBox && this._statusBox.firstElementChild;
+    if (!line) return;
+    line.classList.toggle("more", line.scrollLeft + line.clientWidth < line.scrollWidth - 1);
   }
 
   // --- The subscription ---------------------------------------------------
@@ -3326,6 +3338,11 @@ const STYLE = css`
   }
   .status::-webkit-scrollbar {
     display: none;
+  }
+  /* A row that goes on fades out to the right, so it says there is more. */
+  .narrow .status.more {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 72px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 72px), transparent);
   }
   /* Centred while it fits, without hiding the start once it does not. */
   .narrow .status > :first-child {
