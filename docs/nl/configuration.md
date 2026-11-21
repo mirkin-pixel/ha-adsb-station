@@ -2,13 +2,17 @@
 
 1. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen**.
 2. Zoek naar **ADS-B Station**.
-3. Kies waar deze entry voor is:
-   - **Deze host doorzoeken op feeders**: typ één keer het adres, en de feeders die daar draaien staan klaar om uit te kiezen: fr24feed op `8754`, PiAware op `8080`, `80` of `8082`, pfclient op `30053`. Een feeder die al is ingesteld wordt overgeslagen. Zoek opnieuw voor de volgende. Antwoordt er niets nieuws, dan kies je zelf, zoals hieronder.
+3. Typ het adres van je ontvanger. Home Assistant zoekt daar de `aircraft.json` van de decoder en de feeders: fr24feed op `8754`, PiAware op `8080`, `80` of `8082`, pfclient op `30053`. Wat al is ingesteld, wordt overgeslagen.
+4. Hij laat zien wat hij vond. **Toevoegen** zet de eerste feeder op met de decoder eraan, of de ontvanger alleen als er geen feeder antwoordt. Elke andere feeder verschijnt daarna onder **Ontdekt** op dezelfde pagina: **Toevoegen** daar is één klik, zonder de decoder, want één entry die hem leest is genoeg.
+5. Antwoordt er niets nieuws, of kies je liever zelf, dan kies je met de hand, met het adres al ingevuld:
    - **Flightradar24-feeder (fr24feed)**: het adres van de machine waarop hij draait, en de poort van de statuspagina, standaard `8754`.
    - **FlightAware-feeder (PiAware)**: idem, standaard poort `8080`. Staat er een andere webserver op die poort, dan kan `status.json` elders staan; op een station met tar1090 achter nginx is poort 80 het proberen waard.
    - **Plane Finder-feeder (pfclient)**: idem, standaard poort `30053`.
    - **Alleen een ADS-B-ontvanger**: voor een station dat nergens aan voedt, of als de entry die de decoder draagt.
-4. Elk pad biedt daarna de ontvanger aan. Koppel die aan één entry en laat hem bij de andere leeg, anders tellen de vliegtuigcijfers dubbel.
+
+   Elk daarvan biedt daarna de ontvanger aan. Koppel die aan één entry en laat hem bij de andere leeg, anders tellen de vliegtuigcijfers dubbel.
+
+De getallen staan vanaf het begin in de eenheden van Home Assistant: metrisch, of imperiaal bij US-eenheden. De voet, knopen en zeemijlen van piloten zijn één keuze verderop, onder **Configureren**.
 
 Deze paden worden automatisch geprobeerd, op poort 8080 waar fr24feed en PiAware ze aanbieden en op poort 80 waar readsb met tar1090 dat doet. Poort 8504 wordt geprobeerd voor `/data/aircraft.json`, waar tar1090 hem ook aanbiedt als lighttpd de webserver is:
 
@@ -26,7 +30,7 @@ Onder **Configureren** op de integratiepagina:
 
 | Optie | Standaard | Wat het doet |
 |---|---|---|
-| [Eenheden](#eenheden) | Zoals Home Assistant | Waarin hoogtes, snelheden en afstanden staan. Wordt ook gevraagd als je het station toevoegt |
+| [Eenheden](#eenheden) | Zoals Home Assistant | Waarin hoogtes, snelheden en afstanden staan |
 | Ververstijd | 15 s | Hoe vaak de vliegtuigen uitgelezen worden. Alles draait op je eigen netwerk, dus een korte tijd kan prima |
 | Ververstijd statistieken | 60 s | Hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus vaker uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen |
 | Straal dichtbij | 10 km, 5,4 NM of 6,2 mijl | Wat als dichtbij en overhead telt, voor **Vliegtuigen dichtbij**, **Vliegtuig overhead** en passages. Tien kilometer is ongeveer wat je kunt zien en horen; een goede ontvanger haalt een veelvoud daarvan |

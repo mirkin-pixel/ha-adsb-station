@@ -54,6 +54,7 @@ from .conftest import (
     setup_integration,
 )
 
+FLOW = "custom_components.adsb_station.config_flow"
 CUSTOM_AIRCRAFT_URL = f"http://{MOCK_HOST}:8080/custom/aircraft.json"
 
 
@@ -66,14 +67,23 @@ def _suggested(result: dict[str, Any], key: str) -> Any:
 
 
 async def _choose(hass: HomeAssistant, step: str) -> dict[str, Any]:
-    """Open the flow and pick one of the two kinds of station."""
+    """Open the flow, give the address, and choose by hand after all."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    assert result["type"] is FlowResultType.MENU
+    assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
+    # Nothing found, so the choice is left to the user.
+    with (
+        patch(f"{FLOW}.async_detect_feeders", return_value=[]),
+        patch(f"{FLOW}.async_detect_aircraft_url", return_value=None),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_HOST: MOCK_HOST}
+        )
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "nothing_found"
     assert set(result["menu_options"]) == {
-        "search",
         "fr24feed",
         "piaware",
         "planefinder",

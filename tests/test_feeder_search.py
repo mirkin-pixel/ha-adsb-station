@@ -27,7 +27,9 @@ from custom_components.adsb_station.const import (
 )
 
 from .conftest import (
+    AIRCRAFT_URL,
     FEEDER_URL,
+    MOCK_AIRCRAFT,
     MOCK_ALIAS,
     MOCK_HOST,
     MOCK_MONITOR,
@@ -52,6 +54,13 @@ def serving() -> Iterator[dict[str, Any]]:
 
     with patch("custom_components.adsb_station.api.async_fetch_json", fetch):
         yield documents
+
+
+@pytest.fixture
+def no_setup() -> Iterator[None]:
+    """Create the entries without starting them; only the flow is tested here."""
+    with patch("custom_components.adsb_station.async_setup_entry", return_value=True):
+        yield
 
 
 async def _detect(hass: HomeAssistant) -> list[tuple[str, int]]:
@@ -94,63 +103,114 @@ async def _search(hass: HomeAssistant) -> dict[str, Any]:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"next_step_id": "search"}
-    )
-    assert result["step_id"] == "search"
+    assert result["step_id"] == "user"
     return await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: f" {MOCK_HOST} "}
     )
 
 
-def _offered(result: dict[str, Any]) -> list[str]:
-    [field] = result["data_schema"].schema.values()
-    return [option["label"] for option in field.config["options"]]
-
-
-async def test_search_then_pick_one(
-    hass: HomeAssistant, serving: dict[str, Any]
+async def test_one_address_adds_the_first_and_offers_the_rest(
+    no_setup: None, hass: HomeAssistant, serving: dict[str, Any]
 ) -> None:
-    """Test the whole flow, ending in the feeder that was picked."""
+    """Test the whole flow: one entry with the decoder, the next one discovered."""
     serving[FEEDER_URL] = MOCK_MONITOR
     serving[PIAWARE_ON_80] = MOCK_PIAWARE
+    serving[AIRCRAFT_URL] = MOCK_AIRCRAFT
 
     result = await _search(hass)
+    assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "found"
-    assert _offered(result) == [
-        f"fr24feed ({MOCK_HOST}:8754)",
-        f"PiAware ({MOCK_HOST}:80)",
-    ]
+    assert result["description_placeholders"]["found"] == "\n".join(
+        [
+            f"- aircraft.json ({AIRCRAFT_URL})",
+            f"- fr24feed ({MOCK_HOST}:8754)",
+            f"- PiAware ({MOCK_HOST}:80)",
+        ]
+    )
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"feeder": f"{FEEDER_PIAWARE}:80"}
-    )
-    assert result["step_id"] == "aircraft"
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_AIRCRAFT_URL: ""}
+        result["flow_id"], {"next_step_id": "add"}
     )
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_HOST] == MOCK_HOST
+    assert result["data"][CONF_FEEDER_TYPE] == FEEDER_FR24
+    assert result["data"][CONF_AIRCRAFT_URL] == AIRCRAFT_URL
+    assert result["options"] == {}
+
+    # PiAware waits under Discovered, and takes one click, without the decoder
+    [offered] = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert offered["context"]["source"] == config_entries.SOURCE_INTEGRATION_DISCOVERY
+    assert offered["context"]["title_placeholders"] == {
+        "name": f"PiAware ({MOCK_HOST})"
+    }
+    result = await hass.config_entries.flow.async_configure(offered["flow_id"], {})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PORT] == 80
     assert result["data"][CONF_FEEDER_TYPE] == FEEDER_PIAWARE
+    assert result["data"][CONF_AIRCRAFT_URL] is None
     assert result["result"].unique_id == f"{FEEDER_PIAWARE}:{MOCK_HOST}:80"
 
 
+async def test_a_decoder_without_feeders_is_added_on_its_own(
+    no_setup: None, hass: HomeAssistant, serving: dict[str, Any]
+) -> None:
+    """Test a station that feeds nowhere: one receiver-only entry."""
+    serving[AIRCRAFT_URL] = MOCK_AIRCRAFT
+
+    result = await _search(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "add"}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_FEEDER_TYPE] is None
+    assert result["result"].unique_id == f"receiver:{MOCK_HOST}"
+
+
 async def test_a_feeder_already_set_up_is_not_offered(
+    no_setup: None,
     hass: HomeAssistant,
     serving: dict[str, Any],
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """Test that the fr24feed entry, known by its alias, is left out."""
+    """Test that the fr24feed entry, and the decoder it reads, are left out."""
     assert mock_config_entry.unique_id == MOCK_ALIAS
     mock_config_entry.add_to_hass(hass)
     serving[FEEDER_URL] = MOCK_MONITOR
     serving[PIAWARE_URL] = MOCK_PIAWARE
+    serving[AIRCRAFT_URL] = MOCK_AIRCRAFT
 
     result = await _search(hass)
-    assert _offered(result) == [f"PiAware ({MOCK_HOST}:8080)"]
+    assert result["description_placeholders"]["found"] == (
+        f"- PiAware ({MOCK_HOST}:8080)"
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "add"}
+    )
+    assert result["data"][CONF_FEEDER_TYPE] == FEEDER_PIAWARE
+    assert result["data"][CONF_AIRCRAFT_URL] is None
+
+
+async def test_choosing_by_hand_after_all(
+    hass: HomeAssistant, serving: dict[str, Any]
+) -> None:
+    """Test the way to the manual steps when something was found."""
+    serving[FEEDER_URL] = MOCK_MONITOR
+
+    result = await _search(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "manual"}
+    )
+    assert result["step_id"] == "manual"
+    assert set(result["menu_options"]) == {
+        "fr24feed",
+        "piaware",
+        "planefinder",
+        "receiver",
+    }
 
 
 @pytest.mark.parametrize(
@@ -181,3 +241,52 @@ async def test_nothing_found_leaves_the_choice_to_the_user(
         for marker in result["data_schema"].schema
     }
     assert suggested == prefilled
+
+
+async def test_a_discovered_feeder_gone_since_is_not_offered(
+    hass: HomeAssistant, serving: dict[str, Any]
+) -> None:
+    """Test that a feeder no longer answering is dropped rather than offered."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_INTEGRATION_DISCOVERY},
+        data={CONF_HOST: MOCK_HOST, CONF_PORT: 8080, CONF_FEEDER_TYPE: FEEDER_PIAWARE},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"
+
+
+async def test_a_feeder_gone_before_adding_is_said_so(
+    hass: HomeAssistant, serving: dict[str, Any]
+) -> None:
+    """Test an abort that names the reason, and offers nothing else meanwhile."""
+    serving[FEEDER_URL] = MOCK_MONITOR
+    serving[PIAWARE_URL] = MOCK_PIAWARE
+    result = await _search(hass)
+    del serving[FEEDER_URL]
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "add"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"
+    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
+
+
+async def test_a_decoder_gone_before_adding_is_said_so(
+    hass: HomeAssistant, serving: dict[str, Any]
+) -> None:
+    """Test the same for the decoder."""
+    serving[AIRCRAFT_URL] = MOCK_AIRCRAFT
+    result = await _search(hass)
+    del serving[AIRCRAFT_URL]
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "add"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect_aircraft"

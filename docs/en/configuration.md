@@ -2,13 +2,17 @@
 
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **ADS-B Station**.
-3. Choose what this entry is for:
-   - **Search this host for feeders**: type the address once, and the feeders found there are listed to pick from: fr24feed on `8754`, PiAware on `8080`, `80` or `8082`, pfclient on `30053`. One that is already set up is left out. Search again for the next one. When nothing new answers, you choose by hand below.
+3. Type the address of your receiver. Home Assistant looks there for the decoder's `aircraft.json` and for the feeders: fr24feed on `8754`, PiAware on `8080`, `80` or `8082`, pfclient on `30053`. What is already set up is left out.
+4. It shows what it found. **Add** sets up the first feeder with the decoder attached, or the receiver on its own when no feeder answers. Each other feeder then appears under **Discovered** on the same page: **Add** there takes one click, without the decoder, which one entry is enough to read.
+5. When nothing new answers, or you would rather choose, you pick by hand, with the address filled in:
    - **Flightradar24 feeder (fr24feed)**: the address of the machine running it, and the port of its status page, `8754` by default.
    - **FlightAware feeder (PiAware)**: likewise, port `8080` by default. A station whose web server was taken over by something else may serve `status.json` elsewhere; on one running tar1090 behind nginx it is worth trying port 80.
    - **Plane Finder feeder (pfclient)**: likewise, port `30053` by default.
    - **ADS-B receiver only**: for a station that feeds nowhere, or as the entry that carries the decoder.
-4. Every path then offers the receiver. Attach it to one entry and leave it empty on the others, or the aircraft figures are counted several times over.
+
+   Each of these then offers the receiver. Attach it to one entry and leave it empty on the others, or the aircraft figures are counted several times over.
+
+Figures are given in the units of Home Assistant from the start: metric, or imperial with US customary units. Pilots' feet, knots and nautical miles are one choice away under **Configure**.
 
 These paths are probed automatically, on port 8080 where fr24feed and PiAware serve them and on port 80 where readsb with tar1090 does. Port 8504 is tried for `/data/aircraft.json`, where tar1090 also serves it when lighttpd is the web server:
 
@@ -26,7 +30,7 @@ Under **Configure** on the integration page:
 
 | Option | Default | What it does |
 |---|---|---|
-| [Units](#units) | As Home Assistant | What heights, speeds and distances are given in. Also asked when you add the station |
+| [Units](#units) | As Home Assistant | What heights, speeds and distances are given in |
 | Update interval | 15 s | How often the aircraft are read. Everything runs on your own network, so a short interval is fine |
 | Statistics interval | 60 s | How often the feeder and the decoder's statistics are read. They are counters and averages over a minute, so reading them more often mostly fills the recorder; a station that only feeds is read at this interval alone |
 | Nearby radius | 10 km, 5.4 NM or 6.2 mi | What counts as nearby and overhead, for **Aircraft nearby**, **Aircraft overhead** and passages. Ten kilometres is roughly what you can see and hear; a good receiver reaches many times that |
