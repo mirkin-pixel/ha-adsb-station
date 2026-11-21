@@ -30,7 +30,7 @@ from custom_components.adsb_station.intent import (
     QUESTIONS,
     TRAFFIC_KINDS,
 )
-from custom_components.adsb_station.services import (
+from custom_components.adsb_station.sentences import (
     SENTENCES_DIRECTORY,
     SENTENCES_FILE,
 )

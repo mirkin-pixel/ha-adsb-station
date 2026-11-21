@@ -317,6 +317,7 @@ CONF_FOLLOW_UNITS = "follow_units"
 # Repairs: the units an upgraded station is now in, and units set by hand.
 ISSUE_UNITS = "units_changed"
 ISSUE_SET_BY_HAND = "units_set_by_hand"
+ISSUE_SENTENCES = "sentences_outdated"
 # Downloaded registrations and types, for a decoder without a database.
 CONF_AIRCRAFT_DATABASE = "aircraft_database"
 
