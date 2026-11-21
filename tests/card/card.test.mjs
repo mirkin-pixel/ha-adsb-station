@@ -12,7 +12,11 @@ import assert from "node:assert/strict";
 const source = readFileSync(process.argv[2], "utf8");
 
 function browser() {
-  const dom = new JSDOM("<!doctype html><body></body>", { runScripts: "outside-only" });
+  // As a tab someone has open: jsdom reports itself hidden unless told otherwise.
+  const dom = new JSDOM("<!doctype html><body></body>", {
+    runScripts: "outside-only",
+    pretendToBeVisual: true,
+  });
   dom.window.eval(source);
   return dom.window;
 }
@@ -1764,6 +1768,25 @@ const tests = {
     card.remove();
     await tick();
     assert.equal(link.unsubscribed, 1);
+  },
+
+  async "lets the sky go while the tab is hidden, and takes it up again"() {
+    const w = browser();
+    const hass = hassWith({ overhead: overheadState(KLM) });
+    const link = connect(hass);
+    render(w, hass);
+    let hidden = false;
+    Object.defineProperty(w.document, "hidden", { configurable: true, get: () => hidden });
+    assert.equal(link.subscriptions.length, 1);
+
+    hidden = true;
+    w.document.dispatchEvent(new w.Event("visibilitychange"));
+    await tick();
+    assert.equal(link.unsubscribed, 1, "a hidden tab is not followed");
+
+    hidden = false;
+    w.document.dispatchEvent(new w.Event("visibilitychange"));
+    assert.equal(link.subscriptions.length, 2, "followed again on return");
   },
 
   "draws the same sky on map tiles when asked"() {
