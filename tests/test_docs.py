@@ -5,7 +5,7 @@ that a change to one belongs in the other. Nothing enforced that, and the way
 it goes wrong is quiet: a section added to one language six months from now,
 and a reader of the other never learns the feature exists.
 
-The two halves of the README are held to the same, and to listing every page.
+The front page and the index of each language are held to listing every page.
 
 This checks the shape rather than the prose. Whether a paragraph says the
 same thing in both languages is a matter for review; whether a page or a
@@ -64,31 +64,25 @@ def test_every_page_starts_with_one_title() -> None:
             assert levels.count(1) == 1, f"{path} has more than one title"
 
 
-def _readme_halves() -> dict[str, str]:
-    """Return the English and the Dutch half of the README."""
-    text = (DOCS.parent / "README.md").read_text("utf-8")
-    english, dutch = text.split("\n## Nederlands\n")
-    return {"en": english.split("\n## English\n")[1], "nl": dutch}
+def test_each_index_points_at_every_page() -> None:
+    """Test that the front page and each language's index list every page.
 
-
-def test_the_readme_halves_have_the_same_shape() -> None:
-    """Test that a section added to one half of the README is in the other."""
-    halves = _readme_halves()
-    english = _headings(halves["en"])
-    dutch = _headings(halves["nl"])
-
-    assert english == dutch, (
-        f"The README has {len(english)} headings in English and {len(dutch)} in Dutch"
-    )
-    assert len(english) > 5
-
-
-def test_the_readme_points_at_every_page() -> None:
-    """Test that each half of the README lists every page of its language."""
-    for language, half in _readme_halves().items():
-        linked = set(re.findall(rf"docs/{language}/([\w-]+\.md)", half))
-        pages = {path.name for path in (DOCS / language).glob("*.md")}
-        assert linked == pages, (
-            f"The {language} README misses {sorted(pages - linked)} "
-            f"and links {sorted(linked - pages)}, which do not exist"
-        )
+    The front page is English; each docs folder opens on a README of its own,
+    which is where the link to the Dutch documentation leads.
+    """
+    indexes = {
+        "en": [DOCS.parent / "README.md", DOCS / "en" / "README.md"],
+        "nl": [DOCS / "nl" / "README.md"],
+    }
+    for language, files in indexes.items():
+        pages = {path.name for path in (DOCS / language).glob("*.md")} - {"README.md"}
+        for index in files:
+            linked = set(
+                re.findall(
+                    rf"(?:docs/{language}/)?([\w-]+\.md)\)", index.read_text("utf-8")
+                )
+            ) - {"README.md", "CONTRIBUTING.md"}
+            assert linked == pages, (
+                f"{index} misses {sorted(pages - linked)} "
+                f"and links {sorted(linked - pages)}, which do not exist"
+            )
