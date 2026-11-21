@@ -43,6 +43,8 @@ from .conftest import (
     MOCK_ALIAS,
     MOCK_HOST,
     MOCK_MONITOR,
+    MOCK_RECEIVER,
+    MOCK_RECEIVER_READSB,
     MOCK_STATS,
     RECEIVER_UNIQUE_ID,
     STATS_URL,
@@ -692,3 +694,37 @@ async def test_options_flow_turns_photo_lookups_on(
     assert mock_config_entry.options[CONF_LOOK_UP_PHOTOS] is True
     assert mock_config_entry.options[CONF_LOOK_UP_ROUTES] is False
     assert mock_config_entry.runtime_data.photo_lookup is not None
+
+
+@pytest.mark.parametrize(
+    ("receiver", "said"),
+    [
+        (MOCK_RECEIVER, "home location of Home Assistant"),
+        (MOCK_RECEIVER_READSB, "publishes in receiver.json"),
+    ],
+)
+async def test_options_say_where_distances_are_measured_from(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    receiver: dict[str, Any],
+    said: str,
+) -> None:
+    """Test that the form names the point, which falls back without a word."""
+    set_responses(aioclient_mock, receiver=receiver)
+    assert await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+
+    assert said in result["description_placeholders"]["measured_from"]
+
+
+async def test_options_of_a_feeder_measure_nothing(
+    hass: HomeAssistant, mock_piaware_entry: MockConfigEntry
+) -> None:
+    """Test that a feeder without a decoder gets no sentence about distances."""
+    mock_piaware_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(mock_piaware_entry.entry_id)
+
+    assert result["description_placeholders"]["measured_from"] == ""

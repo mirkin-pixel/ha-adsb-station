@@ -128,6 +128,7 @@
     "step": {
       "init": {
         "title": "ADS-B station options",
+        "description": "{measured_from}",
         "data": {
           "scan_interval": "Update interval",
           "statistics_interval": "Statistics interval",
@@ -755,6 +756,12 @@
     }
   },
   "selector": {
+    "measured_from": {
+      "options": {
+        "receiver": "Distances, the nearby radius and the range records are measured from the antenna position your decoder publishes in receiver.json.",
+        "home_location": "Distances, the nearby radius and the range records are measured from the home location of Home Assistant, as your decoder publishes no antenna position. If the antenna stands elsewhere, set its position in the decoder: readsb and dump1090-fa take it, fr24feed's own decoder does not."
+      }
+    },
     "units": {
       "options": {
         "auto": "As Home Assistant",

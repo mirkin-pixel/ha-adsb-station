@@ -235,7 +235,7 @@ async def test_the_options_flow_refuses_a_line_it_cannot_read(
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_WATCHLIST: "unreadable_watchlist"}
-    assert result["description_placeholders"] == {"lines": "!!"}
+    assert result["description_placeholders"]["lines"] == "!!"
 
 
 async def test_one_flypast_is_one_message_at_the_slowest_interval(
