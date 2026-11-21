@@ -464,7 +464,7 @@
       "status_stale": {
         "name": "Statuspagina bevroren",
         "state": {
-          "off": "Wordt bijgewerkt",
+          "off": "Actueel",
           "on": "Bevroren"
         }
       },
