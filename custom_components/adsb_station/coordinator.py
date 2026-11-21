@@ -1420,6 +1420,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
         return passage, when
 
+    def _coming(self, summary: AircraftSummary) -> bool:
+        """Return True for one about to pass inside the radius and under the ceiling."""
+        return (
+            summary.approaching
+            and summary.closest_passing_distance is not None
+            and summary.closest_passing_distance <= self.proximity_radius
+            and _under(summary, self.proximity_ceiling)
+        )
+
     def _announce_approaching(self, stats: AircraftStats) -> None:
         """Fire an event for an aircraft that is about to come over.
 
@@ -1427,16 +1436,10 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         polls agree, and once per PASSAGE_GAP.
         """
         now = dt_util.utcnow()
-        radius = self.proximity_radius
-        ceiling = self.proximity_ceiling
         coming: set[str] = set()
 
         for summary in stats.heard:
-            if not summary.approaching or summary.closest_passing_distance is None:
-                continue
-            if summary.closest_passing_distance > radius or not _under(
-                summary, ceiling
-            ):
+            if not self._coming(summary):
                 continue
 
             coming.add(summary.hex)
@@ -1574,19 +1577,28 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         )
 
     async def _async_add_routes_and_photos(self, stats: AircraftStats) -> AircraftStats:
-        """Ask for routes and photos at once: a poll waits for the slower only."""
+        """Ask for routes and photos at once: a poll waits for the slower only.
+
+        For the aircraft an event or the card tells about: the nearby ones, the
+        ones about to come over, and the watched ones, wherever they are.
+        """
+        wanted = self._worth_looking_up(stats)
+        if not wanted:
+            return stats
         if self.route_lookup is None or self.photo_lookup is None:
-            routes, photos = await self._async_routes(stats), {}
+            routes, photos = await self._async_routes(wanted), {}
             if self.photo_lookup is not None:
-                photos = await self._async_photos(stats)
+                photos = await self._async_photos(wanted)
         else:
             routes, photos = await asyncio.gather(
-                self._async_routes(stats), self._async_photos(stats)
+                self._async_routes(wanted), self._async_photos(wanted)
             )
         if not routes and not photos:
             return stats
 
         def filled(summary: AircraftSummary) -> AircraftSummary:
+            if (route := routes.get(summary.flight or "")) is not None:
+                summary = replace(summary, route=route)
             # Not under a PIA address: it is reused, so the photo could be of
             # another airframe.
             if not summary.pia and (photo := photos.get(summary.hex.lower())):
@@ -1595,21 +1607,28 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         return replace(
             stats,
-            nearby=tuple(
-                filled(
-                    summary
-                    if (route := routes.get(summary.flight or "")) is None
-                    else replace(summary, route=route)
-                )
-                for summary in stats.nearby
-            ),
+            heard=tuple(filled(summary) for summary in stats.heard),
+            nearby=tuple(filled(summary) for summary in stats.nearby),
             watched=tuple(
                 replace(match, summary=filled(match.summary)) for match in stats.watched
             ),
         )
 
-    async def _async_routes(self, stats: AircraftStats) -> dict[str, FlightRoute]:
-        """Look up the routes of the nearby aircraft only, to spare routeset."""
+    def _worth_looking_up(self, stats: AircraftStats) -> list[AircraftSummary]:
+        """Return the aircraft to look up, nearest concern first, each once."""
+        found: dict[str, AircraftSummary] = {}
+        for summary in (
+            *stats.nearby,
+            *(summary for summary in stats.heard if self._coming(summary)),
+            *(match.summary for match in stats.watched),
+        ):
+            found.setdefault(summary.hex, summary)
+        return list(found.values())
+
+    async def _async_routes(
+        self, wanted: list[AircraftSummary]
+    ) -> dict[str, FlightRoute]:
+        """Look up the routes of these aircraft; routeset caps how many at once."""
         if self.route_lookup is None:
             return {}
         flights = [
@@ -1618,25 +1637,23 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                 latitude=None if summary.position is None else summary.position[0],
                 longitude=None if summary.position is None else summary.position[1],
             )
-            for summary in stats.nearby
+            for summary in wanted
             if summary.flight is not None
         ]
         if not flights:
             return {}
         return await self.route_lookup.async_resolve(flights)
 
-    async def _async_photos(self, stats: AircraftStats) -> dict[str, AircraftPhoto]:
-        """Look up photos of the nearby and the watched aircraft."""
+    async def _async_photos(
+        self, wanted: list[AircraftSummary]
+    ) -> dict[str, AircraftPhoto]:
+        """Look up photos of these aircraft."""
         if self.photo_lookup is None:
             return {}
-        wanted = [
-            summary.hex
-            for summary in (*stats.nearby, *(match.summary for match in stats.watched))
-            if not summary.pia
-        ]
-        if not wanted:
+        hexes = [summary.hex for summary in wanted if not summary.pia]
+        if not hexes:
             return {}
-        return await self.photo_lookup.async_resolve(wanted)
+        return await self.photo_lookup.async_resolve(hexes)
 
     async def _async_get_stats(self) -> ReceiverStats | None:
         """Fetch stats.json, tolerating a receiver that is not reachable."""

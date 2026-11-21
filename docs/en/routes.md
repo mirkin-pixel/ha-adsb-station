@@ -6,7 +6,7 @@ The source is **routeset**, reached through `adsb.im`, which is what tar1090 its
 
 It is also told where each aircraft was heard, which is what lets it judge. A modern airline callsign is reused across the legs of a day, so knowing the flight number is not the same as knowing where that aircraft is going; routeset drops a route that does not fit the position rather than showing it, because a wrong route in a notification is worse than none.
 
-Only the aircraft inside your nearby radius are looked up on their own, plus one you tap on the [station card](dashboards.md#the-sky), whose route is then drawn on its map. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
+Only the aircraft inside your nearby radius are looked up on their own, with those about to come over and those on your [watchlist](watchlist.md) wherever they are, so the notifications about them can say where they fly; plus one you tap on the [station card](dashboards.md#the-sky), whose route is then drawn on its map. Those are the handful an automation acts on, and asking about every aircraft in range would be a stream of requests to someone else's server for a figure nothing displays. Answers are kept for twelve hours, so the airliners that pass over every day are asked about once rather than once per poll, and no more than 25 new callsigns are looked up per poll.
 
 When a route is found it appears on each aircraft in the **Aircraft nearby** and **Aircraft overhead** attributes:
 
