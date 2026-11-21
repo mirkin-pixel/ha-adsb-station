@@ -21,7 +21,7 @@ Engels en Nederlands worden gesproken; een vraag in een andere taal wordt in het
 
 *Wat vloog er net over?* is voor het toestel dat je hoorde en waar je pas naar vraagt als het weg is. Hij noemt het toestel waarvan het dichtste punt het laatst achter je ligt, en telt de tijd vanaf dat moment. Een toestel dat nog nadert is nog niet overgekomen; dan hoor je wat er nu boven je hangt. Het station onthoudt een toestel tot tien minuten nadat het voor het laatst gezien is, en niets over een herstart heen. Na tien stille minuten, of vlak na een herstart, zegt hij dat hij niets heeft horen overvliegen.
 
-Er zijn twee manieren om dit aan te sluiten, en ze komen bij dezelfde tien antwoorden uit.
+Er zijn twee manieren om dit aan te sluiten, en ze komen bij dezelfde tien antwoorden uit. Een [AI-assistent](#een-ai-assistent) krijgt ze ook zonder die twee.
 
 ## Een automatisering, zonder enig bestand
 
@@ -72,3 +72,9 @@ Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conver
 De kopie gaat niet mee met de integratie. Voegt een update een vraag toe, kopieer de bestanden dan opnieuw of draai `adsb_station.install_sentences` nog een keer, en herlaad; tot dan kent Assist alleen de vragen van de versie die je kopieerde.
 
 Lezen twee van je entries een antenne, dan antwoordt de eerste op naam. Assist is voor een snelle vraag; de [acties](services.md) zijn er als het precies moet.
+
+## Een AI-assistent
+
+Een spraakassistent die via een AI-model praat, zoals OpenAI, Google Gemini, Anthropic of Ollama, met **Assist** aangevinkt in de instellingen van die assistent, krijgt de tien vragen als hulpmiddel, plus één extra: wat een toestel dat je noemt is, waar het is en waar het heen gaat, op roepnaam, registratie of hexcode. *"Waar is KLM 123 nu?"* werkt daar dus, ook al heeft Assist zelf er geen zin voor. Het model kiest de vraag en zegt het antwoord in eigen woorden; de cijfers komen van je ontvanger, en de hulpmiddelen lezen alleen.
+
+Hiervoor zijn geen zinsbestanden nodig. Vanaf Home Assistant 2026.10 biedt de integratie de hulpmiddelen zelf aan; daarvoor gaf Home Assistant ze uit zichzelf door.
