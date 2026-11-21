@@ -7,11 +7,14 @@ on:
 permissions: {}
 
 jobs:
-  release:
-    name: Attach integration zip to release
+  checks:
+    # The same checks as a pull request, on the tagged code itself. HACS
+    # installs a release from its zip, so a release whose checks fail gets
+    # none and cannot be installed by mistake.
+    name: Check the tagged code
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
 
@@ -25,12 +28,48 @@ jobs:
             exit 1
           fi
 
-      - name: Create zip
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies
+        run: pip install -r requirements_test.txt
+      - name: Ruff
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Mypy
+        run: mypy
+      - name: Tests
+        run: pytest
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Card tests
+        working-directory: tests/card
+        run: |
+          npm ci
+          npm test
+
+  release:
+    name: Attach integration zip to release
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create zip and its checksum
         run: |
           cd custom_components/adsb_station
           zip -r ../../adsb_station.zip .
+          cd ../..
+          sha256sum adsb_station.zip > adsb_station.zip.sha256
 
       - name: Upload zip to release
         uses: softprops/action-gh-release@v3
         with:
-          files: adsb_station.zip
+          files: |
+            adsb_station.zip
+            adsb_station.zip.sha256

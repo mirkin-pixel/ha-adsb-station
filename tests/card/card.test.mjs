@@ -754,6 +754,50 @@ const tests = {
     assert.equal(w.hacked, undefined);
   },
 
+  async "never turns outside text into markup, anywhere it is shown"() {
+    const w = browser();
+    w.HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
+    const evil = '<img src=x onerror="window.hacked=1">';
+    // Every field that comes from an aircraft, a database or a server.
+    const plane = {
+      ...LOW,
+      flight: evil,
+      registration: evil,
+      description: evil,
+      aircraft_type: evil,
+      airline: evil,
+      origin: evil,
+      destination: evil,
+      origin_location: evil,
+      destination_location: evil,
+      route_points: {
+        origin: { code: evil, location: evil, latitude: 52.3, longitude: 4.8 },
+        destination: { code: evil, location: evil, latitude: 51.5, longitude: -0.4 },
+      },
+    };
+    const passages = [{ ...plane, at: "2026-11-13T14:32:00+00:00", altitude: 3200, distance: 1.8, duration: 95 }];
+    const hass = hassWith({
+      overhead: overheadState({ ...KLM, ...plane, photographer: evil }),
+      nearby: [plane],
+      extraStates: { "sensor.t_etur47_passages_vandaag": { state: "1", attributes: { passages }, last_updated: "t" } },
+    });
+    const link = connect(hass);
+    const card = render(w, hass);
+    link.send({ ...SKY([plane]), airports: [[evil, 52.3, 4.8, true]] });
+    card._select(plane.hex);
+    card.shadowRoot.querySelector(".details").click();
+    const table = renderTable(w, hass, { list: "passages" });
+    await settle();
+
+    for (const root of [card.shadowRoot, table.shadowRoot]) {
+      assert.equal(root.querySelectorAll("[onerror]").length, 0);
+      assert.ok(root.textContent.includes(evil), "shown as text instead");
+    }
+    assert.equal(w.hacked, undefined);
+  },
+
   "can leave the list and the status out, and cap the list"() {
     const w = browser();
     const nearby = Array.from({ length: 9 }, (_, i) => ({ hex: `h${i}`, flight: `F${i}`, distance: i }));
