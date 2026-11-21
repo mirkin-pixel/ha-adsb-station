@@ -41,7 +41,7 @@ from .conftest import (
     set_responses,
     setup_integration,
 )
-from .test_config_flow import _start_receiver_step, _start_user_step, _suggested
+from .test_config_flow import _start_user_step
 from .test_passages import OVERHEAD, poll
 
 # A kilometre north of home, 2,000 ft up, at 250 kt, climbing 1,000 ft/min
@@ -620,29 +620,20 @@ async def test_a_radius_at_either_end_can_be_saved_again(
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_the_units_chosen_survive_a_wrong_address(
+async def test_not_asked_when_a_station_is_added(
     hass: HomeAssistant, mock_api: AiohttpClientMocker
 ) -> None:
-    """Test the choice still made when the step is shown again."""
-    result = await _start_receiver_step(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_AIRCRAFT_URL: "", CONF_UNITS: "nautical"}
-    )
-    assert result["errors"] == {"base": "aircraft_url_required"}
-    assert _suggested(result, CONF_UNITS) == "nautical"
+    """Test the setup asks only what it needs to connect; units follow Home Assistant.
 
-
-async def test_asked_for_when_a_station_is_added(
-    hass: HomeAssistant, mock_api: AiohttpClientMocker
-) -> None:
-    """Test the choice in the setup, kept as an option, and left out when automatic."""
+    They are an option, under Configure, like the rest.
+    """
     result = await _start_user_step(hass)
-    assert CONF_UNITS in result["data_schema"].schema
+    assert CONF_UNITS not in result["data_schema"].schema
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_AIRCRAFT_URL: AIRCRAFT_URL, CONF_UNITS: "nautical"}
+        result["flow_id"], {CONF_AIRCRAFT_URL: AIRCRAFT_URL}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["options"] == {CONF_UNITS: "nautical"}
+    assert result["options"] == {}
 
 
 def test_an_activity_line_in_the_unit_it_was_fired_in(hass: HomeAssistant) -> None:

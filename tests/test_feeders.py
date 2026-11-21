@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -37,6 +36,7 @@ from .conftest import (
     our_device,
     setup_integration,
 )
+from .test_config_flow import _choose
 
 
 def _state(hass: HomeAssistant, device_id: str, platform: str, key: str) -> str | None:
@@ -201,12 +201,7 @@ async def test_a_second_feeder_is_not_offered_the_same_decoder(
     mock_config_entry.add_to_hass(hass)
     mock_api.get(PIAWARE_URL, json=MOCK_PIAWARE)
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"next_step_id": "piaware"}
-    )
+    result = await _choose(hass, "piaware")
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: MOCK_HOST, CONF_PORT: PIAWARE_PORT}
     )

@@ -25,7 +25,7 @@ Je hebt Home Assistant 2025.7 of nieuwer nodig, en een decoder die een `aircraft
 
    [![Open je Home Assistant en open een repository in de Marktplaats.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
 
-2. **Je station toevoegen.** Kies onder **Instellingen → Apparaten & diensten → Integratie toevoegen** voor **ADS-B Station**, dan **Deze host doorzoeken op feeders**, en typ het adres van je ontvanger. De `aircraft.json` van de decoder wordt voor je gevonden. Voed je meerdere netwerken? Voeg één entry per feeder toe, met de decoder aan precies één ervan; zie [Configuratie](configuration.md).
+2. **Je station toevoegen.** Kies onder **Instellingen → Apparaten & diensten → Integratie toevoegen** voor **ADS-B Station** en typ het adres van je ontvanger. De decoder en de feeders worden voor je gevonden: één klik voegt de eerste toe, en de andere wachten onder **Ontdekt** op een klik per stuk; zie [Configuratie](configuration.md).
 3. **De kaart op een dashboard zetten.** Bewerk een dashboard, voeg een kaart toe en kies **ADS-B Station**; zie [Dashboards](dashboards.md).
 
 Geen Marktplaats? Kopieer `custom_components/adsb_station` naar de map `custom_components` van je configuratie en herstart.

@@ -31,7 +31,7 @@ You need Home Assistant 2025.7 or newer, and a decoder that serves an `aircraft.
 
    [![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
 
-2. **Add your station.** Under **Settings → Devices & services → Add integration**, choose **ADS-B Station**, then **Search this host for feeders** and type the address of your receiver. The decoder's `aircraft.json` is found for you. Feed several networks? Add one entry per feeder, with the decoder on just one of them; see [Configuration](docs/en/configuration.md).
+2. **Add your station.** Under **Settings → Devices & services → Add integration**, choose **ADS-B Station** and type the address of your receiver. The decoder and the feeders are found for you: one click adds the first, and the others wait under **Discovered** for a click each; see [Configuration](docs/en/configuration.md).
 3. **Put the card on a dashboard.** Edit a dashboard, add a card and pick **ADS-B Station**; see [Dashboards](docs/en/dashboards.md).
 
 No Marketplace? Copy `custom_components/adsb_station` into the `custom_components` folder of your configuration and restart.

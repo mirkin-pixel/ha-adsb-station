@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from math import ceil, floor
 import socket
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import (
+    SOURCE_INTEGRATION_DISCOVERY,
     SOURCE_RECONFIGURE,
     ConfigEntryState,
     ConfigFlow,
@@ -238,36 +240,40 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self._feeder_type: str | None = None
         self._title = DEFAULT_STATION_NAME
         self._aircraft_url = ""
-        self._units = UNITS_AUTO
         self._stats_url: str | None = None
         self._features: list[str] = []
-        # What a search found, by the value of its option: kind and port.
-        self._found: dict[str, tuple[str, int]] = {}
+        # What a search found: the feeders, by kind and port, and the decoder.
+        self._found: list[tuple[str, int]] = []
+        self._decoder: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask what this station runs."""
-        return self.async_show_menu(
-            step_id="user", menu_options=["search", *FEEDERS, "receiver"]
-        )
-
-    async def async_step_search(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Look for every kind of feeder on one host."""
+        """Ask for the address, and look there for the decoder and the feeders."""
         if user_input is None:
-            return self.async_show_form(step_id="search", data_schema=RECEIVER_SCHEMA)
+            return self.async_show_form(step_id="user", data_schema=RECEIVER_SCHEMA)
         self._host = str(user_input[CONF_HOST]).strip()
+        session = async_get_clientsession(self.hass)
+        feeders, decoder = await asyncio.gather(
+            async_detect_feeders(session, self._host),
+            async_detect_aircraft_url(session, self._host),
+        )
         configured = self._async_current_ids(include_ignore=False)
-        self._found = {
-            f"{key}:{port}": (key, port)
-            for key, port, payload in await async_detect_feeders(
-                async_get_clientsession(self.hass), self._host
-            )
+        self._found = [
+            (key, port)
+            for key, port, payload in feeders
             if _feeder_unique_id(key, self._host, port, payload) not in configured
-        }
-        if not self._found:
+        ]
+        # Once per station: a decoder another entry reads would count twice.
+        self._decoder = (
+            None
+            if decoder is None or await self._async_decoder_already_read()
+            else decoder
+        )
+        if not self._found and (
+            self._decoder is None
+            or f"{RECEIVER_UNIQUE_ID_PREFIX}{self._host}" in configured
+        ):
             return await self.async_step_nothing_found()
         return await self.async_step_found()
 
@@ -284,32 +290,112 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_found(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Let the user pick one of the feeders found."""
-        if user_input is not None:
-            key, port = self._found[user_input["feeder"]]
-            return await self._async_feeder_step(
-                key, {CONF_HOST: self._host, CONF_PORT: port}
-            )
-        options = [
-            selector.SelectOptionDict(
-                value=value, label=f"{FEEDERS[key].model} ({self._host}:{port})"
-            )
-            for value, (key, port) in self._found.items()
+        """Say what was found, and what adding it does."""
+        lines = [
+            f"- {FEEDERS[key].model} ({self._host}:{port})" for key, port in self._found
         ]
-        return self.async_show_form(
+        if self._decoder is not None:
+            lines.insert(0, f"- aircraft.json ({self._decoder})")
+        first = (
+            FEEDERS[self._found[0][0]].model if self._found else DEFAULT_STATION_NAME
+        )
+        return self.async_show_menu(
             step_id="found",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("feeder", default=options[0]["value"]): (
-                        selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=options,
-                                mode=selector.SelectSelectorMode.LIST,
-                            )
-                        )
-                    )
-                }
-            ),
+            menu_options=["add", "manual"],
+            description_placeholders={
+                "host": self._host,
+                "found": "\n".join(lines),
+                "first": first,
+                "later": ", ".join(FEEDERS[key].model for key, _ in self._found[1:])
+                or "-",
+            },
+        )
+
+    async def async_step_manual(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Choose by hand after all, with the host already filled in."""
+        return self.async_show_menu(
+            step_id="manual", menu_options=[*FEEDERS, "receiver"]
+        )
+
+    async def async_step_add(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add the first of what was found; offer the other feeders as discovered."""
+        for key, port in self._found[1:]:
+            self.hass.async_create_task(
+                self.hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={"source": SOURCE_INTEGRATION_DISCOVERY},
+                    data={
+                        CONF_HOST: self._host,
+                        CONF_PORT: port,
+                        CONF_FEEDER_TYPE: key,
+                    },
+                )
+            )
+        if self._found:
+            key, port = self._found[0]
+            payload, error = await self._async_validate_feeder(self._host, port, key)
+            if error is not None:
+                return self.async_abort(reason=error)
+            await self.async_set_unique_id(
+                _feeder_unique_id(key, self._host, port, payload)
+            )
+            self._abort_if_unique_id_configured()
+            self._feeder_type, self._port = key, port
+            alias = (
+                str(payload.get("feed_alias") or "").strip()
+                if key == FEEDER_FR24
+                else ""
+            )
+            self._title = alias or f"{FEEDERS[key].default_name} ({self._host})"
+        else:
+            await self.async_set_unique_id(f"{RECEIVER_UNIQUE_ID_PREFIX}{self._host}")
+            self._abort_if_unique_id_configured()
+            self._title = f"{DEFAULT_STATION_NAME} ({self._host})"
+        if self._decoder is not None and (
+            error := await self._async_validate_aircraft(self._decoder)
+        ):
+            return self.async_abort(reason=error)
+        return self._async_finish(self._decoder)
+
+    async def async_step_integration_discovery(
+        self, discovery_info: dict[str, Any]
+    ) -> ConfigFlowResult:
+        """Offer a feeder found next to one just added, to add with one click."""
+        self._host = str(discovery_info[CONF_HOST])
+        self._port = int(discovery_info[CONF_PORT])
+        self._feeder_type = str(discovery_info[CONF_FEEDER_TYPE])
+        payload, error = await self._async_validate_feeder(
+            self._host, self._port, self._feeder_type
+        )
+        if error is not None:
+            return self.async_abort(reason=error)
+        await self.async_set_unique_id(
+            _feeder_unique_id(self._feeder_type, self._host, self._port, payload)
+        )
+        self._abort_if_unique_id_configured()
+        kind = FEEDERS[self._feeder_type]
+        alias = (
+            str(payload.get("feed_alias") or "").strip()
+            if self._feeder_type == FEEDER_FR24
+            else ""
+        )
+        self._title = alias or f"{kind.default_name} ({self._host})"
+        self.context["title_placeholders"] = {"name": f"{kind.model} ({self._host})"}
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add the discovered feeder, without a decoder: another entry reads it."""
+        if user_input is not None:
+            return self._async_finish(None)
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            description_placeholders=self.context["title_placeholders"],
         )
 
     async def async_step_fr24feed(
@@ -433,7 +519,6 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             self._aircraft_url = await self._async_suggest_aircraft_url()
         else:
             self._aircraft_url = str(user_input.get(CONF_AIRCRAFT_URL) or "").strip()
-            self._units = str(user_input.get(CONF_UNITS) or UNITS_AUTO)
             if not self._aircraft_url:
                 if not required:
                     return self._async_finish(None)
@@ -449,19 +534,15 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
                 self._aircraft_schema(required),
-                # The units chosen stay chosen when the address was wrong.
-                {CONF_AIRCRAFT_URL: self._aircraft_url, CONF_UNITS: self._units},
+                {CONF_AIRCRAFT_URL: self._aircraft_url},
             ),
             errors=errors,
         )
 
-    def _aircraft_schema(self, required: bool) -> vol.Schema:
-        """Return the aircraft.json step, asking for units on a new station."""
-        schema = REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA
-        # A reconfigured station keeps its units; they live under Configure.
-        if self.source == SOURCE_RECONFIGURE:
-            return schema
-        return schema.extend(UNITS_FIELD)
+    @staticmethod
+    def _aircraft_schema(required: bool) -> vol.Schema:
+        """Return the aircraft.json step; the units live under Configure."""
+        return REQUIRED_AIRCRAFT_SCHEMA if required else OPTIONAL_AIRCRAFT_SCHEMA
 
     def _feeder_defaults(self, port: int) -> dict[str, Any]:
         """Return the values to prefill a feeder step with."""
@@ -592,11 +673,8 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             # changed; reloading here as well would reload it twice.
             self.hass.config_entries.async_update_entry(entry, data=data)
             return self.async_abort(reason="reconfigure_successful")
-        return self.async_create_entry(
-            title=self._title,
-            data=data,
-            options={} if self._units == UNITS_AUTO else {CONF_UNITS: self._units},
-        )
+        # The units follow Home Assistant until changed under Configure.
+        return self.async_create_entry(title=self._title, data=data)
 
     @staticmethod
     @callback

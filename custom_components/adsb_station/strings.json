@@ -3,30 +3,20 @@
     "step": {
       "user": {
         "title": "ADS-B station",
-        "description": "What runs on your receiver? Anything that serves an aircraft.json works: dump1090, dump1090-fa and SkyAware, readsb and tar1090. Add the Flightradar24 feeder on top only if you actually run fr24feed.",
-        "menu_options": {
-          "search": "Search this host for feeders",
-          "fr24feed": "Flightradar24 feeder (fr24feed)",
-          "piaware": "FlightAware feeder (PiAware)",
-          "planefinder": "Plane Finder feeder (pfclient)",
-          "receiver": "ADS-B receiver only"
-        }
-      },
-      "search": {
-        "title": "Search for feeders",
-        "description": "Enter the address of the machine running your feeders. Home Assistant looks for fr24feed, PiAware and pfclient on their usual ports.",
+        "description": "What is the address of your receiver? Home Assistant looks there for the decoder that serves aircraft.json and for the feeders: fr24feed, PiAware and pfclient.",
         "data": {
           "host": "Host"
         },
         "data_description": {
-          "host": "The IP address or hostname of the device, for example 192.168.1.50."
+          "host": "The IP address or hostname of the machine running your decoder, for example 192.168.1.50."
         }
       },
       "found": {
-        "title": "Feeders found",
-        "description": "Choose the feeder to add. Search again to add another.",
-        "data": {
-          "feeder": "Feeder"
+        "title": "Found on {host}",
+        "description": "{found}\n\n{first} is added now, with the decoder attached. The other feeders, if any ({later}), then appear under **Discovered**, to add with one click each. Choose by hand if this is not what you want.",
+        "menu_options": {
+          "add": "Add",
+          "manual": "Choose by hand"
         }
       },
       "nothing_found": {
@@ -89,25 +79,35 @@
         "title": "ADS-B receiver",
         "description": "Home Assistant can also read the aircraft.json of your decoder for the number of aircraft received, the message rate and the maximum range. Leave the field empty to skip this. Leave it empty if another entry on this station already reads the decoder, or its aircraft will be counted twice.",
         "data": {
-          "aircraft_url": "aircraft.json URL",
-          "units": "Units"
+          "aircraft_url": "aircraft.json URL"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50:8080/dump1090/data/aircraft.json. Detected automatically when possible.",
-          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50:8080/dump1090/data/aircraft.json. Detected automatically when possible."
         }
       },
       "receiver_url": {
         "title": "aircraft.json",
         "description": "This is where the data comes from, so it is required. Any decoder that serves an aircraft.json works, whichever network you feed.",
         "data": {
-          "aircraft_url": "aircraft.json URL",
-          "units": "Units"
+          "aircraft_url": "aircraft.json URL"
         },
         "data_description": {
-          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50/tar1090/data/aircraft.json. Detected automatically when possible.",
-          "units": "What heights, speeds and distances are given in, on the sensors, in their attributes and events, by voice and on the card, and what you fill in: the radius and the ceiling under Configure, and the filters of the actions. As Home Assistant follows its own unit system: metric, or imperial for its US units. Aviation is feet, knots and nautical miles."
+          "aircraft_url": "The full URL to aircraft.json, for example http://192.168.1.50/tar1090/data/aircraft.json. Detected automatically when possible."
         }
+      },
+      "manual": {
+        "title": "Choose by hand",
+        "description": "Choose what to add. The address is filled in for you.",
+        "menu_options": {
+          "fr24feed": "Flightradar24 feeder (fr24feed)",
+          "piaware": "FlightAware feeder (PiAware)",
+          "planefinder": "Plane Finder feeder (pfclient)",
+          "receiver": "ADS-B receiver only"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Add {name}?",
+        "description": "Found next to a station you added. It is added without the decoder, which another entry already reads."
       }
     },
     "error": {
@@ -121,8 +121,14 @@
     "abort": {
       "already_configured": "This station is already configured",
       "reconfigure_successful": "The station was updated successfully",
-      "wrong_feeder": "This address belongs to a different feeder"
-    }
+      "wrong_feeder": "This address belongs to a different feeder",
+      "cannot_connect": "Failed to connect to the feeder",
+      "invalid_response": "This address answers, but not with the status page of this feeder. Check the port.",
+      "cannot_connect_aircraft": "Failed to connect to the ADS-B receiver",
+      "invalid_aircraft_response": "This URL does not serve an aircraft.json",
+      "unknown": "Unexpected error"
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
