@@ -128,6 +128,7 @@
     "step": {
       "init": {
         "title": "Opties ADS-B-station",
+        "description": "{measured_from}",
         "data": {
           "scan_interval": "Ververstijd",
           "statistics_interval": "Ververstijd statistieken",
@@ -755,6 +756,12 @@
     }
   },
   "selector": {
+    "measured_from": {
+      "options": {
+        "receiver": "Afstanden, de straal en de bereikrecords worden gemeten vanaf de antennepositie die je decoder in receiver.json publiceert.",
+        "home_location": "Afstanden, de straal en de bereikrecords worden gemeten vanaf de thuislocatie van Home Assistant, omdat je decoder geen antennepositie publiceert. Staat de antenne ergens anders, stel de positie dan in de decoder in: readsb en dump1090-fa nemen hem aan, de eigen decoder van fr24feed niet."
+      }
+    },
     "units": {
       "options": {
         "auto": "Zoals Home Assistant",

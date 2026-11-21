@@ -18,6 +18,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.helpers import issue_registry as ir, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.translation import async_get_translations
 
 # Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
 # the type checker needs to be told.
@@ -663,7 +664,7 @@ class AdsbStationOptionsFlow(OptionsFlow):
                     ),
                     errors={CONF_WATCHLIST: "unreadable_watchlist"},
                     description_placeholders={
-                        **self._placeholders(),
+                        **await self._placeholders(),
                         "lines": ", ".join(unreadable),
                     },
                 )
@@ -688,14 +689,28 @@ class AdsbStationOptionsFlow(OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(
                 self._schema(), self._shown()
             ),
-            description_placeholders=self._placeholders(),
+            description_placeholders=await self._placeholders(),
         )
 
-    def _placeholders(self) -> dict[str, str]:
-        """Name the sensors with a unit of their own, for the box about them."""
-        if not (sensors := set_by_hand(self.hass, self.config_entry.entry_id)):
-            return {}
-        return {"sensors": set_by_hand_lines(sensors)}
+    async def _placeholders(self) -> dict[str, str]:
+        """Say where distances are measured from, and name the sensors with a unit
+        of their own, for the box about them.
+        """
+        placeholders = {"measured_from": await self._measured_from()}
+        if sensors := set_by_hand(self.hass, self.config_entry.entry_id):
+            placeholders["sensors"] = set_by_hand_lines(sensors)
+        return placeholders
+
+    async def _measured_from(self) -> str:
+        """Return the sentence on the point distances start at; none for a feeder."""
+        coordinator = getattr(self.config_entry, "runtime_data", None)
+        if coordinator is None or not self.config_entry.data.get(CONF_AIRCRAFT_URL):
+            return ""
+        texts = await async_get_translations(
+            self.hass, self.hass.config.language, "selector", {DOMAIN}
+        )
+        key = f"component.{DOMAIN}.selector.measured_from.options."
+        return texts.get(key + coordinator.origin_source, "")
 
     @property
     def _units(self) -> Units:
