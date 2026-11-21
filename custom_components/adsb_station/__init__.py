@@ -45,6 +45,7 @@ from .repairs import (
     units_issue_id,
     units_placeholders,
 )
+from .sentences import async_check_sentences
 from .services import async_setup_services
 from .sightings import Sightings
 from .units import set_by_hand
@@ -75,6 +76,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async_setup_services(hass)
     async_setup_websocket(hass)
     await async_register_card(hass)
+    await async_check_sentences(hass)
     return True
 
 

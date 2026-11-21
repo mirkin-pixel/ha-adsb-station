@@ -69,7 +69,7 @@ Be plain about what that does: **it writes two files into your configuration dir
 
 Either way Assist reads its sentences at startup, so run `conversation.reload` or restart afterwards. Then try it under **Settings → Voice assistants**, and ask it with an empty sky as well — that is the answer that comes up most often.
 
-The copy does not follow the integration. When an update adds a question, copy the files again, or run `adsb_station.install_sentences` again, and reload; until then Assist knows only the questions of the version you copied.
+The copy does not follow the integration. When an update changes the sentences, a repair under **Settings → System → Repairs** says so and copies them again with one click, Assist reading them straight away; keep your copy instead if you changed it on purpose. Until then Assist knows only the questions of the version you copied.
 
 If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](services.md) are there when it has to be exact. To ask a second station, give `adsb_station.speak` its `config_entry` in an automation with a sentence of your own, as [above](#an-automation-with-no-files-at-all).
 

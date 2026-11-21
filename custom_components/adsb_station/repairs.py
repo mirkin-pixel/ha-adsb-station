@@ -1,4 +1,4 @@
-"""Repairs: the units of an upgraded station, and units set on a sensor by hand."""
+"""Repairs: the units of a station, units set by hand, and old Assist sentences."""
 
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .config_flow import UNITS_FIELD
-from .const import CONF_UNITS, ISSUE_SET_BY_HAND, ISSUE_UNITS
+from .const import CONF_UNITS, DOMAIN, ISSUE_SENTENCES, ISSUE_SET_BY_HAND, ISSUE_UNITS
+from .sentences import async_install_sentences
 from .units import (
     UNITS_AUTO,
     label_of,
@@ -138,10 +139,48 @@ class SetByHandRepairFlow(RepairsFlow):
         return self.async_create_entry(data={})
 
 
+class SentencesRepairFlow(RepairsFlow):
+    """Copy the Assist sentences again, or keep a copy changed on purpose."""
+
+    def __init__(self, issue_id: str) -> None:
+        """Remember the issue, to ignore it when the copy is kept."""
+        self._issue_id = issue_id
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Go to the question; what arrives here is the issue, not an answer."""
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Ask: update the copy, or keep it. A menu, for an Ignore of its own."""
+        return self.async_show_menu(step_id="confirm", menu_options=["update", "keep"])
+
+    async def async_step_update(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Copy them again and have Assist read them, as the action does."""
+        await async_install_sentences(self.hass)
+        if self.hass.services.has_service("conversation", "reload"):
+            await self.hass.services.async_call("conversation", "reload", blocking=True)
+        return self.async_create_entry(data={})
+
+    async def async_step_keep(
+        self, user_input: dict[str, Any] | None = None
+    ) -> RepairsFlowResult:
+        """Leave the copy alone until an update changes the sentences again."""
+        ir.async_ignore_issue(self.hass, DOMAIN, self._issue_id, True)
+        return self.async_abort(reason="kept")
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant, issue_id: str, data: dict[str, Any] | None
 ) -> RepairsFlow:
     """Return the flow that fixes one of this integration's issues."""
+    if issue_id.startswith(ISSUE_SENTENCES):
+        return SentencesRepairFlow(issue_id)
     entry_id = str((data or {})["entry_id"])
     if issue_id.startswith(ISSUE_SET_BY_HAND):
         return SetByHandRepairFlow(entry_id)

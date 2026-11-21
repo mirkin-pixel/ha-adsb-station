@@ -598,6 +598,24 @@
           "station_removed": "Het station is verwijderd."
         }
       }
+    },
+    "sentences_outdated": {
+      "title": "De Assist-zinnen moeten opnieuw gekopieerd worden",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "De Assist-zinnen moeten opnieuw gekopieerd worden",
+            "description": "De zinbestanden in custom_sentences zijn ouder dan die van deze versie van ADS-B Station, dus Assist verstaat de vragen niet die er sindsdien bij kwamen. Kopieer ze opnieuw, waarna Assist ze ook meteen inleest; of houd je eigen kopie, als je die bewust hebt aangepast. Een latere update die de zinnen verandert, vraagt het opnieuw.",
+            "menu_options": {
+              "update": "Opnieuw kopiëren",
+              "keep": "Mijn kopie houden"
+            }
+          }
+        },
+        "abort": {
+          "kept": "Je kopie blijft staan. Draai adsb_station.install_sentences als je toch de meegeleverde wilt."
+        }
+      }
     }
   },
   "services": {

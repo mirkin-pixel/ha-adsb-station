@@ -598,6 +598,24 @@
           "station_removed": "The station has been removed."
         }
       }
+    },
+    "sentences_outdated": {
+      "title": "The Assist sentences need copying again",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "The Assist sentences need copying again",
+            "description": "The sentence files in custom_sentences are older than the ones this version of ADS-B Station ships, so Assist does not understand the questions added since. Copy them again, which also has Assist read them; or keep your copy, if you changed it on purpose. A later update that changes the sentences asks again.",
+            "menu_options": {
+              "update": "Copy them again",
+              "keep": "Keep my copy"
+            }
+          }
+        },
+        "abort": {
+          "kept": "Your copy is kept. Run adsb_station.install_sentences whenever you want the shipped ones after all."
+        }
+      }
     }
   },
   "services": {

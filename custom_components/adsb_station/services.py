@@ -23,7 +23,6 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
-from homeassistant.util.json import JsonArrayType
 
 # Since 2026.10 Home Assistant runs probatio under the name voluptuous; only
 # the type checker needs to be told.
@@ -41,6 +40,10 @@ from .coordinator import (
     sector_from,
 )
 from .intent import QUESTIONS, SPEAK_ONLY, TRAFFIC_KINDS, answer_question
+from .sentences import (
+    CONFIG_SENTENCES_DIRECTORY,
+    async_install_sentences,
+)
 from .speech import language_of
 from .units import Units, converted, feet_from, kilometres_from, unit_attributes
 from .watchlist import add_line, remove_line
@@ -55,9 +58,6 @@ SERVICE_LIST_PASSAGES: Final = "list_passages"
 
 # Home Assistant reads custom sentences only from the configuration
 # directory, so the service copies them there.
-SENTENCES_DIRECTORY: Final = "sentences"
-CONFIG_SENTENCES_DIRECTORY: Final = "custom_sentences"
-SENTENCES_FILE: Final = f"{DOMAIN}.yaml"
 
 ATTR_AIRCRAFT: Final = "aircraft"
 ATTR_CONFIG_ENTRY: Final = "config_entry"
@@ -361,20 +361,6 @@ async def _async_list_passages(call: ServiceCall) -> ServiceResponse:
     }
 
 
-def _copy_sentences(source: Path, target: Path) -> JsonArrayType:
-    """Copy the shipped sentences into the configuration. Blocking."""
-    installed: JsonArrayType = []
-    for language in sorted(item.name for item in source.iterdir() if item.is_dir()):
-        origin = source / language / SENTENCES_FILE
-        if not origin.is_file():
-            continue
-        destination = target / language
-        destination.mkdir(parents=True, exist_ok=True)
-        (destination / SENTENCES_FILE).write_text(origin.read_text("utf-8"), "utf-8")
-        installed.append(language)
-    return installed
-
-
 async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
     """Copy the sentences Assist needs into `custom_sentences`.
 
@@ -382,11 +368,10 @@ async def _async_install_sentences(call: ServiceCall) -> ServiceResponse:
     after `conversation.reload` or a restart.
     """
     hass = call.hass
-    source = Path(__file__).parent / SENTENCES_DIRECTORY
     target = Path(hass.config.path(CONFIG_SENTENCES_DIRECTORY))
 
     try:
-        installed = await hass.async_add_executor_job(_copy_sentences, source, target)
+        installed = await async_install_sentences(hass)
     except OSError as err:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
