@@ -32,7 +32,8 @@ def events(hass: HomeAssistant) -> list[Event]:
 
 
 def _kinds(events: list[Event]) -> list[str]:
-    return [event.event_type for event in events]
+    # Sorted: Home Assistant 2025.7 hands events to listeners in its own order.
+    return sorted(event.event_type for event in events)
 
 
 async def _reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -53,7 +54,7 @@ async def test_a_reload_says_nothing_twice(
     )
     set_responses(aioclient_mock, aircraft=poll(DISTRESS))
     assert await setup_integration(hass, mock_config_entry)
-    assert _kinds(events) == [EVENT_WATCHLIST_MATCH, EVENT_AIRCRAFT_EMERGENCY]
+    assert _kinds(events) == [EVENT_AIRCRAFT_EMERGENCY, EVENT_WATCHLIST_MATCH]
 
     await _reload(hass, mock_config_entry)
 
