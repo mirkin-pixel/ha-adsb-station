@@ -273,8 +273,10 @@ async def test_aircraft_overhead(
     entity_id = er.async_get(hass).async_get_entity_id(
         "binary_sensor", DOMAIN, f"{MOCK_ALIAS}_nearby"
     )
-    attributes = hass.states.get(entity_id).attributes
-    assert [item["flight"] for item in attributes["aircraft"]] == ["KLM123"]
+    state = hass.states.get(entity_id)
+    assert [item["flight"] for item in state.attributes["aircraft"]] == ["KLM123"]
+    # Readable, but not written to the database on every poll
+    assert "aircraft" in state.state_info["unrecorded_attributes"]
 
 
 async def test_nothing_overhead(
