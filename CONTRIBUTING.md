@@ -74,10 +74,12 @@ CI; nothing they check changes on a normal code change.
 ### The upcoming Home Assistant
 
 Every Thursday, the day after a beta comes out, the **Upcoming Home Assistant**
-workflow runs the tests against the newest Home Assistant there is, beta
-included, and opens or updates an issue when they fail. It can be started by
-hand as well. The harness is made for one Home Assistant version, so a failure
-there can be the harness rather than the integration; the log says which.
+workflow installs the newest Home Assistant there is, beta included, and loads
+every module against it, type-checks against it and runs the tests. It opens or
+updates an issue when any of that fails, and can be started by hand as well.
+The test harness is made for one Home Assistant version and can lag behind;
+when it cannot even start on the newest one, the run says so in its summary
+instead of opening an issue, and loading and type-checking still count.
 
 Every test also fails when Home Assistant reports that this integration uses
 something on its way out, the warning it logs with the version that will stop

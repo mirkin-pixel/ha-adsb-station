@@ -1,12 +1,14 @@
 name: Upcoming Home Assistant
 
-# The tests against the newest Home Assistant there is, beta included, so a
-# change that breaks the integration is found the week before a release and
-# not by a user after it. A beta comes out a week before each monthly
-# release, on a Wednesday; this runs every Thursday, and by hand.
+# The integration against the newest Home Assistant there is, beta included,
+# so a change that breaks it is found the week before a release and not by a
+# user after it. A beta comes out a week before each monthly release, on a
+# Wednesday; this runs every Thursday, and by hand.
 #
-# The test harness is made for one Home Assistant version, so a failure can
-# be the harness and not the integration; the log says which.
+# Loading every module and type-checking against it need nothing but Home
+# Assistant itself. The tests also need their harness, which is made for one
+# Home Assistant version and can lag behind; when it cannot even start, that
+# is said in the summary rather than reported as a fault of the integration.
 
 on:
   schedule:
@@ -18,7 +20,7 @@ permissions:
 
 jobs:
   upcoming:
-    name: Tests (upcoming Home Assistant)
+    name: Upcoming Home Assistant
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,8 +37,38 @@ jobs:
       - name: Say which Home Assistant this is
         id: version
         run: echo "ha=$(python -c 'import homeassistant.const as c; print(c.__version__)')" >> "$GITHUB_OUTPUT"
+      - name: Load every module
+        run: |
+          python -c "
+          import homeassistant, importlib, pkgutil
+          import custom_components.adsb_station as package
+          for module in pkgutil.iter_modules(package.__path__):
+              importlib.import_module(f'custom_components.adsb_station.{module.name}')
+          "
+      - name: Type-check
+        run: mypy
       - name: Run tests
-        run: pytest
+        run: |
+          # Home Assistant first: it replaces httpx, which the harness imports.
+          set +e
+          python -c "
+          import homeassistant, sys, pytest
+          try:
+              code = pytest.main()
+          except Exception as error:  # the harness failing to load at all
+              print(error)
+              code = 3
+          sys.exit(code)
+          "
+          code=$?
+          set -e
+          # 1 is tests that failed; anything above it is the harness not starting.
+          if [ "$code" -gt 1 ]; then
+            echo "::warning::The test harness does not run on Home Assistant ${{ steps.version.outputs.ha }} yet (pytest exit $code); only loading and type-checking were checked."
+            echo "The test harness does not run on Home Assistant ${{ steps.version.outputs.ha }} yet; loading every module and type-checking passed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          exit "$code"
       - name: Open or update the issue
         if: failure()
         env:
@@ -44,7 +76,7 @@ jobs:
           HA: ${{ steps.version.outputs.ha }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="Tests fail against Home Assistant $HA"
+          title="Fails against Home Assistant $HA"
           body="The weekly run against the newest Home Assistant failed: $RUN"
           number=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
           if [ -n "$number" ]; then
