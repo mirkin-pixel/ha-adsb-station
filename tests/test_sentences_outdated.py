@@ -8,6 +8,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import DOMAIN, ISSUE_SENTENCES
 from custom_components.adsb_station.sentences import (
@@ -15,6 +17,8 @@ from custom_components.adsb_station.sentences import (
     SHIPPED,
     async_check_sentences,
 )
+
+from .conftest import setup_integration
 
 
 def _issues(hass: HomeAssistant) -> list[str]:
@@ -129,3 +133,53 @@ async def test_an_old_issue_goes_with_the_version(
 
     [issue_id] = _issues(hass)
     assert issue_id != f"{ISSUE_SENTENCES}_older"
+
+
+async def test_the_last_station_takes_an_unchanged_copy_along(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that removing the last station deletes a copy as shipped."""
+    hass.config.config_dir = str(tmp_path)
+    copy = _copy(tmp_path, _shipped())
+    assert await setup_integration(hass, mock_config_entry)
+
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+
+    assert not copy.exists()
+    assert not copy.parent.exists()
+
+
+async def test_a_copy_changed_by_hand_stays(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that a copy changed by hand is the user's, and is left."""
+    hass.config.config_dir = str(tmp_path)
+    changed = _copy(tmp_path, "language: en\nintents: {}\n")
+    assert await setup_integration(hass, mock_config_entry)
+
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+
+    assert changed.exists()
+
+
+async def test_a_copy_stays_while_a_station_is_left(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    mock_config_entry: MockConfigEntry,
+    mock_api: AiohttpClientMocker,
+) -> None:
+    """Test that removing one of two stations leaves the sentences in place."""
+    hass.config.config_dir = str(tmp_path)
+    copy = _copy(tmp_path, _shipped())
+    MockConfigEntry(domain=DOMAIN, title="Another", data={}).add_to_hass(hass)
+    assert await setup_integration(hass, mock_config_entry)
+
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+
+    assert copy.exists()

@@ -76,6 +76,28 @@ async def async_check_sentences(hass: HomeAssistant) -> None:
         )
 
 
+def _remove_unchanged(source: Path, target: Path) -> None:
+    """Delete the copies still as shipped; one changed is the user's. Blocking."""
+    for origin in source.glob(f"*/{SENTENCES_FILE}"):
+        copy = target / origin.parent.name / SENTENCES_FILE
+        if copy.is_file() and copy.read_text("utf-8") == origin.read_text("utf-8"):
+            copy.unlink()
+            if not any(copy.parent.iterdir()):
+                copy.parent.rmdir()
+
+
+async def async_remove_sentences(hass: HomeAssistant) -> None:
+    """Take the copied sentences away with the last station, and their issue.
+
+    Otherwise Assist keeps matching questions nothing answers any more.
+    """
+    target = Path(hass.config.path(CONFIG_SENTENCES_DIRECTORY))
+    await hass.async_add_executor_job(_remove_unchanged, SHIPPED, target)
+    for domain, issue_id in list(ir.async_get(hass).issues):
+        if domain == DOMAIN and issue_id.startswith(ISSUE_SENTENCES):
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
 async def async_install_sentences(hass: HomeAssistant) -> JsonArrayType:
     """Copy the sentences and forget any issue about an old copy."""
     target = Path(hass.config.path(CONFIG_SENTENCES_DIRECTORY))

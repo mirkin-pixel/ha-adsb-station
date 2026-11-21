@@ -69,7 +69,7 @@ Wees helder over wat dat doet: **het schrijft twee bestanden in je configuratiem
 
 Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conversation.reload` of herstart. Probeer het vervolgens onder **Instellingen → Spraakassistenten**, en vraag het ook eens met een lege lucht — dat is het antwoord dat het vaakst voorkomt.
 
-De kopie gaat niet mee met de integratie. Verandert een update de zinnen, dan meldt een reparatie onder **Instellingen → Systeem → Reparaties** dat, en kopieert ze met één klik opnieuw, waarna Assist ze meteen inleest; houd je eigen kopie als je die bewust hebt aangepast. Tot dan kent Assist alleen de vragen van de versie die je kopieerde.
+De kopie gaat niet mee met de integratie. Verandert een update de zinnen, dan meldt een reparatie onder **Instellingen → Systeem → Reparaties** dat, en kopieert ze met één klik opnieuw, waarna Assist ze meteen inleest; houd je eigen kopie als je die bewust hebt aangepast. Tot dan kent Assist alleen de vragen van de versie die je kopieerde. Verwijder je het laatste station, dan gaat de kopie mee, tenzij je hem hebt aangepast.
 
 Lezen twee van je entries een antenne, dan antwoordt de eerste op naam. Assist is voor een snelle vraag; de [acties](services.md) zijn er als het precies moet. Wil je een tweede station vragen, geef `adsb_station.speak` dan zijn `config_entry` in een automatisering met een eigen zin, zoals [hierboven](#een-automatisering-zonder-enig-bestand).
 
