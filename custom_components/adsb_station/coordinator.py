@@ -21,6 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
 
 from .aircraft_db import database_of
+from .announced import Announced
 from .api import AdsbStationClient, AdsbStationError, read_gain, stats_features
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
@@ -916,13 +917,15 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self.started_with = dict(config_entry.options)
         # And a reconfigured station, which always does.
         self.started_with_data = dict(config_entry.data)
+        # What was announced, kept over a restart so it is not said twice.
+        self.announced = Announced(hass, config_entry.entry_id)
         # When each watched aircraft was first and last seen, and as what.
-        self._announced: dict[str, tuple[datetime, datetime, WatchlistMatch]] = {}
+        self._announced = self.announced.watched
         # The same for aircraft in distress.
-        self._distressed: dict[str, datetime] = {}
+        self._distressed = self.announced.distressed
         # Polls in a row each aircraft has been approaching, and its last warning.
         self._approaching: dict[str, int] = {}
-        self._warned: dict[str, datetime] = {}
+        self._warned = self.announced.warned
         self.trails = SkyTrails()
 
     @property
@@ -1215,6 +1218,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         self._announce_watched(stats)
         self._announce_approaching(stats)
         self._announce_emergencies(stats)
+        self.announced.note()
         self._announce_new(stats)
         return stats
 
@@ -1310,7 +1314,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             passage = self.passages.get(summary.hex)
             # The gap plus a poll: at the slowest interval polls are as far
             # apart as the gap, and every one would start a new passage.
-            if passage is None or now - passage.last_seen > self._remembered():
+            if passage is None or now - passage.last_seen > self.remembered():
                 passage = Passage(
                     hex=summary.hex,
                     started_at=now,
@@ -1357,12 +1361,12 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         for hex_code in [
             hex_code
             for hex_code, passage in self.passages.items()
-            if now - passage.last_seen > self._remembered()
+            if now - passage.last_seen > self.remembered()
         ]:
             del self.passages[hex_code]
         self.passage_log.note(passage_entry(passage) for passage in in_view)
 
-    def _remembered(self) -> timedelta:
+    def remembered(self) -> timedelta:
         """Return how long a passage stays in memory after it was last seen.
 
         The gap, and the poll after it that forgets it: with a slow interval
@@ -1377,7 +1381,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         is no longer up there.
         """
         return self.tracked_at is not None and now - self.tracked_at <= (
-            self._remembered()
+            self.remembered()
         )
 
     def last_passed(self, now: datetime) -> tuple[Passage, datetime] | None:
@@ -1400,7 +1404,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
                     continue
                 if now - when > PASSAGE_GAP:
                     continue
-            elif now - passage.last_seen > self._remembered():
+            elif now - passage.last_seen > self.remembered():
                 # What the next poll will forget, or would have.
                 continue
             elif passage.last_seen - when > PASSAGE_GAP:
@@ -1489,24 +1493,22 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         every poll would look like a return.
         """
         now = dt_util.utcnow()
-        for hex_code, (first, last, match) in list(self._announced.items()):
-            if now - last <= self._remembered():
+        for hex_code, (first, last, data) in list(self._announced.items()):
+            if now - last <= self.remembered():
                 continue
             del self._announced[hex_code]
             self._fire(
                 EVENT_WATCHLIST_LOST,
-                {
-                    **self._watch_data(match),
-                    "duration": round((last - first).total_seconds()),
-                },
+                {**data, "duration": round((last - first).total_seconds())},
             )
 
         for match in stats.watched:
             known = self._announced.get(match.summary.hex)
             first = now if known is None else known[0]
-            self._announced[match.summary.hex] = (first, now, match)
+            data = self._watch_data(match)
+            self._announced[match.summary.hex] = (first, now, data)
             if known is None:
-                self._fire(EVENT_WATCHLIST_MATCH, self._watch_data(match))
+                self._fire(EVENT_WATCHLIST_MATCH, data)
 
     def _watch_data(self, match: WatchlistMatch) -> dict[str, Any]:
         """Describe a watched aircraft, as last seen, for an event."""
@@ -1528,7 +1530,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         for emergency in stats.emergencies:
             seen = self._distressed.get(emergency.hex)
             self._distressed[emergency.hex] = now
-            if seen is not None and now - seen <= self._remembered():
+            if seen is not None and now - seen <= self.remembered():
                 continue
             self._fire(
                 EVENT_AIRCRAFT_EMERGENCY,
@@ -1543,7 +1545,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         for hex_code in [
             hex_code
             for hex_code, seen in self._distressed.items()
-            if now - seen > self._remembered()
+            if now - seen > self.remembered()
         ]:
             del self._distressed[hex_code]
 

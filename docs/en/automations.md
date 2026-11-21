@@ -20,7 +20,7 @@ automation:
             {%- if trigger.event.data.altitude %} at {{ trigger.event.data.altitude }} {{ trigger.event.data.altitude_unit }}{% endif %}.
 ```
 
-`adsb_station_aircraft_emergency` fires once per flight, like the [watchlist](watchlist.md): an aircraft that stays in distress for an hour is one message, and the same aircraft is announced again only after ten minutes out of range. It carries the same fields as the other events, in the [units](configuration.md#units) you chose, plus `reason` and `squawk`. Unlike the `Emergency squawk` binary sensor, which only turns on once while any aircraft is in distress, it also tells you about a second one.
+`adsb_station_aircraft_emergency` fires once per flight, like the [watchlist](watchlist.md): an aircraft that stays in distress for an hour is one message, and the same aircraft is announced again only after ten minutes out of range, a restart of Home Assistant included. It carries the same fields as the other events, in the [units](configuration.md#units) you chose, plus `reason` and `squawk`. Unlike the `Emergency squawk` binary sensor, which only turns on once while any aircraft is in distress, it also tells you about a second one.
 
 Each one also leaves a line in **Activity**, on the station's device page as well. Passages do not: dozens a day would bury the rest, and the [passage board](dashboards.md) has them. Every event carries `device_id`, the station's device, beside `entry_id` and `station`.
 

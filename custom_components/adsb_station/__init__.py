@@ -15,6 +15,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from .aircraft_db import database_of
+from .announced import Announced
 from .api import AdsbStationClient
 from .card import async_register_card
 from .const import (
@@ -94,9 +95,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdsbStationConfigEntry) 
     if client.aircraft_url:
         await coordinator.sightings.async_load()
         await coordinator.passage_log.async_load()
+        await coordinator.announced.async_load(coordinator.remembered())
         # Written now, or a reload would read them before the delayed write.
         entry.async_on_unload(coordinator.sightings.async_save)
         entry.async_on_unload(coordinator.passage_log.async_save)
+        entry.async_on_unload(coordinator.announced.async_save)
 
     await coordinator.async_config_entry_first_refresh()
 
@@ -222,6 +225,7 @@ async def async_remove_entry(
     ir.async_delete_issue(hass, DOMAIN, set_by_hand_issue_id(entry.entry_id))
     await Sightings(hass, entry.entry_id).async_remove()
     await PassageLog(hass, entry.entry_id, 0).async_remove()
+    await Announced(hass, entry.entry_id).async_remove()
 
 
 def _ask_about_units_set_by_hand(
