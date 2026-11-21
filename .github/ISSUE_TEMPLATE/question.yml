@@ -1,0 +1,41 @@
+name: A question
+description: How to do something with the integration, or why it behaves the way it does. Nothing is broken.
+title: "<your question, in a few words>"
+labels: ["question"]
+assignees: ["mirkin-pixel"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for asking. A question is welcome here, and often ends up
+        as a line in the documentation for the next person. Much is answered
+        there already: the
+        [documentation](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/README.md)
+        has a page per subject, such as
+        [dashboards](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/dashboards.md),
+        [automations](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/automations.md)
+        and [entities](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/entities.md).
+
+        If something does not work as it should, the form **Something is not
+        working** asks for what is needed to find the cause.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you want to know, or what you are trying to do. The situation helps more than the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried or read so far
+      description: A page of the documentation, a template, an automation, a card configuration. Optional, but it saves explaining what you already know.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version of ADS-B Station
+      description: Shown in the Marketplace (HACS before Home Assistant 2026.11), or under Settings → Devices & services → ADS-B Station. Optional; it helps when an answer differs between versions.
+      placeholder: "1.5.0"
