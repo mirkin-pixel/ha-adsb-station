@@ -32,8 +32,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Only used on the default branch, to write the issue.
-      issues: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -45,10 +43,18 @@ jobs:
         run: python scripts/translation_status.py > status.md
       - name: Show it on the run
         run: cat status.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Get a token of the project's bot
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        id: bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
       - name: Write it to the issue
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The project's bot says it, rather than github-actions.
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
         run: |
           number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
             --label translation --search "in:title \"$TITLE\"" \
