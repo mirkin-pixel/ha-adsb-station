@@ -252,7 +252,10 @@ breaking change.
 The standard Marketplace flow, the same as HACS before it: bump `version` in `manifest.json`, merge to the default
 branch, then publish a GitHub release with a matching tag, `v1.0.0` for
 version `1.0.0`. The release workflow checks that the tag matches the manifest
-version and attaches a zip of the integration to the release.
+version, runs every check a pull request runs on the tagged code, and only then
+attaches a zip of the integration to the release, with its SHA-256 beside it.
+A release whose checks fail gets no zip, so the Marketplace cannot install it:
+fix the cause, then publish a new release.
 
 Before each release, read what the next Home Assistant changes for custom
 integrations: the developer blog at developers.home-assistant.io lists it a
