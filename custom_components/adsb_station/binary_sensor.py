@@ -424,6 +424,8 @@ class AdsbStationNearbyBinarySensor(AdsbStationAircraftEntity, BinarySensorEntit
     """On while at least one aircraft is inside the configured radius."""
 
     _attr_translation_key = "nearby"
+    # Rewritten every poll; recorded, it filled the database with positions.
+    _unrecorded_attributes = frozenset({"aircraft"})
 
     def __init__(self, coordinator: AdsbStationDataUpdateCoordinator) -> None:
         """Initialize the binary sensor."""

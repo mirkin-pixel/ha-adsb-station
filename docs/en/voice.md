@@ -71,7 +71,7 @@ Either way Assist reads its sentences at startup, so run `conversation.reload` o
 
 The copy does not follow the integration. When an update adds a question, copy the files again, or run `adsb_station.install_sentences` again, and reload; until then Assist knows only the questions of the version you copied.
 
-If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](services.md) are there when it has to be exact.
+If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](services.md) are there when it has to be exact. To ask a second station, give `adsb_station.speak` its `config_entry` in an automation with a sentence of your own, as [above](#an-automation-with-no-files-at-all).
 
 ## An AI assistant
 

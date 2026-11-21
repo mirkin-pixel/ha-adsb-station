@@ -71,7 +71,7 @@ Hoe dan ook leest Assist zijn zinnen bij het opstarten, dus draai daarna `conver
 
 De kopie gaat niet mee met de integratie. Voegt een update een vraag toe, kopieer de bestanden dan opnieuw of draai `adsb_station.install_sentences` nog een keer, en herlaad; tot dan kent Assist alleen de vragen van de versie die je kopieerde.
 
-Lezen twee van je entries een antenne, dan antwoordt de eerste op naam. Assist is voor een snelle vraag; de [acties](services.md) zijn er als het precies moet.
+Lezen twee van je entries een antenne, dan antwoordt de eerste op naam. Assist is voor een snelle vraag; de [acties](services.md) zijn er als het precies moet. Wil je een tweede station vragen, geef `adsb_station.speak` dan zijn `config_entry` in een automatisering met een eigen zin, zoals [hierboven](#een-automatisering-zonder-enig-bestand).
 
 ## Een AI-assistent
 
