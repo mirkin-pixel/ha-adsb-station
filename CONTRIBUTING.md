@@ -148,6 +148,15 @@ Refreshing them is a commit of its own; the script's docstring explains how it
 picks one row out of the several that share a type code, and why the address
 blocks are flattened before they are written rather than searched as they come.
 
+On the first of each month the **Reference tables** workflow does that by
+itself, and can be started by hand. When the tables changed it opens a pull
+request, or brings the open one up to date, saying per table how many entries
+came, went or changed; when nothing changed it does nothing. The pull request
+comes from the project's own GitHub App, as one opened with a workflow's own
+token gets no checks. The app needs Contents and Pull requests set to read and
+write, installed on this repository only, with its ID and private key stored as
+the secrets `BOT_APP_ID` and `BOT_PRIVATE_KEY`.
+
 ## Translations
 
 **English is the source**, as it is for the rest of Home Assistant. User-facing
