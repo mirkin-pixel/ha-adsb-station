@@ -71,6 +71,18 @@ over, hassfest and HACS validation, and they check the manifest and the
 repository layout rather than the code. Both run as containers, so they stay in
 CI; nothing they check changes on a normal code change.
 
+### The upcoming Home Assistant
+
+Every Thursday, the day after a beta comes out, the **Upcoming Home Assistant**
+workflow runs the tests against the newest Home Assistant there is, beta
+included, and opens or updates an issue when they fail. It can be started by
+hand as well. The harness is made for one Home Assistant version, so a failure
+there can be the harness rather than the integration; the log says which.
+
+Every test also fails when Home Assistant reports that this integration uses
+something on its way out, the warning it logs with the version that will stop
+it working. So a deprecation is found in CI, not in a user's log.
+
 Coverage has a floor of 95% over `custom_components/adsb_station`, set in
 `pyproject.toml`. It is a floor rather than a target: a new branch of behaviour
 is expected to arrive with the test that pins it down.
@@ -239,3 +251,8 @@ The standard Marketplace flow, the same as HACS before it: bump `version` in `ma
 branch, then publish a GitHub release with a matching tag, `v1.0.0` for
 version `1.0.0`. The release workflow checks that the tag matches the manifest
 version and attaches a zip of the integration to the release.
+
+Before each release, read what the next Home Assistant changes for custom
+integrations: the developer blog at developers.home-assistant.io lists it a
+week ahead, with the beta. Anything that applies is fixed in the release, or
+noted in its release notes.

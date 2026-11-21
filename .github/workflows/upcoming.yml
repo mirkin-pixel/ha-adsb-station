@@ -1,0 +1,54 @@
+name: Upcoming Home Assistant
+
+# The tests against the newest Home Assistant there is, beta included, so a
+# change that breaks the integration is found the week before a release and
+# not by a user after it. A beta comes out a week before each monthly
+# release, on a Wednesday; this runs every Thursday, and by hand.
+#
+# The test harness is made for one Home Assistant version, so a failure can
+# be the harness and not the integration; the log says which.
+
+on:
+  schedule:
+    - cron: "0 5 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upcoming:
+    name: Tests (upcoming Home Assistant)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install test dependencies, then the newest Home Assistant
+        run: |
+          pip install -r requirements_test.txt
+          pip install --upgrade --pre homeassistant
+      - name: Say which Home Assistant this is
+        id: version
+        run: echo "ha=$(python -c 'import homeassistant.const as c; print(c.__version__)')" >> "$GITHUB_OUTPUT"
+      - name: Run tests
+        run: pytest
+      - name: Open or update the issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HA: ${{ steps.version.outputs.ha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Tests fail against Home Assistant $HA"
+          body="The weekly run against the newest Home Assistant failed: $RUN"
+          number=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
