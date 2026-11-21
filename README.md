@@ -17,6 +17,14 @@ Custom integration for [Home Assistant](https://www.home-assistant.io/) that rea
   <img src="docs/images/card-map-light.png" alt="The station card on a map: aircraft around a station between Schiphol and Utrecht, each in the colour of its height with the trail of the last five minutes, a KLM Boeing 737-800 overhead on its way in to Schiphol, a Transavia tapped with its route and where it passes closest, the aircraft nearby, and the station's figures as badges on top" width="880">
 </picture>
 
+What you get:
+
+- **Sensors for your station**: aircraft received, message rate, signal and noise, the closest, highest and fastest aircraft, range records in eight directions, and the feed status of each network.
+- **A dashboard card** with a radar or a map, trails, routes and photos, the aircraft nearby and a board of what came over.
+- **Events to automate on**: an aircraft about to come over, one on your watchlist, one in distress, a new record.
+- **Questions out loud**: ten for Assist, and the same as tools for an AI assistant.
+- **Local by default**: routes and photos are the only things fetched from the internet, and only once you switch them on.
+
 The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There are two exceptions to staying on your own network, both off unless you turn them on, and each has a section of its own: [where a flight is going](docs/en/routes.md) and [what it looks like](docs/en/photos.md) are the things your antenna cannot hear.
 
 It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
@@ -59,15 +67,15 @@ Everything else lives in [`docs/en`](docs/en), a page at a time:
 | [When something comes over](docs/en/passages.md) | Passages, the board, and seeing an aircraft coming before it is here |
 | [A list worth watching](docs/en/watchlist.md) | Aircraft worth knowing about whenever they turn up |
 | [Asking a question](docs/en/services.md) | The actions that answer, with response data |
-| [Asking out loud](docs/en/voice.md) | Six questions for Assist, answered from your own roof |
+| [Asking out loud](docs/en/voice.md) | Ten questions for Assist, and tools for AI assistants, answered from your own roof |
 | [Dashboards](docs/en/dashboards.md) | The card that comes with the integration, and others to build, including the map |
 | [Example automations](docs/en/automations.md) | Notifications, announcements and what to trigger on |
 | [About the endpoints](docs/en/endpoints.md) | What is read, how often, and what it costs |
-| [Troubleshooting](docs/en/troubleshooting.md) | When something is not there |
+| [Troubleshooting](docs/en/troubleshooting.md) | When something is not there, what it cannot do, and removing it |
 
 ### Installation
 
-Requires Home Assistant 2025.7 or newer. Before 2026.3, Home Assistant shows a generic icon in place of the integration's own; everything else is the same.
+Requires Home Assistant 2025.7 or newer, and a decoder that serves an `aircraft.json` on your network: readsb, dump1090-fa, or the one inside fr24feed. The feeders are optional. Before 2026.3, Home Assistant shows a generic icon in place of the integration's own; everything else is the same.
 
 Use this link to directly go to the repository in Marketplace
 
@@ -124,6 +132,14 @@ Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **j
   <img src="docs/images/card-map-light-nl.png" alt="De stationskaart op een landkaart: vliegtuigen rond een station tussen Schiphol en Utrecht, elk in de kleur van zijn hoogte met het spoor van de laatste vijf minuten, een KLM Boeing 737-800 overhead op weg naar Schiphol, een aangetikte Transavia met zijn route en waar hij het dichtst langskomt, de vliegtuigen dichtbij en de cijfers van het station als badges bovenaan" width="880">
 </picture>
 
+Wat je krijgt:
+
+- **Sensoren voor je station**: ontvangen vliegtuigen, berichten per seconde, signaal en ruis, het dichtstbijzijnde, hoogste en snelste vliegtuig, bereikrecords in acht richtingen, en de feedstatus van elk netwerk.
+- **Een dashboardkaart** met een radar of een landkaart, sporen, routes en foto's, de vliegtuigen dichtbij en een bord van wat er overkwam.
+- **Events om op te automatiseren**: een vliegtuig dat zo overkomt, een van je watchlist, een in nood, een nieuw record.
+- **Hardop vragen**: tien voor Assist, en dezelfde als hulpmiddel voor een AI-assistent.
+- **Standaard lokaal**: routes en foto's zijn het enige dat van internet komt, en alleen als je ze aanzet.
+
 De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er zijn twee uitzonderingen waarbij iets je netwerk verlaat. Die staan allebei uit tenzij je ze aanzet, en elk heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) en [hoe hij eruitziet](docs/nl/photos.md) zijn wat je antenne niet kan horen.
 
 De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
@@ -166,15 +182,15 @@ Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
 | [Als er iets overkomt](docs/nl/passages.md) | Passages, het bord, en een toestel zien aankomen voordat het er is |
 | [Een lijst om in de gaten te houden](docs/nl/watchlist.md) | Toestellen die je wilt weten zodra ze opduiken |
 | [Iets vragen](docs/nl/services.md) | De acties die antwoorden, met antwoordgegevens |
-| [Hardop vragen](docs/nl/voice.md) | Zes vragen voor Assist, beantwoord vanaf je eigen dak |
+| [Hardop vragen](docs/nl/voice.md) | Tien vragen voor Assist, en hulpmiddelen voor AI-assistenten, beantwoord vanaf je eigen dak |
 | [Dashboards](docs/nl/dashboards.md) | De kaart die met de integratie meekomt, en andere om te bouwen, inclusief de kaart |
 | [Voorbeeldautomatiseringen](docs/nl/automations.md) | Meldingen, aankondigingen en waarop je triggert |
 | [Over de endpoints](docs/nl/endpoints.md) | Wat er gelezen wordt, hoe vaak, en wat het kost |
-| [Problemen oplossen](docs/nl/troubleshooting.md) | Als er iets niet is |
+| [Problemen oplossen](docs/nl/troubleshooting.md) | Als er iets niet is, wat hij niet kan, en verwijderen |
 
 ### Installatie
 
-Vereist Home Assistant 2025.7 of nieuwer. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
+Vereist Home Assistant 2025.7 of nieuwer, en een decoder die een `aircraft.json` op je netwerk aanbiedt: readsb, dump1090-fa, of die in fr24feed. De feeders zijn optioneel. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
 
 Gebruik onderstaande link om de repository te bekijken in de Marktplaats
 

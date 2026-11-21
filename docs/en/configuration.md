@@ -22,7 +22,23 @@ These paths are probed automatically, on port 8080 where fr24feed and PiAware se
 
 All candidates are probed at the same time, and the first one in that order that answers wins. If yours is somewhere else, type the full URL yourself.
 
-Ten settings live under **Configure** on the integration page. The first is the [units](#units) the figures are given in, which is also asked when you add the station. The update interval is how often the aircraft are read, 15 seconds by default; everything runs on your own network, so a short interval is fine. The statistics interval, 60 seconds by default, is how often the feeder and the decoder's statistics are read. Those are counters and averages over a minute, so reading them every fifteen seconds mostly fills the recorder; a station that only feeds is read at this interval alone. The nearby radius is 10 km, 5.4 NM or 6.2 miles by default and decides what counts as overhead for the **Aircraft nearby** and **Aircraft overhead** entities; ten kilometres is roughly what you can see and hear, while a good receiver reaches many times that. Beside it is the [overhead ceiling](#what-counts-as-overhead), which is empty, and how many days to [keep passages](services.md#passages-of-the-last-days) after the board starts over, 30. Then come [aircraft on the map](dashboards.md#aircraft-on-the-map), [where a flight is going](routes.md) and [what it looks like](photos.md), and all three are off. The last is the [watchlist](watchlist.md), which is empty. A decoder that names no aircraft gets an eleventh, [an aircraft database to download](decoders.md#the-aircraft-database), which is off. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
+Under **Configure** on the integration page:
+
+| Option | Default | What it does |
+|---|---|---|
+| [Units](#units) | As Home Assistant | What heights, speeds and distances are given in. Also asked when you add the station |
+| Update interval | 15 s | How often the aircraft are read. Everything runs on your own network, so a short interval is fine |
+| Statistics interval | 60 s | How often the feeder and the decoder's statistics are read. They are counters and averages over a minute, so reading them more often mostly fills the recorder; a station that only feeds is read at this interval alone |
+| Nearby radius | 10 km, 5.4 NM or 6.2 mi | What counts as nearby and overhead, for **Aircraft nearby**, **Aircraft overhead** and passages. Ten kilometres is roughly what you can see and hear; a good receiver reaches many times that |
+| [Overhead ceiling](#what-counts-as-overhead) | Empty | How high an aircraft may be and still count as overhead |
+| [Keep passages](services.md#passages-of-the-last-days) | 30 days | How long passages are kept after the board starts over at midnight |
+| [Aircraft on the map](dashboards.md#aircraft-on-the-map) | Off | Every aircraft nearby as an entity on Home Assistant's own map |
+| [Look up flight routes](routes.md) | Off | Where a flight is going, asked of a service on the internet |
+| [Look up aircraft photos](photos.md) | Off | A photo of each aircraft, from Planespotters.net |
+| [Watchlist](watchlist.md) | Empty | Aircraft worth knowing about whenever they turn up |
+| [Download an aircraft database](decoders.md#the-aircraft-database) | Off | Only offered when your decoder names no aircraft itself |
+
+The top of the form says where distances are measured from: the antenna position the decoder publishes in `receiver.json`, or the home location of Home Assistant when it publishes none. Moved your station to a different address? Use **Reconfigure** instead of adding it again.
 
 Adding a feeder to a station you set up as receiver-only means adding it as a second entry, which is the same thing you do to add a second or third network later.
 
