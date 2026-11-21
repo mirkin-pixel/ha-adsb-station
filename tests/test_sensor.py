@@ -396,6 +396,10 @@ async def test_reception_sensors(
     assert _state(hass, "messages_accepted") == "2050"
     assert _state(hass, "tracks") == "42"
     assert _state(hass, "single_message_tracks") == "7"
+    # The decoder's total window runs from when it started
+    assert _state(hass, "decoder_started") == (
+        dt_util.utc_from_timestamp(1786040000.0).isoformat()
+    )
     # Kept at the precision it is shown at, so the recorder does not take a
     # new row for every wobble in the decimals nobody sees.
     assert float(_state(hass, "demodulator_load")) == round(
@@ -454,6 +458,7 @@ async def test_reception_without_any_usable_window(
         "tracks",
         "single_message_tracks",
         "demodulator_load",
+        "decoder_started",
     ):
         assert _state(hass, key) == STATE_UNKNOWN, key
     # An absent "accepted" list sums to nothing rather than to zero

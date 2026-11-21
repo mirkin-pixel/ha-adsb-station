@@ -91,6 +91,9 @@
       "single_message_tracks": {
         "default": "mdi:vector-point"
       },
+      "decoder_started": {
+        "default": "mdi:restart"
+      },
       "demodulator_load": {
         "default": "mdi:chip"
       },

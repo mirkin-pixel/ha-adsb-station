@@ -261,6 +261,9 @@
       "single_message_tracks": {
         "name": "Single-message tracks"
       },
+      "decoder_started": {
+        "name": "Decoder started"
+      },
       "demodulator_load": {
         "name": "Demodulator load"
       },

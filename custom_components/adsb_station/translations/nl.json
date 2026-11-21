@@ -261,6 +261,9 @@
       "single_message_tracks": {
         "name": "Tracks met één bericht"
       },
+      "decoder_started": {
+        "name": "Decoder gestart"
+      },
       "demodulator_load": {
         "name": "Demodulatorbelasting"
       },

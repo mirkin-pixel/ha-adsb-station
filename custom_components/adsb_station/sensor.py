@@ -677,6 +677,13 @@ RECEPTION_SENSORS: tuple[AdsbStationReceptionSensorEntityDescription, ...] = (
         value_fn=lambda stats: stats.positions_rejected,
     ),
     AdsbStationReceptionSensorEntityDescription(
+        key="decoder_started",
+        translation_key="decoder_started",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda stats: stats.started,
+    ),
+    AdsbStationReceptionSensorEntityDescription(
         key="demodulator_load",
         translation_key="demodulator_load",
         native_unit_of_measurement=PERCENTAGE,

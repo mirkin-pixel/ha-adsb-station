@@ -64,6 +64,7 @@ En, als je ontvanger ook `stats.json` aanbiedt, de gezondheid van je ontvangst:
 | Tracks | Sensor (diagnostisch) | Vliegtuigtracks gestart in het venster |
 | Tracks met één bericht | Sensor (diagnostisch) | Tracks die nooit een tweede bericht kregen; een hoog aandeel wijst op slechte decodering |
 | Demodulatorbelasting | Sensor (%, diagnostisch) | Hoeveel CPU-tijd de decoder aan demoduleren besteedde |
+| Decoder gestart | Sensor (tijdstempel, diagnostisch) | Wanneer de decoder voor het laatst startte, uit stats.json; hij verandert alleen bij een herstart, dus een decoder die steeds herstart zie je hier |
 | Gain | Sensor (dB) | De gain waarop de dongle draait. Wordt alleen aangemaakt als de decoder die meldt |
 | Foutratio berichten | Sensor (%, diagnostisch) | Aandeel Mode S-berichten dat niet te decoderen was. Onbekend in een minuut zonder verkeer, want dan is er niets om een aandeel van te nemen |
 | Vliegtuigen via ADS-B | Sensor | Vliegtuigen die je hun eigen positie hoort uitzenden |
