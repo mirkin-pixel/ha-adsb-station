@@ -161,6 +161,8 @@ TAR1090_PORT = 8504
 
 DEFAULT_SCAN_INTERVAL = 15
 MIN_SCAN_INTERVAL = 5
+# While a card shows the sky, so it moves on fresh positions rather than guesses.
+WATCHED_SCAN_INTERVAL = timedelta(seconds=MIN_SCAN_INTERVAL)
 MAX_SCAN_INTERVAL = 600
 
 # The feeder status and stats.json are per-minute figures, so reading them

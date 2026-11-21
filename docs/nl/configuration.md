@@ -31,7 +31,7 @@ Onder **Configureren** op de integratiepagina:
 | Optie | Standaard | Wat het doet |
 |---|---|---|
 | [Eenheden](#eenheden) | Zoals Home Assistant | Waarin hoogtes, snelheden en afstanden staan |
-| Ververstijd | 15 s | Hoe vaak de vliegtuigen uitgelezen worden. Alles draait op je eigen netwerk, dus een korte tijd kan prima |
+| Ververstijd | 15 s | Hoe vaak de vliegtuigen uitgelezen worden. Alles draait op je eigen netwerk, dus een korte tijd kan prima. Zolang er een stationskaart openstaat elke 5 s, zodat de kaart op verse posities beweegt |
 | Ververstijd statistieken | 60 s | Hoe vaak de feeder en de statistieken van de decoder uitgelezen worden. Dat zijn tellers en gemiddelden over een minuut, dus vaker uitlezen vult vooral de recorder; een station dat alleen feedt wordt alleen op deze tijd uitgelezen |
 | Straal dichtbij | 10 km, 5,4 NM of 6,2 mijl | Wat als dichtbij en overhead telt, voor **Vliegtuigen dichtbij**, **Vliegtuig overhead** en passages. Tien kilometer is ongeveer wat je kunt zien en horen; een goede ontvanger haalt een veelvoud daarvan |
 | [Hoogtegrens overhead](#wat-overhead-precies-betekent) | Leeg | Hoe hoog een vliegtuig mag zijn en nog als overhead telt |

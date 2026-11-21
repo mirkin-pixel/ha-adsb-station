@@ -871,6 +871,12 @@ class AdsbStationCard extends HTMLElement {
   }
 
   connectedCallback() {
+    // Nobody sees a hidden tab: let the sky go, and take it up again on return.
+    this._onVisibility ??= () => {
+      if (document.hidden) this._unsubscribe();
+      else if (this._hass && this._config) this._render();
+    };
+    document.addEventListener("visibilitychange", this._onVisibility);
     if (this._hass && this._config) {
       this._signature = undefined;
       this._render();
@@ -878,6 +884,7 @@ class AdsbStationCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    document.removeEventListener("visibilitychange", this._onVisibility);
     this._unsubscribe();
   }
 
@@ -1041,6 +1048,7 @@ class AdsbStationCard extends HTMLElement {
       found &&
       (this._config.map !== "none" || (this._onlyTable && !this._passages())) &&
       this.isConnected &&
+      !document.hidden &&
       this._hass.connection
         ? found.device
         : null;

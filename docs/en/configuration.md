@@ -31,7 +31,7 @@ Under **Configure** on the integration page:
 | Option | Default | What it does |
 |---|---|---|
 | [Units](#units) | As Home Assistant | What heights, speeds and distances are given in |
-| Update interval | 15 s | How often the aircraft are read. Everything runs on your own network, so a short interval is fine |
+| Update interval | 15 s | How often the aircraft are read. Everything runs on your own network, so a short interval is fine. While a station card is open it is every 5 s, so the map moves on fresh positions |
 | Statistics interval | 60 s | How often the feeder and the decoder's statistics are read. They are counters and averages over a minute, so reading them more often mostly fills the recorder; a station that only feeds is read at this interval alone |
 | Nearby radius | 10 km, 5.4 NM or 6.2 mi | What counts as nearby and overhead, for **Aircraft nearby**, **Aircraft overhead** and passages. Ten kilometres is roughly what you can see and hear; a good receiver reaches many times that |
 | [Overhead ceiling](#what-counts-as-overhead) | Empty | How high an aircraft may be and still count as overhead |
