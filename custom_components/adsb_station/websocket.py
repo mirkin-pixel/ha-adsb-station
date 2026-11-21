@@ -20,6 +20,7 @@ from .const import DOMAIN, MAX_PLAUSIBLE_RANGE
 from .coordinator import (
     AdsbStationDataUpdateCoordinator,
     aircraft_attributes,
+    async_watch,
     sky_signal,
     traffic_kind,
 )
@@ -151,9 +152,7 @@ def _subscribe_aircraft(
             websocket_api.event_message(msg["id"], sky(current.runtime_data))
         )
 
-    connection.subscriptions[msg["id"]] = async_dispatcher_connect(
-        hass, sky_signal(entry_id), _send
-    )
+    stop_sending = async_dispatcher_connect(hass, sky_signal(entry_id), _send)
     connection.send_result(msg["id"])
     # Trails and airports go out once; the card keeps them from then on.
     connection.send_message(
@@ -166,6 +165,15 @@ def _subscribe_aircraft(
             },
         )
     )
+    # Only now, so the faster polls it starts follow the result and the sky.
+    unwatch = async_watch(hass, entry_id)
+
+    @callback
+    def _unsubscribe() -> None:
+        stop_sending()
+        unwatch()
+
+    connection.subscriptions[msg["id"]] = _unsubscribe
 
 
 # Untyped for the same reason as the subscription's schema.

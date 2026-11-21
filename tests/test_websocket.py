@@ -22,6 +22,7 @@ from custom_components.adsb_station.const import (
     CONF_UNITS,
     DEFAULT_SCAN_INTERVAL,
     ROUTESET_URL,
+    WATCHED_SCAN_INTERVAL,
 )
 from custom_components.adsb_station.websocket import LOOK_UP_ROUTE, SUBSCRIBE_AIRCRAFT
 
@@ -170,6 +171,45 @@ async def test_the_sky_follows_a_station_reloaded_under_it(
         sky = (await client.receive_json())["event"]
     assert sky["units"] == "nautical"
     assert sky["aircraft"]
+
+
+async def test_a_card_on_screen_polls_faster(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the watched pace while a card follows, kept over a reload, and dropped."""
+    set_responses(aioclient_mock)
+    assert await setup_integration(hass, mock_config_entry)
+    normal = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
+    assert mock_config_entry.runtime_data.update_interval == normal
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {
+            "type": SUBSCRIBE_AIRCRAFT,
+            "device_id": _station_device(hass, mock_config_entry),
+        }
+    )
+    subscription = (await client.receive_json())["id"]
+    await hass.async_block_till_done()
+    assert mock_config_entry.runtime_data.update_interval == WATCHED_SCAN_INTERVAL
+
+    # A reload brings a new coordinator, and the card still follows
+    hass.config_entries.async_update_entry(
+        mock_config_entry, options={CONF_UNITS: "nautical"}
+    )
+    await hass.async_block_till_done()
+    assert mock_config_entry.runtime_data.update_interval == WATCHED_SCAN_INTERVAL
+
+    await client.send_json_auto_id(
+        {"type": "unsubscribe_events", "subscription": subscription}
+    )
+    async with asyncio.timeout(5):
+        while "success" not in (await client.receive_json()):
+            pass
+    assert mock_config_entry.runtime_data.update_interval == normal
 
 
 async def test_an_unknown_device_is_an_error(

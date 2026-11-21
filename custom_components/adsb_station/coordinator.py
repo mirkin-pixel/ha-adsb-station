@@ -12,12 +12,13 @@ from typing import Any, Final, Protocol
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
+from homeassistant.util.hass_dict import HassKey
 from homeassistant.util.location import distance
 
 from .aircraft_db import database_of
@@ -85,6 +86,7 @@ from .const import (
     TRAFFIC_MILITARY,
     TRAFFIC_OTHER,
     UNSET_RECEIVER_VERSION,
+    WATCHED_SCAN_INTERVAL,
     WATCHLIST_COUNTRY,
     WATCHLIST_HELICOPTER,
     WATCHLIST_HEX,
@@ -723,6 +725,34 @@ def connectors_signal(entry_id: str) -> str:
     return f"{DOMAIN}_connectors_{entry_id}"
 
 
+# How many cards follow each entry; by entry, as a reload replaces the coordinator.
+WATCHERS: HassKey[dict[str, int]] = HassKey(f"{DOMAIN}_watchers")
+
+
+@callback
+def async_watch(hass: HomeAssistant, entry_id: str) -> CALLBACK_TYPE:
+    """Poll faster while a card follows the entry; return how to stop."""
+    watchers = hass.data.setdefault(WATCHERS, {})
+    watchers[entry_id] = watchers.get(entry_id, 0) + 1
+    _apply_watchers(hass, entry_id)
+
+    @callback
+    def unwatch() -> None:
+        watchers[entry_id] -= 1
+        if not watchers[entry_id]:
+            del watchers[entry_id]
+        _apply_watchers(hass, entry_id)
+
+    return unwatch
+
+
+@callback
+def _apply_watchers(hass: HomeAssistant, entry_id: str) -> None:
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is not None and entry.state is ConfigEntryState.LOADED:
+        entry.runtime_data.async_set_watched(entry_id in hass.data[WATCHERS])
+
+
 def sky_signal(entry_id: str) -> str:
     """Return what is sent after every poll, for the cards following an entry.
 
@@ -845,6 +875,9 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             ),
         )
         self.client = client
+        self._scan_interval = self.update_interval
+        if config_entry.entry_id in hass.data.get(WATCHERS, {}):
+            self.async_set_watched(True)
         # None until the first poll, which always reads them.
         self._statistics_read_at: datetime | None = None
         # Empty if the tables could not be read; that costs only names.
@@ -1365,6 +1398,24 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
         ]:
             del self.passages[hex_code]
         self.passage_log.note(passage_entry(passage) for passage in in_view)
+
+    @callback
+    def async_set_watched(self, watched: bool) -> None:
+        """Poll at the watched pace while a card follows, and back after.
+
+        From the next poll on: one asked for now would cross the sky the card
+        is about to get.
+        """
+        if not self.client.aircraft_url or self._scan_interval is None:
+            return
+        interval = (
+            min(self._scan_interval, WATCHED_SCAN_INTERVAL)
+            if watched
+            else self._scan_interval
+        )
+        if interval == self.update_interval:
+            return
+        self.update_interval = interval
 
     def remembered(self) -> timedelta:
         """Return how long a passage stays in memory after it was last seen.
