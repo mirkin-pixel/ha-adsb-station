@@ -34,7 +34,9 @@ from custom_components.adsb_station.route import (
     FlightRoute,
     RouteLookup,
     RouteLookupError,
+    _routeset_route,
     build_route_lookup,
+    on_leg,
     route_attributes,
     route_points,
 )
@@ -621,3 +623,90 @@ async def test_where_the_airports_are(
         )
         is None
     )
+
+
+# A flight number of several legs, as routeset gives Southwest's.
+DALLAS = Airport(
+    iata="DAL",
+    icao="KDAL",
+    name=None,
+    location="Dallas",
+    latitude=32.85,
+    longitude=-96.85,
+)
+PHOENIX = Airport(
+    iata="PHX",
+    icao="KPHX",
+    name=None,
+    location="Phoenix",
+    latitude=33.43,
+    longitude=-112.01,
+)
+LAS_VEGAS = Airport(
+    iata="LAS",
+    icao="KLAS",
+    name=None,
+    location="Las Vegas",
+    latitude=36.08,
+    longitude=-115.15,
+)
+THREE_LEGS = FlightRoute(origin=DALLAS, destination=LAS_VEGAS, stops=(PHOENIX,))
+
+
+@pytest.mark.parametrize(
+    ("position", "track", "leg"),
+    [
+        # Just out of Dallas, westbound: the first leg, not Dallas to Las Vegas
+        ((32.9, -97.5), 270.0, "DAL-PHX"),
+        # Halfway to Phoenix
+        ((33.2, -104.0), 275.0, "DAL-PHX"),
+        # Just out of Phoenix, heading north-west
+        ((33.8, -112.4), 315.0, "PHX-LAS"),
+        # Fifty kilometres short of Phoenix, still coming in
+        ((33.35, -111.5), 280.0, "DAL-PHX"),
+        # Fifty kilometres past it, on the way to Las Vegas
+        ((33.75, -112.4), 320.0, "PHX-LAS"),
+    ],
+)
+def test_the_leg_an_aircraft_is_on(
+    position: tuple[float, float], track: float, leg: str
+) -> None:
+    """Test that the leg flown is told from where the aircraft is and heads."""
+    route = on_leg(THREE_LEGS, position, track)
+    assert route is not None
+    assert route.label == leg
+    assert route.stops == ()
+
+
+def test_a_route_without_stops_or_a_position_is_left_as_it_is() -> None:
+    """Test that only a flight number of several legs with a position changes."""
+    plain = FlightRoute(origin=DALLAS, destination=PHOENIX)
+    assert on_leg(plain, (33.0, -100.0), 270.0) is plain
+    assert on_leg(THREE_LEGS, None, 270.0) is THREE_LEGS
+    unplaced = FlightRoute(
+        origin=DALLAS,
+        destination=LAS_VEGAS,
+        stops=(Airport(iata="PHX", icao=None, name=None, location=None),),
+    )
+    assert on_leg(unplaced, (33.0, -100.0), 270.0) is unplaced
+
+
+def test_the_stops_of_a_flight_number_are_kept() -> None:
+    """Test that the airports in between are kept rather than dropped."""
+    gothenburg, amsterdam = ROUTESET_ANSWER[0]["_airports"]
+    oslo = {
+        "iata": "OSL",
+        "icao": "ENGM",
+        "location": "Oslo",
+        "lat": 60.19,
+        "lon": 11.1,
+    }
+    answer = {
+        **ROUTESET_ANSWER[0],
+        "airport_codes": "ENGM-ESGG-EHAM",
+        "_airports": [oslo, gothenburg, amsterdam],
+    }
+    route = _routeset_route(answer)
+    assert route is not None
+    assert route.label == "OSL-AMS"
+    assert [stop.code for stop in route.stops] == ["GOT"]

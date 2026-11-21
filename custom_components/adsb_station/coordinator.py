@@ -105,7 +105,13 @@ from .reference import (
     normalise,
     watch_value,
 )
-from .route import FlightPosition, FlightRoute, build_route_lookup, route_attributes
+from .route import (
+    FlightPosition,
+    FlightRoute,
+    build_route_lookup,
+    on_leg,
+    route_attributes,
+)
 from .sightings import Sightings
 from .trails import SkyTrails
 from .units import Units, converted, unit_attributes, units_of
@@ -1649,6 +1655,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         def filled(summary: AircraftSummary) -> AircraftSummary:
             if (route := routes.get(summary.flight or "")) is not None:
+                route = on_leg(route, summary.position, summary.track)
                 summary = replace(summary, route=route)
             # Not under a PIA address: it is reused, so the photo could be of
             # another airframe.
