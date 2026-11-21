@@ -3,8 +3,10 @@
 This file is for people working on the integration. If you are looking for how
 to install or configure it, that is the [README](README.md), which is the page
 the Marketplace shows (HACS before Home Assistant 2026.11), and [`docs/`](docs), which holds a page per subject in English and
-Dutch. Both languages are kept side by side: a change to one belongs in the
-other, and the README stays short enough to stand on its own. If you do not
+Dutch. The README is in English and short enough to stand on its own; each
+docs folder opens on a README of its own, the Dutch one being where the
+README's link leads. Both languages are kept side by side: a change to one
+belongs in the other. If you do not
 write Dutch, put your English text in the Dutch page as well and say so in the
 pull request; it is translated before the merge.
 
@@ -184,7 +186,8 @@ region, because that is all Home Assistant's language is matched on here: a
   part needs a native or daily speaker more than any other.
 
 **Not part of a translation:** the pages under `docs/` and the README. They are
-fourteen pages per language and are kept in English and Dutch only.
+fifteen pages per language, an index among them, and are kept in English and
+Dutch only.
 
 The checks in [Checks](#checks) tell you whether what is there fits, and
 `python scripts/translation_status.py` what is still left, before you open the

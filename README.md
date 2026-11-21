@@ -4,20 +4,18 @@
 [![GitHub release](https://img.shields.io/github/v/release/mirkin-pixel/ha-adsb-station?style=for-the-badge)](https://github.com/mirkin-pixel/ha-adsb-station/releases)
 [![Sponsor](https://img.shields.io/badge/Sponsor-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/mirkin-pixel)
 
-[English](#english) | [Nederlands](#nederlands)
+**See what your own antenna hears, in Home Assistant. No cloud, no account, no API key.**
 
----
-
-## English
-
-Custom integration for [Home Assistant](https://www.home-assistant.io/) that reads **your own ADS-B receiver**: what your antenna hears, on your own network. No cloud account, no API key, no rate limits, and it keeps working when the internet is down.
+🇳🇱 [Nederlandstalige documentatie](docs/nl)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-map-dark.png">
-  <img src="docs/images/card-map-light.png" alt="The station card on a map: aircraft around a station between Schiphol and Utrecht, each in the colour of its height with the trail of the last five minutes, a KLM Boeing 737-800 overhead on its way in to Schiphol, a Transavia tapped with its route and where it passes closest, the aircraft nearby, and the station's figures as badges on top" width="880">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-dark.gif">
+  <img src="docs/images/card-light.gif" alt="The station card on a map: aircraft around a made-up station between Schiphol and Utrecht move along their trails in the colour of their height; a Transavia is tapped and shows its route from Faro to Amsterdam, its height, speed and distance, and that it passes 2.1 km away in two minutes" width="640">
 </picture>
 
-What you get:
+ADS-B Station reads the ADS-B receiver you run yourself, on your own network, and keeps working when the internet is down. It does not matter which network you feed, or whether you feed one at all.
+
+## What you get
 
 - **Sensors for your station**: aircraft received, message rate, signal and noise, the closest, highest and fastest aircraft, range records in eight directions, and the feed status of each network.
 - **A dashboard card** with a radar or a map, trails, routes and photos, the aircraft nearby and a board of what came over.
@@ -25,9 +23,22 @@ What you get:
 - **Questions out loud**: ten for Assist, and the same as tools for an AI assistant.
 - **Local by default**: routes and photos are the only things fetched from the internet, and only once you switch them on.
 
-The integration polls the `aircraft.json` of your decoder and, if you run one, the `monitor.json` status page of `fr24feed` next to it. There are two exceptions to staying on your own network, both off unless you turn them on, and each has a section of its own: [where a flight is going](docs/en/routes.md) and [what it looks like](docs/en/photos.md) are the things your antenna cannot hear.
+## Get started
 
-It is not tied to a single network. Anything that serves an `aircraft.json` works, so it does not matter whether you feed Flightradar24, FlightAware, Plane Finder, several of them at once, or nothing at all:
+You need Home Assistant 2025.7 or newer, and a decoder that serves an `aircraft.json` on your network: readsb, dump1090-fa, or the one inside fr24feed.
+
+1. **Install.** Open the repository in the Marketplace (HACS before Home Assistant 2026.11) and click **Download**, then restart when Home Assistant asks.
+
+   [![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
+
+2. **Add your station.** Under **Settings → Devices & services → Add integration**, choose **ADS-B Station**, then **Search this host for feeders** and type the address of your receiver. The decoder's `aircraft.json` is found for you. Feed several networks? Add one entry per feeder, with the decoder on just one of them; see [Configuration](docs/en/configuration.md).
+3. **Put the card on a dashboard.** Edit a dashboard, add a card and pick **ADS-B Station**; see [Dashboards](docs/en/dashboards.md).
+
+No Marketplace? Copy `custom_components/adsb_station` into the `custom_components` folder of your configuration and restart.
+
+## What it works with
+
+Anything that serves an `aircraft.json`:
 
 | Decoder | What you get |
 |---|---|
@@ -36,7 +47,7 @@ It is not tied to a single network. Anything that serves an `aircraft.json` work
 | dump1090, dump1090-mutability | The receiver entities its build reports |
 | The dump1090 fork bundled with fr24feed | The receiver entities that fork reports |
 
-On top of the decoder it reads the feeders themselves, each of which serves a status page of its own on your network:
+On top of the decoder it reads the feeders that keep a status page on your network, each as a device of its own:
 
 | Feeder | Network | Status page |
 |---|---|---|
@@ -44,194 +55,46 @@ On top of the decoder it reads the feeders themselves, each of which serves a st
 | PiAware | FlightAware | `:8080/status.json` |
 | `pfclient` | Plane Finder | `:30053/ajax/stats` |
 
-A station commonly feeds several networks off one decoder, and that is how this is meant to be set up: **one entry per feeder**, each its own device, with the decoder attached to just one of them. The aircraft figures then exist once and every network has its own feed status. A station that feeds nowhere at all works too: set up the receiver on its own.
-
 <img src="docs/images/entries.png" alt="Three entries of one station: fr24feed with the decoder attached, PiAware and Plane Finder, each its own device" width="600">
 
-<img src="docs/images/device.png" alt="The sensors of one station: range records per compass sector, message rate, closest, highest and fastest aircraft, feed status and passages today" width="260" align="right">
-
-What you get is a proper device with translated entity names and a config flow, and figures that are awkward to arrive at by hand: the number of aircraft received, the message rate, and the maximum range measured from your antenna.
-
-### Documentation
-
-Everything else lives in [`docs/en`](docs/en), a page at a time:
+## Documentation
 
 | | |
 |---|---|
 | [Entities](docs/en/entities.md) | Every entity, what it means and where it comes from |
 | [Feeders](docs/en/feeders.md) | What each feeder adds, and where your antenna is blocked |
 | [Which decoder](docs/en/decoders.md) | What each decoder can tell you, the aircraft database, and the names this integration ships |
-| [Configuration](docs/en/configuration.md) | Setting a station up, and what counts as overhead |
+| [Configuration](docs/en/configuration.md) | Setting a station up, its options, and what counts as overhead |
 | [Where a flight is going](docs/en/routes.md) | A figure that cannot come off your own network |
-| [What it looks like](docs/en/photos.md) | A photo of each aircraft overhead, credited as the photographer asks |
+| [What it looks like](docs/en/photos.md) | A photo of each aircraft, credited as the photographer asks |
 | [When something comes over](docs/en/passages.md) | Passages, the board, and seeing an aircraft coming before it is here |
 | [A list worth watching](docs/en/watchlist.md) | Aircraft worth knowing about whenever they turn up |
 | [Asking a question](docs/en/services.md) | The actions that answer, with response data |
 | [Asking out loud](docs/en/voice.md) | Ten questions for Assist, and tools for AI assistants, answered from your own roof |
-| [Dashboards](docs/en/dashboards.md) | The card that comes with the integration, and others to build, including the map |
+| [Dashboards](docs/en/dashboards.md) | The card that comes with the integration, and others to build |
 | [Example automations](docs/en/automations.md) | Notifications, announcements and what to trigger on |
 | [About the endpoints](docs/en/endpoints.md) | What is read, how often, and what it costs |
 | [Troubleshooting](docs/en/troubleshooting.md) | When something is not there, what it cannot do, and removing it |
 
-### Installation
+## Languages
 
-Requires Home Assistant 2025.7 or newer, and a decoder that serves an `aircraft.json` on your network: readsb, dump1090-fa, or the one inside fr24feed. The feeders are optional. Before 2026.3, Home Assistant shows a generic icon in place of the integration's own; everything else is the same.
+The integration speaks English and Dutch: the entity names and the setup, and the answers it gives out loud. Home Assistant shows English for any other language. A translation is welcome, and the first part of it is a single file to fill in. [Offer one here](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=new_language.yml); the issue says what is involved.
 
-Use this link to directly go to the repository in Marketplace
+## Upgrading
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
+From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised is in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises). An update asks for a restart; reload the browser afterwards so the cards are the new ones too.
 
-_or_
+## Development
 
-#### Via Marketplace
-
-On Home Assistant before 2026.11 the Marketplace is the separate HACS; the steps are the same.
-
-1. Open **Settings → Marketplace** in Home Assistant.
-2. Search for **ADS-B Station** and click **Download**.
-3. Add it under **Settings → Devices & services → Add integration**. If Home Assistant asks for a restart first, restart it.
-
-#### Manual
-
-1. Copy the `custom_components/adsb_station` folder into the `custom_components` folder of your Home Assistant configuration.
-2. Restart Home Assistant.
-
-### Languages
-
-The integration speaks English and Dutch: the entity names and the setup, and the answers it gives out loud through Assist. Home Assistant shows English for any other language. A translation is welcome, and the first part of it is a single file to fill in. [Offer one here](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=new_language.yml); the issue says what is involved.
-
-### Upgrading
-
-From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised, and what may still change, is in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises). An update asks for a restart, because the integration's code is running; reload the browser afterwards so the cards are the new ones too.
-
-### Development
-
-Working on the integration itself is covered in [CONTRIBUTING.md](CONTRIBUTING.md): how to set up, the three checks that are the whole of what CI can tell you about the code, how the code is laid out, and how a release is cut. It needs Python 3.14 or newer and nothing else: no Home Assistant installation of your own.
+Working on the integration itself is covered in [CONTRIBUTING.md](CONTRIBUTING.md). It needs Python 3.14 or newer and nothing else: no Home Assistant installation of your own.
 
 ```bash
 pip install -r requirements_test.txt
 scripts/check.sh          # or scripts\check.ps1
 ```
 
-### Support
+## Support
 
 If this integration is useful to you, you can [sponsor its development](https://github.com/sponsors/mirkin-pixel) on GitHub. It stays free and complete either way.
 
-### Disclaimer
-
 This is an unofficial integration and is not affiliated with Flightradar24, FlightAware or Plane Finder. Use at your own risk.
-
----
-
-## Nederlands
-
-Custom integration voor [Home Assistant](https://www.home-assistant.io/) die **je eigen ADS-B-ontvanger** uitleest: wat je antenne hoort, op je eigen netwerk. Geen cloudaccount, geen API-sleutel, geen limieten, en hij blijft werken als het internet eruit ligt.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-map-dark-nl.png">
-  <img src="docs/images/card-map-light-nl.png" alt="De stationskaart op een landkaart: vliegtuigen rond een station tussen Schiphol en Utrecht, elk in de kleur van zijn hoogte met het spoor van de laatste vijf minuten, een KLM Boeing 737-800 overhead op weg naar Schiphol, een aangetikte Transavia met zijn route en waar hij het dichtst langskomt, de vliegtuigen dichtbij en de cijfers van het station als badges bovenaan" width="880">
-</picture>
-
-Wat je krijgt:
-
-- **Sensoren voor je station**: ontvangen vliegtuigen, berichten per seconde, signaal en ruis, het dichtstbijzijnde, hoogste en snelste vliegtuig, bereikrecords in acht richtingen, en de feedstatus van elk netwerk.
-- **Een dashboardkaart** met een radar of een landkaart, sporen, routes en foto's, de vliegtuigen dichtbij en een bord van wat er overkwam.
-- **Events om op te automatiseren**: een vliegtuig dat zo overkomt, een van je watchlist, een in nood, een nieuw record.
-- **Hardop vragen**: tien voor Assist, en dezelfde als hulpmiddel voor een AI-assistent.
-- **Standaard lokaal**: routes en foto's zijn het enige dat van internet komt, en alleen als je ze aanzet.
-
-De integratie leest de `aircraft.json` van je decoder uit en, als je die draait, de statuspagina `monitor.json` van `fr24feed` ernaast. Er zijn twee uitzonderingen waarbij iets je netwerk verlaat. Die staan allebei uit tenzij je ze aanzet, en elk heeft een eigen hoofdstuk: [waar een vlucht heen gaat](docs/nl/routes.md) en [hoe hij eruitziet](docs/nl/photos.md) zijn wat je antenne niet kan horen.
-
-De integratie zit niet vast aan één netwerk. Alles wat een `aircraft.json` aanbiedt werkt, dus het maakt niet uit of je aan Flightradar24, FlightAware of Plane Finder voedt, aan meerdere tegelijk, of aan niets:
-
-| Decoder | Wat je krijgt |
-|---|---|
-| readsb of tar1090, ook binnen Ultrafeeder | Alle ontvanger-entiteiten, en daarvan de meeste; zie [Welke decoder](docs/nl/decoders.md) |
-| dump1090-fa of SkyAware | Alle ontvanger-entiteiten |
-| dump1090, dump1090-mutability | De ontvanger-entiteiten die deze build meldt |
-| De dump1090-fork die fr24feed meelevert | De ontvanger-entiteiten die die fork meldt |
-
-Bovenop de decoder leest de integratie de feeders zelf uit, die elk hun eigen statuspagina op je netwerk aanbieden:
-
-| Feeder | Netwerk | Statuspagina |
-|---|---|---|
-| `fr24feed` | Flightradar24 | `:8754/monitor.json` |
-| PiAware | FlightAware | `:8080/status.json` |
-| `pfclient` | Plane Finder | `:30053/ajax/stats` |
-
-Een station voedt vaak meerdere netwerken vanaf één decoder, en zo is dit ook bedoeld: **één entry per feeder**, elk een eigen apparaat, met de decoder aan precies één ervan gekoppeld. Dan bestaan de vliegtuigcijfers één keer en heeft elk netwerk zijn eigen feedstatus. Een station dat nergens aan voedt kan ook: dan zet je alleen de ontvanger op.
-
-<img src="docs/images/entries.png" alt="Drie entries van één station: fr24feed met de decoder eraan, PiAware en Plane Finder, elk een eigen apparaat" width="600">
-
-<img src="docs/images/device.png" alt="De sensoren van een station: bereikrecords per windrichting, berichten per seconde, dichtstbijzijnde, hoogste en snelste vliegtuig, feedstatus en passages vandaag" width="260" align="right">
-
-Wat je krijgt is een echt apparaat met vertaalde entiteitsnamen en een configuratieflow, en cijfers waar je met de hand lastig aan komt: het aantal ontvangen vliegtuigen, het aantal berichten per seconde en het maximale bereik gemeten vanaf je antenne.
-
-### Documentatie
-
-Al het andere staat in [`docs/nl`](docs/nl), één pagina per onderwerp:
-
-| | |
-|---|---|
-| [Entiteiten](docs/nl/entities.md) | Elke entiteit, wat hij betekent en waar hij vandaan komt |
-| [Feeders](docs/nl/feeders.md) | Wat elke feeder toevoegt, en waar je antenne geblokkeerd zit |
-| [Welke decoder](docs/nl/decoders.md) | Wat elke decoder kan vertellen, de vliegtuigdatabase, en de namen die meegeleverd worden |
-| [Configuratie](docs/nl/configuration.md) | Een station opzetten, en wat overhead precies betekent |
-| [Waar een vlucht heen gaat](docs/nl/routes.md) | Een gegeven dat niet van je eigen netwerk kan komen |
-| [Hoe hij eruitziet](docs/nl/photos.md) | Een foto van elk vliegtuig overhead, met de naam van de fotograaf erbij |
-| [Als er iets overkomt](docs/nl/passages.md) | Passages, het bord, en een toestel zien aankomen voordat het er is |
-| [Een lijst om in de gaten te houden](docs/nl/watchlist.md) | Toestellen die je wilt weten zodra ze opduiken |
-| [Iets vragen](docs/nl/services.md) | De acties die antwoorden, met antwoordgegevens |
-| [Hardop vragen](docs/nl/voice.md) | Tien vragen voor Assist, en hulpmiddelen voor AI-assistenten, beantwoord vanaf je eigen dak |
-| [Dashboards](docs/nl/dashboards.md) | De kaart die met de integratie meekomt, en andere om te bouwen, inclusief de kaart |
-| [Voorbeeldautomatiseringen](docs/nl/automations.md) | Meldingen, aankondigingen en waarop je triggert |
-| [Over de endpoints](docs/nl/endpoints.md) | Wat er gelezen wordt, hoe vaak, en wat het kost |
-| [Problemen oplossen](docs/nl/troubleshooting.md) | Als er iets niet is, wat hij niet kan, en verwijderen |
-
-### Installatie
-
-Vereist Home Assistant 2025.7 of nieuwer, en een decoder die een `aircraft.json` op je netwerk aanbiedt: readsb, dump1090-fa, of die in fr24feed. De feeders zijn optioneel. Vóór 2026.3 toont Home Assistant een algemeen icoon in plaats van het eigen icoon van de integratie; verder is alles hetzelfde.
-
-Gebruik onderstaande link om de repository te bekijken in de Marktplaats
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mirkin-pixel&repository=ha-adsb-station)
-
-_of_
-
-#### Via de Marktplaats
-
-Op Home Assistant vóór 2026.11 is de Marktplaats nog het losse HACS; de stappen zijn hetzelfde.
-
-1. Open **Instellingen → Marktplaats** in Home Assistant.
-2. Zoek naar **ADS-B Station** en klik op **Download**.
-3. Voeg hem toe onder **Instellingen → Apparaten & diensten → Integratie toevoegen**. Vraagt Home Assistant eerst om een herstart, herstart dan.
-
-#### Handmatig
-
-1. Kopieer de map `custom_components/adsb_station` naar de map `custom_components` van je Home Assistant-configuratie.
-2. Herstart Home Assistant.
-
-### Talen
-
-De integratie spreekt Engels en Nederlands: de namen van de entiteiten en de configuratie, en de antwoorden die hij hardop geeft via Assist. Voor elke andere taal toont Home Assistant Engels. Een vertaling is welkom, en het eerste deel ervan is één bestand om in te vullen. [Bied er hier een aan](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=new_language.yml); het issue legt uit wat erbij komt kijken.
-
-### Bijwerken
-
-Vanaf 1.0 breekt een update binnen dezelfde hoofdversie niets van wat je erop gebouwd hebt: entiteits-ID's en hun geschiedenis, attributen, acties en hun antwoorden, en events blijven zoals ze zijn. Wat er precies beloofd wordt, en wat nog wel kan veranderen, staat in [CONTRIBUTING.md](CONTRIBUTING.md#what-a-version-number-promises) (Engels). Een update vraagt om een herstart, omdat de code van de integratie draait; ververs daarna de browser, zodat ook de kaarten de nieuwe zijn.
-
-### Ontwikkeling
-
-Werken aan de integratie zelf staat in [CONTRIBUTING.md](CONTRIBUTING.md) (Engels): hoe je het opzet, de drie controles die alles zijn wat CI je over de code kan vertellen, hoe de code is ingedeeld en hoe een release eruit gaat. Je hebt Python 3.14 of nieuwer nodig en verder niets: geen eigen Home Assistant-installatie.
-
-```bash
-pip install -r requirements_test.txt
-scripts/check.sh          # of scripts\check.ps1
-```
-
-### Steunen
-
-Heb je iets aan deze integratie, dan kun je [de ontwikkeling sponsoren](https://github.com/sponsors/mirkin-pixel) via GitHub. Hij blijft hoe dan ook gratis en compleet.
-
-### Disclaimer
-
-Dit is een onofficiële integratie en is niet gelieerd aan Flightradar24, FlightAware of Plane Finder. Gebruik op eigen risico.
