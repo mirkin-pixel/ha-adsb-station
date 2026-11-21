@@ -288,6 +288,8 @@ class ReceiverStats:
     frequency_error: float | None = None
     positions_decoded: int | None = None
     positions_rejected: int | None = None
+    # When the decoder started: its "total" window runs from then.
+    started: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -298,6 +300,13 @@ class AdsbStationData:
     feeder: dict[str, Any] | None = field(default=None)
     aircraft: AircraftStats | None
     stats: ReceiverStats | None = field(default=None)
+
+
+def _started(total: Any) -> datetime | None:
+    """Return when the decoder started, from the start of its total window."""
+    if not isinstance(total, dict) or (start := _as_float(total.get("start"))) is None:
+        return None
+    return dt_util.utc_from_timestamp(start)
 
 
 def _as_float(value: Any) -> float | None:
@@ -1951,6 +1960,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             positions_rejected=_positions(
                 window, ("global_bad", "global_range", "global_speed")
             ),
+            started=_started(data.get("total")),
         )
 
     @staticmethod

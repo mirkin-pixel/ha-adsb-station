@@ -64,6 +64,7 @@ And, when your receiver also serves `stats.json`, the health of your reception:
 | Tracks | Sensor (diagnostic) | Aircraft tracks started in the window |
 | Single-message tracks | Sensor (diagnostic) | Tracks that never got a second message; a high share points at poor decoding |
 | Demodulator load | Sensor (%, diagnostic) | How much CPU time the decoder spent demodulating |
+| Decoder started | Sensor (timestamp, diagnostic) | When the decoder last started, from stats.json; it only moves on a restart, so a decoder that keeps restarting shows here |
 | Gain | Sensor (dB) | The gain the dongle is running at. Only created when the decoder reports one |
 | Message error rate | Sensor (%, diagnostic) | Share of Mode S messages that failed to decode. Unknown during a minute with no traffic, because there is nothing to take a share of |
 | Aircraft via ADS-B | Sensor | Aircraft heard broadcasting their own position |
