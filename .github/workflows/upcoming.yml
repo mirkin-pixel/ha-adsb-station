@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -69,10 +68,18 @@ jobs:
             exit 0
           fi
           exit "$code"
+      - name: Get a token of the project's bot
+        if: failure()
+        id: bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
       - name: Open or update the issue
         if: failure()
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The project's bot says it, rather than github-actions.
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
           HA: ${{ steps.version.outputs.ha }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
