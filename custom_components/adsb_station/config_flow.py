@@ -108,6 +108,20 @@ def _feeder_unique_id(
     return f"{feeder_type}:{host}:{port}"
 
 
+def _alias(feeder_type: str, payload: dict[str, Any]) -> str:
+    """Return the name fr24feed was given, which the other feeders do not have."""
+    if feeder_type != FEEDER_FR24:
+        return ""
+    return str(payload.get("feed_alias") or "").strip()
+
+
+def _feeder_title(feeder_type: str, host: str, payload: dict[str, Any]) -> str:
+    """Return the entry's title: the fr24feed alias, or the kind and address."""
+    return (
+        _alias(feeder_type, payload) or f"{FEEDERS[feeder_type].default_name} ({host})"
+    )
+
+
 FEEDER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): selector.TextSelector(),
@@ -306,8 +320,6 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
                 "host": self._host,
                 "found": "\n".join(lines),
                 "first": first,
-                "later": ", ".join(FEEDERS[key].model for key, _ in self._found[1:])
-                or "-",
             },
         )
 
@@ -323,6 +335,26 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Add the first of what was found; offer the other feeders as discovered."""
+        if self._found:
+            key, port = self._found[0]
+            payload, error = await self._async_validate_feeder(self._host, port, key)
+            if error is not None:
+                return self.async_abort(reason=error)
+            await self.async_set_unique_id(
+                _feeder_unique_id(key, self._host, port, payload)
+            )
+            self._abort_if_unique_id_configured()
+            self._feeder_type, self._port = key, port
+            self._title = _feeder_title(key, self._host, payload)
+        else:
+            await self.async_set_unique_id(f"{RECEIVER_UNIQUE_ID_PREFIX}{self._host}")
+            self._abort_if_unique_id_configured()
+            self._title = f"{DEFAULT_STATION_NAME} ({self._host})"
+        if self._decoder is not None and (
+            error := await self._async_validate_aircraft(self._decoder)
+        ):
+            return self.async_abort(reason=error)
+        # Only once this one is sure to be added, so nothing waits on a failure.
         for key, port in self._found[1:]:
             self.hass.async_create_task(
                 self.hass.config_entries.flow.async_init(
@@ -335,30 +367,6 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
             )
-        if self._found:
-            key, port = self._found[0]
-            payload, error = await self._async_validate_feeder(self._host, port, key)
-            if error is not None:
-                return self.async_abort(reason=error)
-            await self.async_set_unique_id(
-                _feeder_unique_id(key, self._host, port, payload)
-            )
-            self._abort_if_unique_id_configured()
-            self._feeder_type, self._port = key, port
-            alias = (
-                str(payload.get("feed_alias") or "").strip()
-                if key == FEEDER_FR24
-                else ""
-            )
-            self._title = alias or f"{FEEDERS[key].default_name} ({self._host})"
-        else:
-            await self.async_set_unique_id(f"{RECEIVER_UNIQUE_ID_PREFIX}{self._host}")
-            self._abort_if_unique_id_configured()
-            self._title = f"{DEFAULT_STATION_NAME} ({self._host})"
-        if self._decoder is not None and (
-            error := await self._async_validate_aircraft(self._decoder)
-        ):
-            return self.async_abort(reason=error)
         return self._async_finish(self._decoder)
 
     async def async_step_integration_discovery(
@@ -377,14 +385,9 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             _feeder_unique_id(self._feeder_type, self._host, self._port, payload)
         )
         self._abort_if_unique_id_configured()
-        kind = FEEDERS[self._feeder_type]
-        alias = (
-            str(payload.get("feed_alias") or "").strip()
-            if self._feeder_type == FEEDER_FR24
-            else ""
-        )
-        self._title = alias or f"{kind.default_name} ({self._host})"
-        self.context["title_placeholders"] = {"name": f"{kind.model} ({self._host})"}
+        self._title = _feeder_title(self._feeder_type, self._host, payload)
+        model = FEEDERS[self._feeder_type].model
+        self.context["title_placeholders"] = {"name": f"{model} ({self._host})"}
         return await self.async_step_discovery_confirm()
 
     async def async_step_discovery_confirm(
@@ -428,11 +431,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
             payload, error = await self._async_validate_feeder(host, port, feeder_type)
             if error is None:
                 self._feeder_type = feeder_type
-                alias = (
-                    str(payload.get("feed_alias") or "").strip()
-                    if feeder_type == FEEDER_FR24
-                    else ""
-                )
+                alias = _alias(feeder_type, payload)
                 await self.async_set_unique_id(
                     _feeder_unique_id(feeder_type, host, port, payload)
                 )
@@ -447,7 +446,7 @@ class AdsbStationConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._abort_if_unique_id_configured()
                 self._host = host
                 self._port = port
-                self._title = alias or f"{kind.default_name} ({host})"
+                self._title = _feeder_title(feeder_type, host, payload)
                 return await self.async_step_aircraft()
             errors["base"] = error
 

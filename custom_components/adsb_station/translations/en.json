@@ -13,7 +13,7 @@
       },
       "found": {
         "title": "Found on {host}",
-        "description": "{found}\n\n{first} is added now, with the decoder attached. The other feeders, if any ({later}), then appear under **Discovered**, to add with one click each. Choose by hand if this is not what you want.",
+        "description": "{found}\n\n{first} is added now, with the decoder attached. Any other feeder found then appears under **Discovered**, to add with one click. Choose by hand if this is not what you want.",
         "menu_options": {
           "add": "Add",
           "manual": "Choose by hand"

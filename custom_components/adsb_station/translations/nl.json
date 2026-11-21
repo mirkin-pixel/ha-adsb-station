@@ -13,7 +13,7 @@
       },
       "found": {
         "title": "Gevonden op {host}",
-        "description": "{found}\n\n{first} wordt nu toegevoegd, met de decoder eraan. De andere feeders, als die er zijn ({later}), verschijnen daarna onder **Ontdekt**, om met één klik per stuk toe te voegen. Kies zelf als dit niet is wat je wilt.",
+        "description": "{found}\n\n{first} wordt nu toegevoegd, met de decoder eraan. Elke andere gevonden feeder verschijnt daarna onder **Ontdekt**, om met één klik toe te voegen. Kies zelf als dit niet is wat je wilt.",
         "menu_options": {
           "add": "Toevoegen",
           "manual": "Zelf kiezen"

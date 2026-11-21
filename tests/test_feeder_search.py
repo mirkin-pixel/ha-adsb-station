@@ -260,17 +260,20 @@ async def test_a_discovered_feeder_gone_since_is_not_offered(
 async def test_a_feeder_gone_before_adding_is_said_so(
     hass: HomeAssistant, serving: dict[str, Any]
 ) -> None:
-    """Test an abort that names the reason when the feeder stops answering."""
+    """Test an abort that names the reason, and offers nothing else meanwhile."""
     serving[FEEDER_URL] = MOCK_MONITOR
+    serving[PIAWARE_URL] = MOCK_PIAWARE
     result = await _search(hass)
     del serving[FEEDER_URL]
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "add"}
     )
+    await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "cannot_connect"
+    assert hass.config_entries.flow.async_progress_by_handler(DOMAIN) == []
 
 
 async def test_a_decoder_gone_before_adding_is_said_so(
