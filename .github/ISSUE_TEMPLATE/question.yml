@@ -7,17 +7,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for asking. A question is welcome here, and often ends up
-        as a line in the documentation for the next person. Much is answered
-        there already: the
-        [documentation](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/README.md)
-        has a page per subject, such as
-        [dashboards](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/dashboards.md),
-        [automations](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/automations.md)
-        and [entities](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/entities.md).
+        Thank you for asking. A question is welcome here, and often ends up as a line in the documentation for the next person. Much is answered there already: the [documentation](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/README.md) has a page per subject, such as [dashboards](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/dashboards.md), [automations](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/automations.md) and [entities](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/entities.md).
 
-        If something does not work as it should, the form **Something is not
-        working** asks for what is needed to find the cause.
+        If something does not work as it should, the form **Something is not working** asks for what is needed to find the cause.
 
   - type: textarea
     id: question
