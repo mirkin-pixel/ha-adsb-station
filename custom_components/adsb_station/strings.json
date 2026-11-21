@@ -464,7 +464,7 @@
       "status_stale": {
         "name": "Status page frozen",
         "state": {
-          "off": "Updating",
+          "off": "Up to date",
           "on": "Frozen"
         }
       },
