@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
+from unittest.mock import patch
 
 from homeassistant.core import Event, HomeAssistant
 import pytest
@@ -15,11 +16,15 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
+    CONF_LOOK_UP_PHOTOS,
+    CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     DEFAULT_SCAN_INTERVAL,
     EVENT_AIRCRAFT_APPROACHING,
 )
 from custom_components.adsb_station.coordinator import AircraftSummary, approach_of
+from custom_components.adsb_station.photo import AircraftPhoto, PhotoLookup
+from custom_components.adsb_station.route import Airport, FlightRoute, RouteLookup
 
 from .conftest import set_responses, setup_integration
 from .test_passages import summary
@@ -218,3 +223,45 @@ def test_across_the_date_line() -> None:
     # Straight at it, about 20 km out: not 28,000 km away, nor already past.
     assert metres == pytest.approx(0, abs=50)
     assert seconds == pytest.approx(127, abs=3)
+
+
+async def test_the_warning_says_where_it_flies_and_shows_it(
+    hass: HomeAssistant,
+    freezer: Any,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    warnings: list[Event],
+) -> None:
+    """Test that one about to come over is looked up before it is inside the radius."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={CONF_LOOK_UP_ROUTES: True, CONF_LOOK_UP_PHOTOS: True},
+    )
+    asked: list[str] = []
+    gothenburg = Airport(iata="GOT", icao="ESGG", name=None, location="Gothenburg")
+    schiphol = Airport(iata="AMS", icao="EHAM", name=None, location="Amsterdam")
+
+    async def routes(self: Any, flights: Any) -> dict[str, Any]:
+        asked.extend(flight.callsign for flight in flights)
+        return {"KLM123": FlightRoute(origin=gothenburg, destination=schiphol)}
+
+    async def photos(self: Any, hex_codes: Any) -> dict[str, Any]:
+        return {"484123": AircraftPhoto(src="s", link="l", photographer="p")}
+
+    set_responses(aioclient_mock, aircraft=poll(flying()))
+    with (
+        patch.object(RouteLookup, "async_resolve", routes),
+        patch.object(PhotoLookup, "async_resolve", photos),
+    ):
+        assert await setup_integration(hass, mock_config_entry)
+        await next_poll(hass, freezer)
+        # Both asked at once, in tasks of their own the poll waits for
+        await hass.async_block_till_done(wait_background_tasks=True)
+
+    # Twenty kilometres out, so not nearby: asked for as it comes
+    assert "KLM123" in asked
+    [warning] = warnings
+    assert warning.data["route"] == "GOT-AMS"
+    assert warning.data["destination_location"] == "Amsterdam"
+    assert warning.data["photo"] == "s"

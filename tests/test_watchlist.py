@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
+from unittest.mock import patch
 
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -16,6 +17,7 @@ from pytest_homeassistant_custom_component.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.adsb_station.const import (
+    CONF_LOOK_UP_ROUTES,
     CONF_WATCHLIST,
     DOMAIN,
     EVENT_WATCHLIST_LOST,
@@ -29,6 +31,7 @@ from custom_components.adsb_station.coordinator import (
     watchlist_of,
 )
 from custom_components.adsb_station.reference import kind_of, line_key
+from custom_components.adsb_station.route import Airport, FlightRoute, RouteLookup
 
 from .conftest import set_responses, setup_integration
 
@@ -314,3 +317,31 @@ def test_a_star_makes_another_line() -> None:
     """Test that KLM* is not KLM written another way, as PH-BXA is PHBXA."""
     assert line_key("PH-BXA") == line_key("phbxa")
     assert line_key("KLM*") != line_key("KLM")
+
+
+async def test_a_watched_aircraft_far_away_gets_its_route(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    matches: list[Event],
+) -> None:
+    """Test that a watched aircraft is looked up outside the radius too."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={CONF_WATCHLIST: "KLM123", CONF_LOOK_UP_ROUTES: True},
+    )
+    schiphol = Airport(iata="AMS", icao="EHAM", name=None, location="Amsterdam")
+
+    async def routes(self: Any, flights: Any) -> dict[str, Any]:
+        return {
+            flight.callsign: FlightRoute(origin=None, destination=schiphol)
+            for flight in flights
+        }
+
+    set_responses(aioclient_mock, aircraft=poll(FAR_AWAY))
+    with patch.object(RouteLookup, "async_resolve", routes):
+        assert await setup_integration(hass, mock_config_entry)
+
+    [match] = matches
+    assert match.data["destination_location"] == "Amsterdam"
