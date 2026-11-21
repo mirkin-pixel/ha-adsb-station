@@ -45,7 +45,7 @@ from .repairs import (
     units_issue_id,
     units_placeholders,
 )
-from .sentences import async_check_sentences
+from .sentences import async_check_sentences, async_remove_sentences
 from .services import async_setup_services
 from .sightings import Sightings
 from .units import set_by_hand
@@ -228,6 +228,9 @@ async def async_remove_entry(
     await Sightings(hass, entry.entry_id).async_remove()
     await PassageLog(hass, entry.entry_id, 0).async_remove()
     await Announced(hass, entry.entry_id).async_remove()
+    # Already gone from the list, so none left means this was the last.
+    if not hass.config_entries.async_entries(DOMAIN):
+        await async_remove_sentences(hass)
 
 
 def _ask_about_units_set_by_hand(
