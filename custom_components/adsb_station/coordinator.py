@@ -10,7 +10,7 @@ from math import atan2, cos, degrees, hypot, radians, sin, sqrt
 import sqlite3
 from typing import Any, Final, Protocol
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, issue_registry as ir
@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
 
 from .aircraft_db import database_of
-from .api import AdsbStationClient, AdsbStationError, read_gain
+from .api import AdsbStationClient, AdsbStationError, read_gain, stats_features
 from .const import (
     AIRCRAFT_TYPE_GROUPS,
     APPROACH_HORIZON,
@@ -33,6 +33,7 @@ from .const import (
     CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_MAX_ALTITUDE,
     CONF_PROXIMITY_RADIUS,
+    CONF_RECEIVER_FEATURES,
     CONF_STATISTICS_INTERVAL,
     CONF_UNITS,
     CONF_WATCHLIST,
@@ -1670,7 +1671,30 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
 
         self._check_samples(data)
         self._check_tuner(data)
+        self._note_new_features(data)
         return self._build_receiver_stats(data)
+
+    def _note_new_features(self, data: dict[str, Any]) -> None:
+        """Take on what an upgraded decoder reports now, without a reconfigure.
+
+        Only adding: a field missing from one quiet minute is no reason to drop
+        its sensor. Not while setting up, before the reload listener is there.
+        """
+        entry = self.config_entry
+        if entry.state is not ConfigEntryState.LOADED:
+            return
+        known = set(entry.data.get(CONF_RECEIVER_FEATURES) or ())
+        if not (new := set(stats_features(data)) - known):
+            return
+        _LOGGER.info(
+            "%s reports %s now; adding the sensors for it",
+            self.client.stats_url,
+            ", ".join(sorted(new)),
+        )
+        # The update listener reloads the entry, which creates the sensors.
+        self.hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_RECEIVER_FEATURES: sorted(known | new)}
+        )
 
     def _check_tuner(self, data: dict[str, Any]) -> None:
         """Raise a repair while readsb says the dongle's tuner is a bad one.

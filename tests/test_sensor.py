@@ -1336,3 +1336,46 @@ async def test_feed_status_is_shown_in_words(
     assert all(shown.values()), shown
     # Not the raw value with a capital: each one is a translation.
     assert len(set(shown.values())) == len(FEED_STATUSES)
+
+
+async def test_an_upgraded_decoder_gets_its_sensors(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that a decoder reporting more gets the sensors, with no reconfigure."""
+    set_responses(aioclient_mock, stats=MOCK_STATS)
+    assert await setup_integration(hass, mock_config_entry)
+    registry = er.async_get(hass)
+    gain = f"{MOCK_ALIAS}_gain"
+    assert registry.async_get_entity_id("sensor", DOMAIN, gain) is None
+
+    # fr24feed's own decoder swapped for one that reports its gain
+    set_responses(aioclient_mock, stats=MOCK_STATS_WITH_GAIN)
+    await _poll(hass, freezer, DEFAULT_STATISTICS_INTERVAL + 1)
+    await hass.async_block_till_done()
+
+    assert FEATURE_GAIN in mock_config_entry.data[CONF_RECEIVER_FEATURES]
+    assert float(_state(hass, "gain")) == pytest.approx(EXPECTED_GAIN)
+
+
+async def test_a_quiet_minute_takes_no_sensor_away(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: Any,
+) -> None:
+    """Test that features are only ever added, never dropped."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=mock_config_entry.unique_id,
+        data={**mock_config_entry.data, CONF_RECEIVER_FEATURES: [FEATURE_GAIN]},
+    )
+    set_responses(aioclient_mock, stats=MOCK_STATS_WITH_GAIN)
+    assert await setup_integration(hass, entry)
+
+    set_responses(aioclient_mock, stats=MOCK_STATS)
+    await _poll(hass, freezer, DEFAULT_STATISTICS_INTERVAL + 1)
+
+    assert entry.data[CONF_RECEIVER_FEATURES] == [FEATURE_GAIN]

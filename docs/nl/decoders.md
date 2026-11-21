@@ -1,6 +1,6 @@
 # Welke decoder
 
-Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij meldt wordt bij het instellen gedetecteerd, zodat er geen entiteit wordt aangemaakt die nooit een waarde kan hebben. Dat betekent wel dat de decoder die je draait bepaalt hoeveel je krijgt, en **readsb levert het meest**:
+Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij meldt wordt bij het instellen gedetecteerd, en opnieuw zodra hij meer gaat melden, zodat er geen entiteit wordt aangemaakt die nooit een waarde kan hebben. Dat betekent wel dat de decoder die je draait bepaalt hoeveel je krijgt, en **readsb levert het meest**:
 
 | | dump1090-fork van fr24feed | dump1090-fa / SkyAware | readsb + tar1090 |
 |---|---|---|---|
@@ -14,7 +14,7 @@ Elke decoder levert je de entiteiten hierboven waarvoor hij data heeft; wat hij 
 
 Twee daarvan zijn het benoemen waard. Zonder gain-waarde stem je je dongle blind af, en zonder antennepositie in `receiver.json` wordt het bereik gemeten vanaf de thuislocatie van je Home Assistant-installatie in plaats van vanaf je antenne, wat prima is als dat dezelfde plek is en fout als je ontvanger elders staat.
 
-Draai je nu alleen `fr24feed`, dan kost het vervangen van de meegeleverde dump1090 door readsb je niets en levert het de gain-sensor, de vliegtuigdetails en een echte antennepositie op. **Draai Herconfigureren na een decoder-upgrade** om op te pikken wat hij nu kan.
+Draai je nu alleen `fr24feed`, dan kost het vervangen van de meegeleverde dump1090 door readsb je niets en levert het de gain-sensor, de vliegtuigdetails en een echte antennepositie op. De nieuwe sensoren verschijnen vanzelf, binnen een minuut of zo na de upgrade; je hoeft niets opnieuw te configureren.
 
 ## De vliegtuigdatabase
 
