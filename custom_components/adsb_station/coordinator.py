@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 import logging
@@ -1198,8 +1199,7 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             self._build_aircraft_stats(data),
             gps_interference=self._gps_interference(data["aircraft"]),
         )
-        stats = await self._async_add_routes(stats)
-        stats = await self._async_add_photos(stats)
+        stats = await self._async_add_routes_and_photos(stats)
         # After routes and photos, so the events carry them.
         self._track_passages(stats)
         self._announce_watched(stats)
@@ -1561,11 +1561,45 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             },
         )
 
-    async def _async_add_routes(self, stats: AircraftStats) -> AircraftStats:
-        """Look up the routes of the nearby aircraft only, to spare routeset."""
-        if self.route_lookup is None or not stats.nearby:
+    async def _async_add_routes_and_photos(self, stats: AircraftStats) -> AircraftStats:
+        """Ask for routes and photos at once: a poll waits for the slower only."""
+        if self.route_lookup is None or self.photo_lookup is None:
+            routes, photos = await self._async_routes(stats), {}
+            if self.photo_lookup is not None:
+                photos = await self._async_photos(stats)
+        else:
+            routes, photos = await asyncio.gather(
+                self._async_routes(stats), self._async_photos(stats)
+            )
+        if not routes and not photos:
             return stats
 
+        def filled(summary: AircraftSummary) -> AircraftSummary:
+            # Not under a PIA address: it is reused, so the photo could be of
+            # another airframe.
+            if not summary.pia and (photo := photos.get(summary.hex.lower())):
+                summary = replace(summary, photo=photo)
+            return summary
+
+        return replace(
+            stats,
+            nearby=tuple(
+                filled(
+                    summary
+                    if (route := routes.get(summary.flight or "")) is None
+                    else replace(summary, route=route)
+                )
+                for summary in stats.nearby
+            ),
+            watched=tuple(
+                replace(match, summary=filled(match.summary)) for match in stats.watched
+            ),
+        )
+
+    async def _async_routes(self, stats: AircraftStats) -> dict[str, FlightRoute]:
+        """Look up the routes of the nearby aircraft only, to spare routeset."""
+        if self.route_lookup is None:
+            return {}
         flights = [
             FlightPosition(
                 callsign=summary.flight,
@@ -1576,61 +1610,21 @@ class AdsbStationDataUpdateCoordinator(DataUpdateCoordinator[AdsbStationData]):
             if summary.flight is not None
         ]
         if not flights:
-            return stats
+            return {}
+        return await self.route_lookup.async_resolve(flights)
 
-        routes = await self.route_lookup.async_resolve(flights)
-        if not routes:
-            return stats
-
-        return replace(
-            stats,
-            nearby=tuple(
-                summary
-                if (route := routes.get(summary.flight or "")) is None
-                else replace(summary, route=route)
-                for summary in stats.nearby
-            ),
-        )
-
-    async def _async_add_photos(self, stats: AircraftStats) -> AircraftStats:
-        """Look up photos of the nearby and the watched aircraft.
-
-        Not under a PIA address: it is reused, so the photo could be of
-        another airframe.
-        """
+    async def _async_photos(self, stats: AircraftStats) -> dict[str, AircraftPhoto]:
+        """Look up photos of the nearby and the watched aircraft."""
         if self.photo_lookup is None:
-            return stats
-
+            return {}
         wanted = [
-            summary
-            for summary in (
-                *stats.nearby,
-                *(match.summary for match in stats.watched),
-            )
+            summary.hex
+            for summary in (*stats.nearby, *(match.summary for match in stats.watched))
             if not summary.pia
         ]
         if not wanted:
-            return stats
-
-        photos = await self.photo_lookup.async_resolve(
-            summary.hex for summary in wanted
-        )
-        if not photos:
-            return stats
-
-        def with_photo(summary: AircraftSummary) -> AircraftSummary:
-            if summary.pia or (photo := photos.get(summary.hex.lower())) is None:
-                return summary
-            return replace(summary, photo=photo)
-
-        return replace(
-            stats,
-            nearby=tuple(with_photo(summary) for summary in stats.nearby),
-            watched=tuple(
-                replace(match, summary=with_photo(match.summary))
-                for match in stats.watched
-            ),
-        )
+            return {}
+        return await self.photo_lookup.async_resolve(wanted)
 
     async def _async_get_stats(self) -> ReceiverStats | None:
         """Fetch stats.json, tolerating a receiver that is not reachable."""
