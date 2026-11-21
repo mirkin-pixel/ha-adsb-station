@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
@@ -18,6 +19,7 @@ from custom_components.adsb_station.const import (
     CONF_AIRCRAFT_URL,
     CONF_FEEDER_TYPE,
     CONF_LOOK_UP_PHOTOS,
+    CONF_LOOK_UP_ROUTES,
     CONF_PROXIMITY_RADIUS,
     CONF_STATS_URL,
     CONF_WATCHLIST,
@@ -36,6 +38,7 @@ from custom_components.adsb_station.photo import (
     photo_attributes,
     photographable,
 )
+from custom_components.adsb_station.route import RouteLookup
 from custom_components.adsb_station.websocket import LOOK_UP_PHOTO
 
 from .conftest import (
@@ -482,3 +485,36 @@ async def test_the_passage_board_gets_no_photo_when_they_are_off(
     )
     assert (await client.receive_json())["error"]["code"] == "not_found"
     assert not [call for call in mock_api.mock_calls if "planespotters" in str(call[1])]
+
+
+async def test_routes_and_photos_are_asked_for_at_once(
+    hass: HomeAssistant,
+    photo_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that a poll waits for the slower of the two, not for both in turn."""
+    photo_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        photo_entry, options={**photo_entry.options, CONF_LOOK_UP_ROUTES: True}
+    )
+    set_responses(aioclient_mock)
+    photo_asked = asyncio.Event()
+    met: list[bool] = []
+
+    async def routes(self: Any, flights: Any) -> dict[str, Any]:
+        # Asked one after the other, the photos would wait for this forever.
+        await asyncio.wait_for(photo_asked.wait(), 1)
+        met.append(True)
+        return {}
+
+    async def photos(self: Any, hex_codes: Any) -> dict[str, Any]:
+        photo_asked.set()
+        return {}
+
+    with (
+        patch.object(RouteLookup, "async_resolve", routes),
+        patch.object(PhotoLookup, "async_resolve", photos),
+    ):
+        assert await setup_integration(hass, photo_entry)
+
+    assert met == [True]
