@@ -6,7 +6,7 @@
 
 **See what your own antenna hears, in Home Assistant. No cloud, no account, no API key.**
 
-🇳🇱 [Nederlandstalige documentatie](docs/nl)
+**Nederlands:** [de documentatie in het Nederlands](docs/nl)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-dark.gif">
