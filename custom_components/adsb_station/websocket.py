@@ -25,7 +25,7 @@ from .coordinator import (
     traffic_kind,
 )
 from .photo import photo_attributes
-from .route import FlightPosition, RouteLookupError, route_points
+from .route import FlightPosition, RouteLookupError, on_leg, route_points
 
 SUBSCRIBE_AIRCRAFT = f"{DOMAIN}/subscribe_aircraft"
 LOOK_UP_ROUTE = f"{DOMAIN}/look_up_route"
@@ -229,7 +229,7 @@ async def _look_up_route(
     except RouteLookupError:
         connection.send_result(msg["id"], {"route_points": None, "status": "failed"})
         return
-    points = route_points(route)
+    points = route_points(on_leg(route, summary.position, summary.track))
     connection.send_result(
         msg["id"],
         {"route_points": points, "status": "unknown" if points is None else "found"},

@@ -14,7 +14,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 import logging
-from typing import Any
+import math
+from typing import Any, Final
 
 import aiohttp
 from homeassistant.util import dt as dt_util
@@ -62,6 +63,8 @@ class FlightRoute:
 
     origin: Airport | None
     destination: Airport | None
+    # The airports in between, for a flight number that flies several legs.
+    stops: tuple[Airport, ...] = ()
 
     @property
     def label(self) -> str | None:
@@ -321,11 +324,12 @@ def _routeset_route(item: dict[str, Any]) -> FlightRoute | None:
     ]
     if not airports:
         return None
-    # With a stop on the way, the first and last airports. The airline is not
-    # read: routeset gives only the code, the shipped table gives the name.
+    # The airline is not read: routeset gives only the code, the shipped
+    # table gives the name.
     return FlightRoute(
         origin=airports[0],
         destination=airports[-1] if len(airports) > 1 else None,
+        stops=tuple(airports[1:-1]),
     )
 
 
@@ -346,6 +350,74 @@ def _coordinate(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return float(value)
+
+
+# A leg the aircraft flies away from is only right when no other leg fits.
+_AWAY_PENALTY_KM: Final = 500.0
+
+
+def on_leg(
+    route: FlightRoute | None,
+    position: tuple[float, float] | None,
+    track: float | None,
+) -> FlightRoute | None:
+    """Return the leg an aircraft is on, for a flight number of several legs.
+
+    The one it is nearest to, heading along it; without stops, or without a
+    position or the airports' coordinates to tell by, the route as it is.
+    """
+    if route is None or not route.stops or position is None:
+        return route
+    airports = [route.origin, *route.stops, route.destination]
+    best: tuple[float, int] | None = None
+    for index, (start, end) in enumerate(zip(airports, airports[1:], strict=False)):
+        if (score := _off_leg(start, end, position, track)) is None:
+            return route
+        if best is None or score < best[0]:
+            best = (score, index)
+    assert best is not None
+    return FlightRoute(origin=airports[best[1]], destination=airports[best[1] + 1])
+
+
+def _off_leg(
+    start: Airport | None,
+    end: Airport | None,
+    position: tuple[float, float],
+    track: float | None,
+) -> float | None:
+    """Return how far off a leg an aircraft is, in km, or None if unknown.
+
+    On a flat map around the aircraft, which is close enough at these scales.
+    """
+    if (
+        start is None
+        or end is None
+        or start.latitude is None
+        or start.longitude is None
+        or end.latitude is None
+        or end.longitude is None
+    ):
+        return None
+    latitude, longitude = position
+    scale = math.cos(math.radians(latitude))
+
+    def flat(lat: float, lon: float) -> tuple[float, float]:
+        return ((lon - longitude) * 111.32 * scale, (lat - latitude) * 110.574)
+
+    (ax, ay), (bx, by) = (
+        flat(start.latitude, start.longitude),
+        flat(end.latitude, end.longitude),
+    )
+    dx, dy = bx - ax, by - ay
+    length = dx * dx + dy * dy
+    along = 0.0 if length == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / length))
+    off = math.hypot(ax + along * dx, ay + along * dy)
+    if track is not None:
+        # Heading away from where the leg ends: an angle of more than 90°.
+        heading = (math.sin(math.radians(track)), math.cos(math.radians(track)))
+        if heading[0] * bx + heading[1] * by < 0:
+            off += _AWAY_PENALTY_KM
+    return off
 
 
 def route_points(route: FlightRoute | None) -> dict[str, Any] | None:
