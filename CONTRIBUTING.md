@@ -76,7 +76,8 @@ CI; nothing they check changes on a normal code change.
 Every Thursday, the day after a beta comes out, the **Upcoming Home Assistant**
 workflow installs the newest Home Assistant there is, beta included, and loads
 every module against it, type-checks against it and runs the tests. It opens or
-updates an issue when any of that fails, and can be started by hand as well.
+updates an issue when any of that fails, as the project's own GitHub App (see
+[The reference tables](#the-reference-tables)), and can be started by hand as well.
 The test harness is made for one Home Assistant version and can lag behind;
 when it cannot even start on the newest one, the run says so in its summary
 instead of opening an issue, and loading and type-checking still count.
@@ -153,8 +154,8 @@ itself, and can be started by hand. When the tables changed it opens a pull
 request, or brings the open one up to date, saying per table how many entries
 came, went or changed; when nothing changed it does nothing. The pull request
 comes from the project's own GitHub App, as one opened with a workflow's own
-token gets no checks. The app needs Contents and Pull requests set to read and
-write, installed on this repository only, with its ID and private key stored as
+token gets no checks. The app needs Contents, Pull requests and Issues set to
+read and write, installed on this repository only, with its ID and private key stored as
 the secrets `BOT_APP_ID` and `BOT_PRIVATE_KEY`.
 
 ## Translations
