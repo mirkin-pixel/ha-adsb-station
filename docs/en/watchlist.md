@@ -52,7 +52,7 @@ automation:
 
 The event carries the line that matched, `matched_on` to say which part of the aircraft it hit, and everything else the aircraft attributes carry. One aircraft is one message, however many lines name it, and it is not repeated while the aircraft stays in the air — the same ten minute gap a passage uses. Ten minutes after it drops out, coming back is worth being told about again.
 
-That same moment, ten minutes after it was last heard, fires `adsb_station_watchlist_lost`: the same fields as the match, as the aircraft was last seen, plus `duration`, how many seconds it was in range. It waits those ten minutes so an aircraft that drops out for a moment is not reported gone.
+That same moment, ten minutes after it was last heard, fires `adsb_station_watchlist_lost`: the same fields as the match, as the aircraft was last seen, plus `duration`, how many seconds it was in range. It waits those ten minutes so an aircraft that drops out for a moment is not reported gone. Both are kept over a restart of Home Assistant: an aircraft still up afterwards is not announced a second time, and one that went in the meantime is still reported gone.
 
 Each match, and each departure, also leaves a line in **Activity**, on the station's device page as well, so you can look back at what turned up and how long it stayed without an automation.
 
