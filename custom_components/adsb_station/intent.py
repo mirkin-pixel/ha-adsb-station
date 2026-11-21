@@ -1,4 +1,4 @@
-"""Six spoken questions for Assist, answered from the last poll.
+"""Spoken questions for Assist and AI assistants, answered from the last poll.
 
 The sentences ship as files and must be copied into the configuration
 directory, by hand or with `adsb_station.install_sentences`.
@@ -195,7 +195,10 @@ class TrafficIntent(_AdsbStationIntent):
     """Military traffic, helicopters or drones."""
 
     intent_type = INTENT_TRAFFIC
-    description = "Says whether military traffic, helicopters or drones are in range"
+    description = (
+        "Says whether military traffic, helicopters or drones are in range;"
+        " kind is military, helicopter or drone"
+    )
 
     @property
     def slot_schema(self) -> dict[Any, Any]:
@@ -435,7 +438,15 @@ class AircraftQuestion(_AdsbStationIntent):
     """One aircraft, named by hex code, callsign or registration."""
 
     intent_type = "AdsbStationAircraft"
-    description = "Says what one named aircraft is, where it is and where it is going"
+    description = (
+        "Says what one named aircraft is, where it is and where it is going;"
+        " aircraft is its hex code, callsign or registration"
+    )
+
+    @property
+    def slot_schema(self) -> dict[Any, Any]:
+        """Return what has to be named."""
+        return {"aircraft": cv.string}
 
     def answer(
         self,
@@ -446,7 +457,9 @@ class AircraftQuestion(_AdsbStationIntent):
         slots: dict[str, Any],
     ) -> str:
         """Answer with what it is, where, how high, and its route if known."""
-        wanted = str(slots.get("aircraft", {}).get("value", "")).strip().upper()
+        named = str(slots.get("aircraft", {}).get("value", "")).strip().upper()
+        # "KLM 123" as it is said or written, "KLM123" as it is sent.
+        wanted = named.replace(" ", "")
         # The nearby ones last, so they win: only they carry a route.
         known = {summary.hex: summary for summary in aircraft.heard}
         known.update({summary.hex: summary for summary in aircraft.nearby})
@@ -465,7 +478,7 @@ class AircraftQuestion(_AdsbStationIntent):
             None,
         )
         if found is None:
-            return say(language, "not_heard", aircraft=wanted or "?")
+            return say(language, "not_heard", aircraft=named or "?")
 
         spoken = self.placed(coordinator, found, language, units)
         rate = found.vertical_rate
@@ -524,8 +537,8 @@ QUESTIONS: Final[dict[str, _AdsbStationIntent]] = {
 }
 
 
-# Asked through `adsb_station.speak` only: a callsign is no slot Assist hears
-# reliably, so it has no sentences.
+# Asked through `adsb_station.speak` and AI assistants only: a callsign is no
+# slot Assist hears reliably, so it has no sentences.
 SPEAK_ONLY: Final[dict[str, _AdsbStationIntent]] = {"aircraft": AircraftQuestion()}
 
 
@@ -550,5 +563,5 @@ def answer_question(
 
 async def async_setup_intents(hass: HomeAssistant) -> None:
     """Register what can be asked out loud; the intent component calls this."""
-    for handler in QUESTIONS.values():
+    for handler in (*QUESTIONS.values(), *SPEAK_ONLY.values()):
         intent.async_register(hass, handler)

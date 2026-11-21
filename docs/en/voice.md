@@ -21,7 +21,7 @@ English and Dutch are spoken; a question in any other language is answered in En
 
 *What just flew over?* is for the aircraft you heard and only asked about once it had gone. It names the aircraft whose closest approach is the most recent one behind you, counted from that moment. One still on its way in has not come over yet, so for that one you hear what is overhead now. The station remembers an aircraft for ten minutes after it was last seen, and nothing over a restart, so after ten quiet minutes, or just after a restart, it says it has heard nothing come over.
 
-There are two ways to wire this up, and they end at the same ten answers.
+There are two ways to wire this up, and they end at the same ten answers. An [AI assistant](#an-ai-assistant) gets them without either.
 
 ## An automation, with no files at all
 
@@ -72,3 +72,9 @@ Either way Assist reads its sentences at startup, so run `conversation.reload` o
 The copy does not follow the integration. When an update adds a question, copy the files again, or run `adsb_station.install_sentences` again, and reload; until then Assist knows only the questions of the version you copied.
 
 If two of your entries read an antenna, the first by name answers. Assist is for a quick question; the [services](services.md) are there when it has to be exact.
+
+## An AI assistant
+
+A voice assistant that talks through an AI model, such as OpenAI, Google Gemini, Anthropic or Ollama, with **Assist** ticked in its settings, gets the ten questions as tools, plus one more: what one aircraft you name is, where it is and where it is going, by callsign, registration or hex code. So *"Where is KLM 123 now?"* works there, though Assist itself has no sentence for it. The model picks the question and says the answer in its own words; the numbers come from your receiver, and the tools only read.
+
+This needs no sentence files. From Home Assistant 2026.10 the integration offers the tools itself; before that, Home Assistant handed them over on its own.
