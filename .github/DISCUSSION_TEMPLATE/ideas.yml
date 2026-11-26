@@ -4,11 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. Two things decide most ideas, so they are worth knowing up
-        front: everything is read off your own network, with route lookups as
-        the one opt-in exception, and a figure has to come from something the
-        decoder or a feeder actually reports. An idea that needs a new outside
-        service is not ruled out, but it would be off by default.
+        Thank you. Two things decide most ideas, so they are worth knowing up front: everything is read off your own network, with route lookups as the one opt-in exception, and a figure has to come from something the decoder or a feeder actually reports. An idea that needs a new outside service is not ruled out, but it would be off by default.
 
   - type: textarea
     id: what

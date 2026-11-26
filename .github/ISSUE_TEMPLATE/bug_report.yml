@@ -7,13 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time. Most of what goes wrong comes down to
-        which decoder and feeder a station runs, so the questions below are
-        mostly about that. The
-        [troubleshooting page](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md)
-        covers the usual causes, and is worth a look first. Not sure it is a
-        bug? [Ask in Q&A](https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=q-a)
-        first.
+        Thank you for taking the time. Most of what goes wrong comes down to which decoder and feeder a station runs, so the questions below are mostly about that. The [troubleshooting page](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md) covers the usual causes, and is worth a look first. Not sure it is a bug? [Ask in Q&A](https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=q-a) first.
 
   - type: textarea
     id: what
@@ -70,8 +64,7 @@ body:
     attributes:
       label: Diagnostics
       description: |
-        Settings → Devices & services → ADS-B Station, the three dots, **Download diagnostics**, and drag the file in here.
-        The address of your receiver and your feed alias are already left out of it.
+        Settings → Devices & services → ADS-B Station, the three dots, **Download diagnostics**, and drag the file in here. The address of your receiver and your feed alias are already left out of it.
       placeholder: Drag the downloaded .json file here.
 
   - type: textarea
