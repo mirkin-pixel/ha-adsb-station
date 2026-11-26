@@ -9,6 +9,16 @@ body:
       value: |
         Thank you for taking the time. Most of what goes wrong comes down to which decoder and feeder a station runs, so the questions below are mostly about that. The [troubleshooting page](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md) covers the usual causes, and is worth a look first. Not sure it is a bug? [Ask in Q&A](https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=q-a) first.
 
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preliminary checks
+      options:
+        - label: I searched the existing issues and this has not been reported yet.
+          required: true
+        - label: I am running the latest version of the integration.
+          required: true
+
   - type: textarea
     id: what
     attributes:
@@ -32,6 +42,16 @@ body:
       label: Version of Home Assistant
       description: Settings → About.
       placeholder: "2026.10.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Marketplace (HACS before Home Assistant 2026.11)
+        - Manual
     validations:
       required: true
 
