@@ -11,7 +11,9 @@ body:
         which decoder and feeder a station runs, so the questions below are
         mostly about that. The
         [troubleshooting page](https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md)
-        covers the usual causes, and is worth a look first.
+        covers the usual causes, and is worth a look first. Not sure it is a
+        bug? [Ask in Q&A](https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=q-a)
+        first.
 
   - type: textarea
     id: what
