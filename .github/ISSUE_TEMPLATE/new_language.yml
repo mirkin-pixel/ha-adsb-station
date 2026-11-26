@@ -7,14 +7,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. A translation is welcome in two parts: the entity and
-        config texts on their own are already useful, because the spoken side
-        of the integration falls back to English for a language it does not
-        have. Tick what you intend to do; nothing here is required beyond the
-        first part.
+        Thank you. A translation is welcome in two parts: the entity and config texts on their own are already useful, because the spoken side of the integration falls back to English for a language it does not have. Tick what you intend to do; nothing here is required beyond the first part.
 
-        The page texts under `docs/` are deliberately not on this list. They
-        are fifteen pages per language and are kept in English and Dutch only.
+        The page texts under `docs/` are deliberately not on this list. They are fifteen pages per language and are kept in English and Dutch only.
 
   - type: input
     id: language
