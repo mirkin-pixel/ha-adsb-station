@@ -95,6 +95,8 @@ scripts/check.sh          # or scripts\check.ps1
 
 ## Support
 
+A question or an idea is welcome in [Discussions](https://github.com/mirkin-pixel/ha-adsb-station/discussions), under Q&A or Ideas. Something that does not work goes in an [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=bug_report.yml).
+
 If this integration is useful to you, you can [sponsor its development](https://github.com/sponsors/mirkin-pixel) on GitHub. It stays free and complete either way.
 
 This is an unofficial integration and is not affiliated with Flightradar24, FlightAware or Plane Finder. Use at your own risk.

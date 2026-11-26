@@ -56,3 +56,7 @@ De integratie spreekt Engels en Nederlands: de namen van de entiteiten en de con
 ## Bijwerken
 
 Vanaf 1.0 breekt een update binnen dezelfde hoofdversie niets van wat je erop gebouwd hebt: entiteits-ID's en hun geschiedenis, attributen, acties en hun antwoorden, en events blijven zoals ze zijn. Wat er precies beloofd wordt, staat in [CONTRIBUTING.md](../../CONTRIBUTING.md#what-a-version-number-promises) (Engels). Een update vraagt om een herstart; ververs daarna de browser, zodat ook de kaarten de nieuwe zijn.
+
+## Vragen en ideeën
+
+Stel een vraag of deel een idee in [Discussions](https://github.com/mirkin-pixel/ha-adsb-station/discussions), onder Q&A of Ideas. Iets wat niet werkt hoort in een [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=bug_report.yml), met wat de [pagina over problemen oplossen](troubleshooting.md) vraagt.

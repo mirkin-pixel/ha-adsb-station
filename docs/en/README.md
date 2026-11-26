@@ -56,3 +56,7 @@ The integration speaks English and Dutch: the entity names and the setup, and th
 ## Upgrading
 
 From 1.0 on, an upgrade within the same major version does not break what you built on it: entity IDs and their history, attributes, actions and their responses, and events stay as they are. What exactly is promised is in [CONTRIBUTING.md](../../CONTRIBUTING.md#what-a-version-number-promises). An update asks for a restart; reload the browser afterwards so the cards are the new ones too.
+
+## Questions and ideas
+
+Ask a question or share an idea in [Discussions](https://github.com/mirkin-pixel/ha-adsb-station/discussions), under Q&A or Ideas. Something that does not work goes in an [issue](https://github.com/mirkin-pixel/ha-adsb-station/issues/new?template=bug_report.yml), with what the [troubleshooting page](troubleshooting.md) asks for.

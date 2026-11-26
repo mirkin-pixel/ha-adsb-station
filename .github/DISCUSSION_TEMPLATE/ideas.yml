@@ -1,8 +1,5 @@
-name: An idea
-description: Something the integration could do that it does not do yet.
 title: "<what you would like, in a few words>"
 labels: ["enhancement"]
-assignees: ["mirkin-pixel"]
 body:
   - type: markdown
     attributes:

@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: A question
+    url: https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=q-a
+    about: How to do something, or why it behaves the way it does. Asked and answered in Discussions.
+  - name: An idea
+    url: https://github.com/mirkin-pixel/ha-adsb-station/discussions/new?category=ideas
+    about: Something the integration could do that it does not do yet. Shared and discussed in Discussions.
   - name: Troubleshooting
     url: https://github.com/mirkin-pixel/ha-adsb-station/blob/main/docs/en/troubleshooting.md
     about: The usual reasons an entity is missing or a value looks wrong.
